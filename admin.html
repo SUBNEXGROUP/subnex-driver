@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#101B24">
+<title>SUBNEX Ops — Админка</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#101B24;--ink2:#243441;--paper:#F4F2EC;--card:#FFF;--line:#D9D5CA;
+  --hiviz:#FFC400;--hiviz2:#E5AF00;--ok:#1F9D55;--no:#D64545;--warn:#F0A400;
+  --muted:#66717C;--sign:#0B3B2E;--r:16px;--shadow:0 3px 0 var(--ink);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);
+  font-family:'Inter',system-ui,sans-serif;font-size:15.5px}
+h1,h2,h3{font-family:'Archivo','Inter',sans-serif;font-stretch:88%}
+.hazard{height:10px;background:repeating-linear-gradient(-45deg,var(--hiviz) 0 16px,var(--ink) 16px 32px);
+  border-bottom:2.5px solid var(--ink)}
+header{background:var(--ink);color:#fff;padding:14px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header .brand{font-family:'Archivo';font-weight:900;font-size:20px;text-transform:uppercase;
+  font-stretch:80%;letter-spacing:.01em}
+header .brand span{color:var(--hiviz)}
+header .tag{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:#8C99A6;font-weight:700}
+.wrap{max-width:1100px;margin:0 auto;padding:20px 16px 60px}
+/* tabs */
+.tabs{display:flex;gap:8px;margin:0 0 20px;overflow-x:auto;padding-bottom:3px}
+.tabs button{border:2.5px solid var(--ink);background:var(--card);border-radius:99px;
+  padding:10px 20px;font-weight:800;font-size:13.5px;color:var(--ink);white-space:nowrap;
+  text-transform:uppercase;letter-spacing:.04em;font-family:'Archivo';cursor:pointer;
+  box-shadow:var(--shadow)}
+.tabs button:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
+.tabs button.on{background:var(--ink);color:var(--hiviz)}
+.pane{display:none}
+.pane.active{display:block}
+/* buttons & cards */
+button{font-family:inherit;font-size:15px;cursor:pointer}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  border:2.5px solid var(--ink);border-radius:14px;padding:11px 18px;font-weight:800;
+  font-size:14.5px;box-shadow:var(--shadow);text-transform:uppercase;letter-spacing:.03em;
+  font-family:'Archivo'}
+.btn:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
+.btn-primary{background:var(--hiviz);color:var(--ink)}
+.btn-dark{background:var(--ink);color:#fff}
+.btn-ghost{background:var(--card);color:var(--ink);text-transform:none;letter-spacing:0;font-family:'Inter';font-weight:700}
+.btn-no{background:var(--no);color:#fff}
+.btn.small{padding:7px 12px;font-size:12.5px;border-width:2px;box-shadow:0 2px 0 var(--ink)}
+.card{background:var(--card);border:2px solid var(--ink);border-radius:var(--r);
+  padding:18px;margin-bottom:14px;box-shadow:0 2px 0 rgba(16,27,36,.9)}
+/* stat tiles */
+.statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.stat{background:var(--card);border:2px solid var(--ink);border-radius:var(--r);padding:14px 16px;
+  box-shadow:0 2px 0 rgba(16,27,36,.9)}
+.stat .n{font-family:'Archivo';font-weight:900;font-size:32px;line-height:1;font-stretch:85%}
+.stat .l{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--muted);margin-top:6px}
+.stat.ok .n{color:var(--ok)}
+.stat.no .n{color:var(--no)}
+.stat.warn .n{color:#8F6400}
+.stat.hi{background:var(--hiviz)}
+/* forms */
+label{display:block;font-weight:700;font-size:12.5px;margin:13px 0 5px;text-transform:uppercase;
+  letter-spacing:.06em;color:var(--ink2)}
+input,textarea,select{width:100%;border:2px solid var(--ink);border-radius:12px;background:var(--card);
+  padding:11px 13px;font-size:15px;font-family:inherit;color:var(--ink)}
+textarea{min-height:80px;resize:vertical}
+input:focus,textarea:focus,select:focus{outline:3px solid var(--hiviz)}
+.filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;
+  align-items:end;margin-bottom:16px}
+.filters label{margin-top:0}
+/* table */
+table{width:100%;border-collapse:collapse;background:var(--card);border:2px solid var(--ink);
+  border-radius:var(--r);overflow:hidden}
+.tablewrap{border:2px solid var(--ink);border-radius:var(--r);overflow:auto;background:var(--card);
+  box-shadow:0 2px 0 rgba(16,27,36,.9)}
+.tablewrap table{border:none}
+th{background:var(--ink);color:#fff;text-align:left;padding:10px 12px;font-size:11.5px;
+  text-transform:uppercase;letter-spacing:.08em;font-family:'Archivo';font-weight:800;white-space:nowrap}
+td{padding:11px 12px;border-top:1.5px solid var(--line);font-size:14px;vertical-align:top}
+tr.rowtap{cursor:pointer}
+tr.rowtap:hover{background:#FBF9F3}
+.badge{display:inline-block;font-size:11px;font-weight:800;border-radius:99px;
+  padding:2px 10px;border:1.5px solid;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+.badge.done{background:#E3F4EA;color:var(--ok);border-color:var(--ok)}
+.badge.noanswer{background:#FBE7E7;color:var(--no);border-color:var(--no)}
+.badge.problem{background:#FDF2D4;color:#8F6400;border-color:var(--warn)}
+.badge.new{background:var(--paper);color:var(--muted);border-color:var(--line)}
+.badge.planned{background:#E8F0FA;color:#2B5C9E;border-color:#2B5C9E}
+.note-red{color:var(--no);font-weight:700;font-size:12.5px}
+/* login */
+.gate{max-width:420px;margin:8dvh auto 0;padding:0 16px}
+.wordmark{font-family:'Archivo';font-weight:900;font-size:32px;text-transform:uppercase;
+  font-stretch:80%;text-align:center}
+.wordmark span{color:transparent;-webkit-text-stroke:2px var(--ink)}
+.eyebrow{font-family:'Archivo';font-size:11px;font-weight:800;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--muted);text-align:center;margin-top:6px}
+/* modal */
+.modal-bg{position:fixed;inset:0;background:rgba(16,27,36,.55);z-index:1500;display:none;
+  align-items:flex-start;justify-content:center;overflow:auto;padding:30px 14px}
+.modal-bg.show{display:flex}
+.modal{background:var(--paper);border:2.5px solid var(--ink);border-radius:18px;
+  max-width:560px;width:100%;padding:22px;box-shadow:0 4px 0 var(--ink)}
+.modal h2{margin:0 0 4px;font-size:20px;text-transform:uppercase;font-weight:900}
+#a-map{height:56dvh;border-radius:var(--r);border:2.5px solid var(--ink)}
+.maplegend{display:flex;flex-wrap:wrap;gap:10px 18px;margin-top:12px;font-size:13.5px;font-weight:600}
+.maplegend .sw{display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid #fff;
+  box-shadow:0 0 0 1.5px var(--ink);vertical-align:-2px;margin-right:6px}
+.empty{text-align:center;color:var(--muted);padding:34px 20px}
+.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:var(--ink);
+  color:#fff;padding:12px 22px;border-radius:99px;font-size:14.5px;font-weight:700;z-index:2000;
+  opacity:0;transition:opacity .25s;pointer-events:none;border:2px solid var(--hiviz)}
+.toast.show{opacity:1}
+.legendtxt{color:var(--muted);font-size:13px;margin-top:10px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.spin{display:inline-block;width:15px;height:15px;border:3px solid rgba(0,0,0,.25);
+  border-top-color:var(--ink);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (max-width:640px){ .stat .n{font-size:26px} }
+.i{width:17px;height:17px;stroke:currentColor;stroke-width:2.1;fill:none;stroke-linecap:round;stroke-linejoin:round;flex:none;vertical-align:-3px}
+button:focus-visible{outline:3px solid var(--hiviz);outline-offset:2px}
+input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid var(--hiviz)}
+.btn,.tabs button{transition:transform .12s,box-shadow .12s}
+@media (hover:hover){ .btn:hover,.tabs button:hover{transform:translateY(-1px)} .btn:active,.tabs button:active{transform:translateY(2px)} }
+.stat .n{font-variant-numeric:tabular-nums}
+.bankplate{display:inline-flex;align-items:center;gap:5px;background:var(--sign);color:#fff;
+  border:1.5px solid var(--ink);border-radius:7px;padding:1.5px 8px;font-family:'Archivo';
+  font-weight:900;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;vertical-align:1px}
+.bankplate .i{width:12px;height:12px;stroke:#fff;stroke-width:2.4}
+.fillpill{display:inline-block;margin-top:3px;font-size:11.5px;font-weight:800;border:1.5px solid var(--ink);
+  border-radius:99px;padding:1.5px 9px;background:var(--hiviz)}
+.phkind{position:absolute;left:7px;top:7px;font-family:'Archivo';font-weight:900;font-size:10.5px;
+  letter-spacing:.06em;text-transform:uppercase;padding:2.5px 8px;border-radius:7px;border:1.5px solid var(--ink);
+  box-shadow:0 1.5px 0 var(--ink)}
+.phkind.open{background:var(--hiviz);color:var(--ink)}
+.phkind.empty{background:var(--ok);color:#fff}
+.phkind.rubbish{background:var(--no);color:#fff}
+.phkind.photo{background:var(--paper);color:var(--ink)}
+.phcard{position:relative}
+.phcmt{color:var(--no);font-weight:700;display:block;margin-top:2px;white-space:normal}
+.langsel{border:2px solid var(--hiviz);background:var(--ink);color:var(--hiviz);border-radius:10px;
+  padding:6px 10px;font-family:'Archivo';font-weight:800;font-size:13px;width:auto;cursor:pointer}
+.chklist{max-height:42vh;overflow:auto;border:2px solid var(--ink);border-radius:12px;background:var(--card);padding:6px}
+.chklist label{display:flex;align-items:center;gap:9px;margin:0;padding:9px 10px;border-radius:9px;
+  font-weight:600;font-size:14px;text-transform:none;letter-spacing:0;color:var(--ink);cursor:pointer}
+.chklist label:hover{background:#FBF9F3}
+.chklist input{width:18px;height:18px;flex:none}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ---------- photos ---------- */
+.photogrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px;margin-top:14px}
+.phcard{border:2px solid var(--ink);border-radius:12px;overflow:hidden;background:var(--card);
+  box-shadow:var(--shadow);cursor:pointer;transition:transform .12s}
+.phcard:hover{transform:translateY(-2px)}
+.phcard img{width:100%;aspect-ratio:1/1;object-fit:cover;display:block;background:#DCD8CD}
+.phmeta{padding:8px 10px;font-size:12.5px;line-height:1.4;border-top:2px solid var(--ink)}
+.phmeta .adr{font-weight:700;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.phbadge{display:inline-block;margin-left:8px;padding:2px 8px;border:2px solid var(--ink);border-radius:999px;
+  background:var(--hiviz);font-weight:800;font-size:12px;box-shadow:0 2px 0 var(--ink);cursor:pointer;white-space:nowrap}
+.photo-lb{position:fixed;inset:0;background:rgba(10,14,18,.94);z-index:400;display:none;flex-direction:column}
+.photo-lb.show{display:flex}
+.photo-lb img{flex:1;min-height:0;width:100%;object-fit:contain}
+.photo-lb .lb-cap{color:#fff;text-align:center;padding:10px 14px 0;font-size:14px}
+.photo-lb .lb-bar{display:flex;gap:10px;padding:12px;
+  background:repeating-linear-gradient(45deg,var(--ink) 0 14px,var(--hiviz) 14px 28px)}
+.photo-lb .lb-bar button{flex:1;min-height:46px;padding:11px;border:2px solid var(--ink);border-radius:10px;
+  font-weight:900;font-family:inherit;font-size:15px;box-shadow:var(--shadow);cursor:pointer}
+.photo-lb .lb-bar button:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
+.chkline{display:flex;align-items:center;gap:7px;font-weight:700;font-size:14px;align-self:end;padding-bottom:9px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="hazard"></div>
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+<symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></symbol>
+<symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s7-6.3 7-11.5A7 7 0 0 0 5 9.5C5 14.7 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.6"/></symbol>
+<symbol id="i-map" viewBox="0 0 24 24"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14"/></symbol>
+<symbol id="i-cam" viewBox="0 0 24 24"><path d="M4 8h3.2L9 5h6l1.8 3H20a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.6"/></symbol>
+<symbol id="i-bin" viewBox="0 0 24 24"><path d="M4 8h16v12H4zM4 8l2.2-4h11.6L20 8M9 12v4M15 12v4"/></symbol>
+<symbol id="i-truck" viewBox="0 0 24 24"><path d="M2 6h12v10H2zM14 10h4l3 3v3h-7v-6z"/><circle cx="6.5" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/></symbol>
+<symbol id="i-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.9-6.6M21 3v6h-6"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5"/></symbol>
+<symbol id="i-pen" viewBox="0 0 24 24"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></symbol>
+<symbol id="i-dl" viewBox="0 0 24 24"><path d="M12 3v12m0 0 5-5m-5 5-5-5M4 19h16"/></symbol>
+<symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8V4z"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+<symbol id="i-caldot" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+</svg>
+<header>
+  <div class="brand">SUBNEX <span>OPS</span></div>
+  <div class="tag">Collection control · UK</div>
+  <div style="flex:1"></div>
+  <select class="langsel" id="lang-sel" onchange="setAdminLang(this.value)">
+    <option value="ru">RU</option><option value="en">EN</option>
+  </select>
+  <button class="btn small btn-ghost" id="btn-refresh" onclick="refreshAll()" style="display:none"><svg class="i" ><use href="#i-refresh"/></svg> <span data-t>Обновить</span></button>
+</header>
+
+<!-- ===== GATE: config + admin pin ===== -->
+<div class="gate" id="gate">
+  <div class="wordmark" style="margin-bottom:4px">SUBNEX <span>OPS</span></div>
+  <div class="eyebrow" data-t>Панель управления</div>
+  <div id="gate-config" style="display:none">
+    <label>Supabase URL</label>
+    <input type="text" id="cfg-url" placeholder="https://xxxx.supabase.co">
+    <label>Supabase anon key</label>
+    <input type="text" id="cfg-key" placeholder="eyJhbGciOi...">
+    <div style="height:16px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="saveConfig()" data-t>Подключить</button>
+    <p class="legendtxt" data-t>URL и anon key — в Supabase: Project Settings → API.</p>
+  </div>
+  <div id="gate-pin" style="display:none">
+    <label id="gate-pin-lbl" data-t>Админ-PIN</label>
+    <input type="password" id="admin-pin" inputmode="numeric" placeholder="••••">
+    <div style="height:16px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="gateEnter()" id="gate-btn" data-t>Войти</button>
+    <p class="legendtxt note-red" id="gate-err"></p>
+  </div>
+</div>
+
+<!-- ===== MAIN ===== -->
+<div class="wrap" id="main" style="display:none">
+  <div class="tabs">
+    <button id="tb-dash" class="on" onclick="setTab('dash')"><svg class="i" ><use href="#i-grid"/></svg> <span data-t>Сводка</span></button>
+    <button id="tb-addr" onclick="setTab('addr')"><svg class="i" ><use href="#i-pin"/></svg> <span data-t>Адреса</span></button>
+    <button id="tb-bank" onclick="setTab('bank')"><svg class="i" ><use href="#i-bin"/></svg> <span data-t>Банки</span></button>
+    <button id="tb-map" onclick="setTab('map')"><svg class="i" ><use href="#i-map"/></svg> <span data-t>Карта</span></button>
+    <button id="tb-photo" onclick="setTab('photo')"><svg class="i" ><use href="#i-cam"/></svg> <span data-t>Фото</span></button>
+    <button id="tb-drv" onclick="setTab('drv')"><svg class="i" ><use href="#i-truck"/></svg> <span data-t>Водители</span></button>
+    <button id="tb-data" onclick="setTab('data')"><svg class="i" ><use href="#i-save"/></svg> <span data-t>Данные</span></button>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="pane active" id="p-dash">
+    <div class="filters">
+      <div><label data-t>Дата</label><input type="date" id="dash-date" onchange="renderDash()"></div>
+    </div>
+    <div class="statgrid" id="dash-stats"></div>
+    <div class="card">
+      <h3 style="margin:0 0 12px;text-transform:uppercase;font-size:15px" data-t>По водителям</h3>
+      <div class="tablewrap" style="box-shadow:none;border-width:1.5px">
+        <table><thead><tr>
+          <th data-t>Водитель</th><th data-t>Всего</th><th>✓</th><th>✕</th><th>⚠</th><th data-t>Осталось</th><th data-t>Пакетов собрано</th>
+        </tr></thead><tbody id="dash-drivers"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADDRESSES -->
+  <div class="pane" id="p-addr">
+    <div class="toolbar">
+      <button class="btn btn-primary" onclick="openAddrModal()"><svg class="i" ><use href="#i-plus"/></svg> <span data-t>Добавить адрес</span></button>
+      <button class="btn btn-ghost" onclick="openBulkModal()"><svg class="i" ><use href="#i-dl"/></svg> <span data-t>Массовое добавление</span></button>
+    </div>
+    <div class="filters">
+      <div><label data-t>Дата</label><input type="date" id="fl-date" onchange="renderAddrTable()"></div>
+      <div><label data-t>Водитель</label><select id="fl-driver" onchange="renderAddrTable()"></select></div>
+      <div><label data-t>Статус</label><select id="fl-status" onchange="renderAddrTable()">
+        <option value="" data-t>Все</option><option value="open" data-t>В работе</option>
+        <option value="new" data-t>Новый</option><option value="planned" data-t>Запланирован</option>
+        <option value="done" data-t>Выполнено</option><option value="noanswer" data-t>Не отвечает</option>
+        <option value="problem" data-t>Проблема</option></select></div>
+      <div><label data-t>Поиск</label><input type="text" id="fl-q" oninput="renderAddrTable()" placeholder="улица, индекс…" data-t-ph></div>
+    </div>
+    <div class="tablewrap"><table>
+      <thead><tr><th data-t>Дата</th><th data-t>Адрес</th><th data-t>Пак.</th><th data-t>Водитель</th><th data-t>Статус</th></tr></thead>
+      <tbody id="addr-tbody"></tbody>
+    </table></div>
+    <p class="legendtxt" id="addr-count"></p>
+  </div>
+
+  <!-- BANKS -->
+  <div class="pane" id="p-bank">
+    <div class="toolbar">
+      <button class="btn btn-primary" onclick="openBankModal()"><svg class="i" ><use href="#i-plus"/></svg> <span data-t>Добавить банк</span></button>
+      <button class="btn btn-dark" onclick="openAssignModal()"><svg class="i" ><use href="#i-caldot"/></svg> <span data-t>Назначить на день</span></button>
+    </div>
+    <div class="tablewrap"><table>
+      <thead><tr><th data-t>Название</th><th data-t>Адрес</th><th data-t>Статус</th><th data-t>Визитов</th><th data-t>Последний визит</th><th></th></tr></thead>
+      <tbody id="bank-tbody"></tbody>
+    </table></div>
+    <p class="legendtxt" data-t>Банк — постоянная точка. Кнопкой «Назначить на день» вы создаёте визиты выбранным банкам: они появятся у водителя в списке на дату.</p>
+  </div>
+
+  <!-- MAP -->
+  <div class="pane" id="p-map">
+    <div class="filters">
+      <div><label data-t>Дата</label><input type="date" id="map-date" onchange="renderMap()"></div>
+    </div>
+    <div id="a-map"></div>
+    <div class="maplegend" id="map-legend"></div>
+  </div>
+
+  <!-- PHOTOS -->
+  <div class="pane" id="p-photo">
+    <div class="filters">
+      <div><label data-t>Дата</label><input type="date" id="ph-date" onchange="renderPhotos()"></div>
+      <div><label data-t>Водитель</label><select id="ph-driver" onchange="renderPhotos()"></select></div>
+      <div><label data-t>Тип фото</label><select id="ph-kind" onchange="renderPhotos()">
+        <option value="" data-t>Все</option><option value="open" data-t>Бин открыт</option>
+        <option value="empty" data-t>Бин пуст</option><option value="rubbish" data-t>Мусор</option>
+        <option value="photo" data-t>Прочее</option></select></div>
+      <label class="chkline"><input type="checkbox" id="ph-all" onchange="renderPhotos()"> <span data-t>Все даты</span></label>
+    </div>
+    <div class="photogrid" id="ph-grid"></div>
+    <p class="legendtxt" id="ph-count"></p>
+  </div>
+
+  <!-- DRIVERS -->
+  <div class="pane" id="p-drv">
+    <div class="toolbar">
+      <button class="btn btn-primary" onclick="openDrvModal()"><svg class="i" ><use href="#i-plus"/></svg> <span data-t>Добавить водителя</span></button>
+    </div>
+    <div class="tablewrap"><table>
+      <thead><tr><th data-t>Имя</th><th>PIN</th><th data-t>Статус</th><th data-t>Адресов всего</th><th></th></tr></thead>
+      <tbody id="drv-tbody"></tbody>
+    </table></div>
+  </div>
+
+  <!-- DATA -->
+  <div class="pane" id="p-data">
+    <div class="card">
+      <h3 style="margin:0 0 10px;text-transform:uppercase;font-size:15px" data-t>Экспорт</h3>
+      <div class="filters">
+        <div><label data-t>С даты</label><input type="date" id="ex-from"></div>
+        <div><label data-t>По дату</label><input type="date" id="ex-to"></div>
+      </div>
+      <div class="toolbar" style="margin-bottom:0">
+        <button class="btn btn-dark" onclick="exportCSV()"><svg class="i" ><use href="#i-dl"/></svg> CSV (Excel)</button>
+        <button class="btn btn-ghost" onclick="exportJSON()"><svg class="i" ><use href="#i-dl"/></svg> <span data-t>JSON (всё)</span></button>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="margin:0 0 10px;text-transform:uppercase;font-size:15px" data-t>Безопасность</h3>
+      <label data-t>Новый админ-PIN</label>
+      <input type="password" id="new-admin-pin" inputmode="numeric" placeholder="минимум 4 цифры" data-t-ph>
+      <div style="height:12px"></div>
+      <button class="btn btn-ghost" onclick="changeAdminPin()" data-t>Сменить PIN</button>
+    </div>
+    <div class="card">
+      <h3 style="margin:0 0 10px;text-transform:uppercase;font-size:15px" data-t>Хранение фото</h3>
+      <p class="legendtxt" style="margin:0" data-t>Фотографии старше 180 дней удаляются автоматически при каждом открытии этой панели.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODALS ===== -->
+<div class="modal-bg" id="m-addr-bg">
+  <div class="modal">
+    <h2 id="m-addr-title">Добавить адрес</h2>
+    <div id="ma-bankinfo" style="display:none;margin-top:6px"></div>
+    <label data-t>Адрес</label>
+    <textarea id="ma-text" placeholder="4 bags — 56 Corporation Rd, Cardiff CF11 7AW"></textarea>
+    <label data-t>Пакетов</label>
+    <input type="number" id="ma-bags" min="0">
+    <label data-t>Телефон</label>
+    <input type="text" id="ma-phone">
+    <label data-t>Заметка</label>
+    <input type="text" id="ma-note">
+    <label data-t>Дата</label>
+    <input type="date" id="ma-date">
+    <label data-t>Водитель</label>
+    <select id="ma-driver"></select>
+    <label data-t>Статус</label>
+    <select id="ma-status">
+      <option value="new" data-t>Новый</option><option value="planned" data-t>Запланирован</option>
+      <option value="done" data-t>Выполнено</option><option value="noanswer" data-t>Не отвечает</option>
+      <option value="problem" data-t>Проблема</option>
+    </select>
+    <label data-t>Заметка о результате</label>
+    <input type="text" id="ma-resnote">
+    <div style="height:16px"></div>
+    <div class="toolbar" style="margin:0">
+      <button class="btn btn-primary" id="ma-save" onclick="saveAddrModal()"><svg class="i" ><use href="#i-save"/></svg> <span data-t>Сохранить</span></button>
+      <button class="btn btn-ghost" onclick="closeModal('m-addr-bg')" data-t>Отмена</button>
+      <span style="flex:1"></span>
+      <button class="btn btn-no" id="ma-del" onclick="deleteAddrModal()" style="display:none"><svg class="i" ><use href="#i-trash"/></svg> <span data-t>Удалить</span></button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="m-bulk-bg">
+  <div class="modal">
+    <h2 data-t>Массовое добавление</h2>
+    <p class="legendtxt" style="margin-top:2px" data-t>Один адрес — одна строка. Если строка начинается с числа и «bags» — количество пакетов распознается автоматически.</p>
+    <label data-t>Адреса</label>
+    <textarea id="mb-text" style="min-height:150px" placeholder="4 bags - 56 Corporation Rd, Cardiff CF11 7AW
+2 bags - 12 Commercial St, Newport NP20 1LP
+10 Portland Villas, Swansea SA1 5SB"></textarea>
+    <label data-t>Дата (для всех)</label>
+    <input type="date" id="mb-date">
+    <label data-t>Водитель (для всех)</label>
+    <select id="mb-driver"></select>
+    <div style="height:16px"></div>
+    <div class="toolbar" style="margin:0">
+      <button class="btn btn-primary" id="mb-save" onclick="saveBulk()"><svg class="i" ><use href="#i-plus"/></svg> <span data-t>Добавить все</span></button>
+      <button class="btn btn-ghost" onclick="closeModal('m-bulk-bg')" data-t>Отмена</button>
+    </div>
+    <p class="legendtxt" id="mb-progress"></p>
+  </div>
+</div>
+
+<div class="modal-bg" id="m-drv-bg">
+  <div class="modal">
+    <h2 id="m-drv-title">Добавить водителя</h2>
+    <label data-t>Имя</label>
+    <input type="text" id="md-name" placeholder="Jonas">
+    <label data-t>PIN (4 цифры, уникальный)</label>
+    <input type="text" id="md-pin" inputmode="numeric" maxlength="4" placeholder="1234">
+    <label data-t>Активен</label>
+    <select id="md-active"><option value="true" data-t>Да</option><option value="false" data-t>Нет (не может войти)</option></select>
+    <div style="height:16px"></div>
+    <div class="toolbar" style="margin:0">
+      <button class="btn btn-primary" onclick="saveDrvModal()"><svg class="i" ><use href="#i-save"/></svg> <span data-t>Сохранить</span></button>
+      <button class="btn btn-ghost" onclick="closeModal('m-drv-bg')" data-t>Отмена</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="m-bank-bg">
+  <div class="modal">
+    <h2 id="m-bank-title">Добавить банк</h2>
+    <label data-t>Название</label>
+    <input type="text" id="mk-name" placeholder="Tesco Extra — Cardiff Bay">
+    <label data-t>Адрес</label>
+    <textarea id="mk-text" placeholder="Ferry Rd, Cardiff CF11 0JR"></textarea>
+    <label data-t>Заметка</label>
+    <input type="text" id="mk-note">
+    <label data-t>Активен</label>
+    <select id="mk-active"><option value="true" data-t>Да</option><option value="false" data-t>Нет</option></select>
+    <div style="height:16px"></div>
+    <div class="toolbar" style="margin:0">
+      <button class="btn btn-primary" id="mk-save" onclick="saveBankModal()"><svg class="i" ><use href="#i-save"/></svg> <span data-t>Сохранить</span></button>
+      <button class="btn btn-ghost" onclick="closeModal('m-bank-bg')" data-t>Отмена</button>
+      <span style="flex:1"></span>
+      <button class="btn btn-no" id="mk-del" onclick="deleteBankModal()" style="display:none"><svg class="i" ><use href="#i-trash"/></svg> <span data-t>Удалить</span></button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="m-assign-bg">
+  <div class="modal">
+    <h2 data-t>Назначить банки на день</h2>
+    <label data-t>Дата</label>
+    <input type="date" id="as-date">
+    <label data-t>Водитель</label>
+    <select id="as-driver"></select>
+    <label data-t>Банки</label>
+    <div class="chklist" id="as-list"></div>
+    <div style="height:16px"></div>
+    <div class="toolbar" style="margin:0">
+      <button class="btn btn-primary" id="as-save" onclick="saveAssign()"><svg class="i" ><use href="#i-caldot"/></svg> <span data-t>Назначить</span></button>
+      <button class="btn btn-ghost" onclick="closeModal('m-assign-bg')" data-t>Отмена</button>
+    </div>
+    <p class="legendtxt" id="as-progress"></p>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="photo-lb" id="photo-lb">
+  <div class="lb-cap" id="lb-cap"></div>
+  <img id="lb-img" alt="photo">
+  <div class="lb-bar">
+    <button style="background:var(--paper);color:var(--ink)" onclick="lbNav(-1)">‹ <span data-t>Пред.</span></button>
+    <button style="background:var(--paper);color:var(--ink)" onclick="lbNav(1)"><span data-t>След.</span> ›</button>
+    <button style="background:var(--no);color:#fff" onclick="lbDelete()"><svg class="i" style="stroke:#fff"><use href="#i-trash"/></svg> <span data-t>Удалить</span></button>
+    <button style="background:var(--hiviz);color:var(--ink)" onclick="lbClose()"><svg class="i" ><use href="#i-x"/></svg> <span data-t>Закрыть</span></button>
+  </div>
+</div>
+<script>
+/* ============ SUBNEX Ops — админка ============ */
+'use strict';
+
+/* Supabase credentials: впишите сюда, либо оставьте пустыми — спросит при первом запуске */
+const CFG_URL = '';
+const CFG_KEY = '';
+
+let sb=null, DRIVERS=[], ADDR=[], BANKS=[], editAddrId=null, editDrvId=null, editBankId=null;
+const LANG=localStorage.getItem('admin_lang')||'ru';
+function setAdminLang(v){ localStorage.setItem('admin_lang',v); location.reload(); }
+const EN={
+'Обновить':'Refresh','Панель управления':'Control panel','Подключить':'Connect',
+'URL и anon key — в Supabase: Project Settings → API.':'URL and anon key: Supabase → Project Settings → API.',
+'Админ-PIN':'Admin PIN','Придумайте админ-PIN (первый запуск)':'Create an admin PIN (first run)',
+'Войти':'Log in','Создать и войти':'Create & log in',
+'Сводка':'Overview','Адреса':'Addresses','Банки':'Banks','Карта':'Map','Фото':'Photos','Водители':'Drivers','Данные':'Data',
+'Дата':'Date','Водитель':'Driver','Статус':'Status','Поиск':'Search','Все':'All','В работе':'Open',
+'Новый':'New','Запланирован':'Planned','Выполнено':'Done','Не отвечает':'No answer','Проблема':'Problem',
+'По водителям':'By driver','Всего':'Total','Осталось':'Left','Пакетов собрано':'Bags collected',
+'Добавить адрес':'Add address','Массовое добавление':'Bulk add','Адрес':'Address','Пак.':'Bags',
+'Добавить банк':'Add bank','Назначить на день':'Assign to a day','Название':'Name','Визитов':'Visits','Последний визит':'Last visit',
+'Банк — постоянная точка. Кнопкой «Назначить на день» вы создаёте визиты выбранным банкам: они появятся у водителя в списке на дату.':'A bank is a permanent location. Use "Assign to a day" to create visits for selected banks: they will appear on the driver\'s list for that date.',
+'Тип фото':'Photo type','Бин открыт':'Bin open','Бин пуст':'Bin empty','Мусор':'Rubbish','Прочее':'Other','Все даты':'All dates',
+'Добавить водителя':'Add driver','Имя':'Name','Адресов всего':'Total addresses',
+'Экспорт':'Export','С даты':'From','По дату':'To','JSON (всё)':'JSON (all)','Безопасность':'Security','Новый админ-PIN':'New admin PIN',
+'минимум 4 цифры':'minimum 4 digits','Сменить PIN':'Change PIN',
+'Хранение фото':'Photo storage','Фотографии старше 180 дней удаляются автоматически при каждом открытии этой панели.':'Photos older than 180 days are deleted automatically each time this panel is opened.',
+'Пакетов':'Bags','Телефон':'Phone','Заметка':'Note','Заметка о результате':'Result note',
+'Сохранить':'Save','Отмена':'Cancel','Удалить':'Delete',
+'Один адрес — одна строка. Если строка начинается с числа и «bags» — количество пакетов распознается автоматически.':'One address per line. If a line starts with a number and "bags", the bag count is parsed automatically.',
+'Дата (для всех)':'Date (for all)','Водитель (для всех)':'Driver (for all)','Добавить все':'Add all',
+'PIN (4 цифры, уникальный)':'PIN (4 digits, unique)','Активен':'Active','Да':'Yes','Нет (не может войти)':'No (cannot log in)','Нет':'No',
+'Назначить банки на день':'Assign banks to a day','Назначить':'Assign',
+'Пред.':'Prev','След.':'Next','Закрыть':'Close',
+'улица, индекс…':'street, postcode…',
+'— не назначен —':'— unassigned —','Не назначен':'Unassigned','(выкл)':'(off)',
+'Адресов на день':'Addresses today','Банков посещено':'Banks visited','Средняя заполненность':'Avg fill level','Фото за день':'Photos today',
+'Нет данных на эту дату':'No data for this date','Не назначено водителю':'Not assigned to a driver',
+'Ничего не найдено':'Nothing found','Показано':'Shown','нет координат':'no coordinates',
+'Водителей пока нет':'No drivers yet','Активен2':'Active','Выключен':'Disabled',
+'Банков пока нет':'No banks yet','Выкл':'Off','Банк':'Bank',
+'Фото не найдены':'No photos found','(адрес удалён)':'(address deleted)',
+'Введите адрес':'Enter an address','Координаты…':'Geocoding…','Ошибка сохранения':'Save error',
+'Сохранено':'Saved','Сохранено · ⚠ координаты не найдены':'Saved · ⚠ coordinates not found',
+'Удалить этот адрес?':'Delete this address?','Пустой список':'Empty list',
+'Обрабатываю':'Processing','Добавлено':'Added','с координатами':'with coordinates',
+'Имя и PIN из 4 цифр обязательны':'Name and a 4-digit PIN are required','Такой PIN уже занят':'This PIN is already taken',
+'Ошибка (PIN должен быть уникальным)':'Error (PIN must be unique)',
+'Данные обновлены':'Data refreshed','Ошибка загрузки данных':'Failed to load data',
+'Минимум 4 цифры':'Minimum 4 digits','Неверный PIN':'Wrong PIN','Ошибка соединения с базой':'Database connection error',
+'Нет связи с базой. Проверьте URL/key и что SQL-схема выполнена.':'No database connection. Check URL/key and that the SQL schema has been run.',
+'Ошибка':'Error','PIN изменён':'PIN changed',
+'Удалить это фото навсегда?':'Delete this photo permanently?','Фото удалено':'Photo deleted',
+'Введите название':'Enter a name','Удалить этот банк? Прошлые визиты останутся.':'Delete this bank? Past visits will remain.',
+'Выберите дату, водителя и хотя бы один банк':'Pick a date, a driver and at least one bank',
+'Назначено визитов':'Visits assigned','уже были на эту дату':'already existed for this date',
+'Заполнен':'Fill','строк':'rows','Обрабатываю банки…':'Processing banks…',
+'Ободок: белый — в работе, зелёный — выполнено, красный — не отвечает, жёлтый — проблема':'Ring: white — open, green — done, red — no answer, yellow — problem',
+'пак.':'bags'
+};
+function t(k){ return LANG==='en'?(EN[k]??k):k; }
+function applyLang(){
+  const ls=document.getElementById('lang-sel'); if(ls) ls.value=LANG;
+  if(LANG!=='en') return;
+  document.documentElement.lang='en';
+  document.title='SUBNEX Ops';
+  document.querySelectorAll('[data-t]').forEach(el=>{ el.textContent=t(el.textContent.trim()); });
+  document.querySelectorAll('[data-t-ph]').forEach(el=>{ el.placeholder=t(el.placeholder); });
+}
+const STATUS_RU={new:'Новый',planned:'Запланирован',done:'Выполнено',noanswer:'Не отвечает',problem:'Проблема'};
+function ST(x){ return t(STATUS_RU[x]||x); }
+const DRIVER_COLORS=['#2B5C9E','#C2461F','#0B8457','#8E44AD','#B7950B','#148F9E','#A93254','#5D6D2E'];
+
+function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function uuid(){ return crypto.randomUUID?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return (c==='x'?r:(r&0x3|0x8)).toString(16);}); }
+let toastTimer=null;
+function toast(m){ const el=document.getElementById('toast'); el.textContent=m; el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),2600); }
+function getCreds(){ return {url:CFG_URL||localStorage.getItem('sb_url')||'', key:CFG_KEY||localStorage.getItem('sb_key')||''}; }
+function saveConfig(){
+  const url=document.getElementById('cfg-url').value.trim().replace(/\/$/,'');
+  const key=document.getElementById('cfg-key').value.trim();
+  if(!url||!key) return;
+  localStorage.setItem('sb_url',url); localStorage.setItem('sb_key',key);
+  init();
+}
+
+/* ---------- gate ---------- */
+let adminPinIsNew=false;
+async function init(){
+  const {url,key}=getCreds();
+  if(!url||!key){
+    document.getElementById('gate-config').style.display='';
+    document.getElementById('gate-pin').style.display='none';
+    return;
+  }
+  document.getElementById('gate-config').style.display='none';
+  sb=window.supabase.createClient(url,key);
+  try{
+    const {data,error}=await sb.from('app_settings').select('value').eq('key','admin_pin').maybeSingle();
+    if(error) throw error;
+    adminPinIsNew=!data;
+    document.getElementById('gate-pin-lbl').textContent = t(adminPinIsNew
+      ? 'Придумайте админ-PIN (первый запуск)' : 'Админ-PIN');
+    document.getElementById('gate-btn').textContent = t(adminPinIsNew ? 'Создать и войти' : 'Войти');
+    document.getElementById('gate-pin').style.display='';
+    if(sessionStorage.getItem('admin_ok')==='1' && !adminPinIsNew) enterMain();
+  }catch(e){
+    document.getElementById('gate-pin').style.display='';
+    document.getElementById('gate-err').textContent=t('Нет связи с базой. Проверьте URL/key и что SQL-схема выполнена.');
+  }
+}
+async function gateEnter(){
+  const pin=document.getElementById('admin-pin').value.trim();
+  const err=document.getElementById('gate-err');
+  if(pin.length<4){ err.textContent=t('Минимум 4 цифры'); return; }
+  try{
+    if(adminPinIsNew){
+      const {error}=await sb.from('app_settings').insert({key:'admin_pin',value:{pin}});
+      if(error) throw error;
+    } else {
+      const {data,error}=await sb.from('app_settings').select('value').eq('key','admin_pin').single();
+      if(error) throw error;
+      if(data.value.pin!==pin){ err.textContent=t('Неверный PIN'); return; }
+    }
+    sessionStorage.setItem('admin_ok','1');
+    enterMain();
+  }catch(e){ err.textContent=t('Ошибка соединения с базой'); }
+}
+async function changeAdminPin(){
+  const pin=document.getElementById('new-admin-pin').value.trim();
+  if(pin.length<4){ toast(t('Минимум 4 цифры')); return; }
+  const {error}=await sb.from('app_settings').upsert({key:'admin_pin',value:{pin}});
+  toast(t(error?'Ошибка':'PIN изменён'));
+  document.getElementById('new-admin-pin').value='';
+}
+
+async function enterMain(){
+  applyLang();
+  document.getElementById('gate').style.display='none';
+  document.getElementById('main').style.display='';
+  document.getElementById('btn-refresh').style.display='';
+  document.getElementById('dash-date').value=todayStr();
+  document.getElementById('fl-date').value=todayStr();
+  document.getElementById('map-date').value=todayStr();
+  document.getElementById('ph-date').value=todayStr();
+  const first=new Date(); first.setDate(1);
+  document.getElementById('ex-from').value=first.toISOString().slice(0,10);
+  document.getElementById('ex-to').value=todayStr();
+  await refreshAll();
+  cleanupOldPhotos();
+  try{
+    sb.channel('admin-addr')
+      .on('postgres_changes',{event:'*',schema:'public',table:'addresses'},()=>refreshAll(true))
+      .on('postgres_changes',{event:'*',schema:'public',table:'photos'},()=>refreshAll(true))
+      .on('postgres_changes',{event:'*',schema:'public',table:'banks'},()=>refreshAll(true))
+      .subscribe();
+  }catch(e){}
+}
+
+/* автоочистка фото старше 180 дней */
+async function cleanupOldPhotos(){
+  try{
+    const cutoff=new Date(Date.now()-180*86400000).toISOString();
+    for(let pass=0;pass<20;pass++){
+      const {data,error}=await sb.from('photos').select('id,path').lt('created_at',cutoff).limit(100);
+      if(error||!data||!data.length) break;
+      try{ await sb.storage.from('photos').remove(data.map(x=>x.path)); }catch(e){}
+      for(const x of data){ await sb.from('photos').delete().eq('id',x.id); }
+    }
+  }catch(e){}
+}
+
+async function refreshAll(silent){
+  try{
+    const [d,a,p,b]=await Promise.all([
+      sb.from('drivers').select('*').order('created_at'),
+      sb.from('addresses').select('*').order('created_at',{ascending:false}),
+      sb.from('photos').select('*').order('created_at',{ascending:false}),
+      sb.from('banks').select('*').order('created_at')
+    ]);
+    if(d.error||a.error) throw (d.error||a.error);
+    DRIVERS=d.data; ADDR=a.data; PHOTOS=p.error?[]:p.data; BANKS=b.error?[]:b.data;
+    fillDriverSelects();
+    renderDash(); renderAddrTable(); renderDrivers(); renderBanks();
+    if(document.getElementById('p-map').classList.contains('active')) renderMap();
+    if(document.getElementById('p-photo').classList.contains('active')) renderPhotos();
+    if(!silent) toast(t('Данные обновлены'));
+  }catch(e){ toast(t('Ошибка загрузки данных')); }
+}
+
+/* ---------- tabs ---------- */
+function setTab(tab){
+  ['dash','addr','bank','map','photo','drv','data'].forEach(x=>{
+    document.getElementById('p-'+x).classList.toggle('active',x===tab);
+    document.getElementById('tb-'+x).classList.toggle('on',x===tab);
+  });
+  if(tab==='map') renderMap();
+  if(tab==='photo') renderPhotos();
+}
+
+/* ---------- helpers ---------- */
+function drvName(id){ const d=DRIVERS.find(x=>x.id===id); return d?d.name:'—'; }
+function drvColor(id){
+  const i=DRIVERS.findIndex(x=>x.id===id);
+  return i<0?'#66717C':DRIVER_COLORS[i%DRIVER_COLORS.length];
+}
+function fillDriverSelects(){
+  const opts='<option value="">'+t('— не назначен —')+'</option>'+
+    DRIVERS.map(d=>`<option value="${d.id}">${esc(d.name)}${d.active?'':' '+t('(выкл)')}</option>`).join('');
+  ['ma-driver','mb-driver'].forEach(id=>document.getElementById(id).innerHTML=opts);
+  document.getElementById('fl-driver').innerHTML=
+    '<option value="">'+t('Все')+'</option><option value="none">'+t('Не назначен')+'</option>'+
+    DRIVERS.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');
+  const phSel=document.getElementById('ph-driver');
+  if(phSel) phSel.innerHTML='<option value="">'+t('Все')+'</option>'+
+    DRIVERS.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');
+  const asSel=document.getElementById('as-driver');
+  if(asSel) asSel.innerHTML=DRIVERS.filter(d=>d.active)
+    .map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');
+}
+
+/* ---------- dashboard ---------- */
+function renderDash(){
+  const ds=document.getElementById('dash-date').value||todayStr();
+  const list=ADDR.filter(a=>a.date===ds);
+  const done=list.filter(a=>a.status==='done');
+  const noans=list.filter(a=>a.status==='noanswer');
+  const prob=list.filter(a=>a.status==='problem');
+  const left=list.length-done.length-noans.length-prob.length;
+  const bags=done.reduce((s,a)=>s+(a.bags||0),0);
+  const bankDone=list.filter(a=>a.kind==='bank'&&a.status==='done');
+  const withFill=bankDone.filter(a=>a.fill_level!=null);
+  const avgFill=withFill.length?Math.round(withFill.reduce((q,a)=>q+a.fill_level,0)/withFill.length):null;
+  document.getElementById('dash-stats').innerHTML=
+    `<div class="stat hi"><div class="n">${list.length}</div><div class="l" style="color:var(--ink2)">${t('Адресов на день')}</div></div>`+
+    `<div class="stat ok"><div class="n">${done.length}</div><div class="l">${t('Выполнено')}</div></div>`+
+    `<div class="stat no"><div class="n">${noans.length}</div><div class="l">${t('Не отвечает')}</div></div>`+
+    `<div class="stat warn"><div class="n">${prob.length}</div><div class="l">${t('Проблема')}</div></div>`+
+    `<div class="stat"><div class="n">${left}</div><div class="l">${t('Осталось')}</div></div>`+
+    `<div class="stat"><div class="n">${bags}</div><div class="l">${t('Пакетов собрано')}</div></div>`+
+    `<div class="stat"><div class="n">${bankDone.length}</div><div class="l">${t('Банков посещено')}</div></div>`+
+    `<div class="stat"><div class="n">${avgFill==null?'—':avgFill+'%'}</div><div class="l">${t('Средняя заполненность')}</div></div>`+
+    `<div class="stat"><div class="n">${dayPhotoCount(ds)}</div><div class="l">${t('Фото за день')}</div></div>`;
+  const rows=DRIVERS.map(d=>{
+    const dl=list.filter(a=>a.driver_id===d.id);
+    if(!dl.length) return '';
+    const dn=dl.filter(a=>a.status==='done'), na=dl.filter(a=>a.status==='noanswer'),
+          pr=dl.filter(a=>a.status==='problem');
+    const lf=dl.length-dn.length-na.length-pr.length;
+    const bg=dn.reduce((s,a)=>s+(a.bags||0),0);
+    return `<tr><td><span class="sw" style="display:inline-block;width:11px;height:11px;border-radius:50%;
+      background:${drvColor(d.id)};margin-right:7px"></span><b>${esc(d.name)}</b></td>
+      <td>${dl.length}</td><td style="color:var(--ok);font-weight:800">${dn.length}</td>
+      <td style="color:var(--no);font-weight:800">${na.length}</td>
+      <td style="color:#8F6400;font-weight:800">${pr.length}</td>
+      <td>${lf}</td><td><b>${bg}</b></td></tr>`;
+  }).join('');
+  const un=list.filter(a=>!a.driver_id);
+  document.getElementById('dash-drivers').innerHTML=
+    (rows||'')+(un.length?`<tr><td colspan="7" class="note-red">⚠ ${t('Не назначено водителю')}: ${un.length}</td></tr>`:'')
+    ||'<tr><td colspan="7" class="empty">'+t('Нет данных на эту дату')+'</td></tr>';
+}
+
+/* ---------- addresses table ---------- */
+function renderAddrTable(){
+  const fd=document.getElementById('fl-date').value;
+  const fdr=document.getElementById('fl-driver').value;
+  const fs=document.getElementById('fl-status').value;
+  const q=document.getElementById('fl-q').value.trim().toLowerCase();
+  let list=[...ADDR];
+  if(fd) list=list.filter(a=>a.date===fd);
+  if(fdr==='none') list=list.filter(a=>!a.driver_id);
+  else if(fdr) list=list.filter(a=>a.driver_id===fdr);
+  if(fs==='open') list=list.filter(a=>['new','planned'].includes(a.status));
+  else if(fs) list=list.filter(a=>a.status===fs);
+  if(q) list=list.filter(a=>(a.text+' '+(a.note||'')+' '+(a.phone||'')).toLowerCase().includes(q));
+  document.getElementById('addr-tbody').innerHTML=list.map(a=>`
+    <tr class="rowtap" onclick="openAddrModal('${a.id}')">
+      <td style="white-space:nowrap">${a.date||'—'}</td>
+      <td>${a.kind==='bank'?BANKPL+' ':''}${esc(a.text)}${photoCount(a.id)?`<span class="phbadge" onclick="event.stopPropagation();openAddrGallery('${a.id}')">📷 ${photoCount(a.id)}</span>`:''}${a.result_note?'<div class="note-red">'+esc(a.result_note)+'</div>':''}</td>
+      <td><b>${a.bags||0}</b></td>
+      <td style="white-space:nowrap">${a.driver_id?('<span style="color:'+drvColor(a.driver_id)+';font-weight:700">●</span> '+esc(drvName(a.driver_id))):'<span class="note-red">—</span>'}</td>
+      <td><span class="badge ${a.status}">${ST(a.status)}</span>
+        ${(a.kind==='bank'&&a.fill_level!=null)?' <span class="fillcell">'+a.fill_level+'%</span>':''}
+        ${a.lat==null?'<div class="note-red" style="margin-top:3px">'+t('нет координат')+'</div>':''}</td>
+    </tr>`).join('')||'<tr><td colspan="5" class="empty">'+t('Ничего не найдено')+'</td></tr>';
+  document.getElementById('addr-count').textContent=t('Показано')+': '+list.length;
+}
+
+/* ---------- map ---------- */
+let amap=null;
+function renderMap(){
+  const ds=document.getElementById('map-date').value||todayStr();
+  const list=ADDR.filter(a=>a.date===ds&&a.lat!=null);
+  if(typeof L==='undefined') return;
+  if(amap){ amap.remove(); amap=null; }
+  amap=L.map('a-map');
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(amap);
+  const pts=[];
+  list.forEach(a=>{
+    pts.push([a.lat,a.lng]);
+    const col=drvColor(a.driver_id);
+    const ring=a.status==='done'?'#1F9D55':a.status==='noanswer'?'#D64545':a.status==='problem'?'#F0A400':'#fff';
+    const icon=L.divIcon({className:'',html:
+      `<div style="width:26px;height:26px;border-radius:50%;background:${col};
+       border:3.5px solid ${ring};box-shadow:0 0 0 1.5px #101B24,0 1px 4px rgba(0,0,0,.4)"></div>`,
+      iconSize:[26,26],iconAnchor:[13,13]});
+    L.marker([a.lat,a.lng],{icon}).addTo(amap)
+      .bindPopup(`<b>${a.kind==='bank'?t('Банк')+': ':''}${esc(a.text)}</b><br>${a.bags||0} ${t('пак.')} · ${esc(drvName(a.driver_id))}<br>${ST(a.status)}${(a.kind==='bank'&&a.fill_level!=null)?' · '+a.fill_level+'%':''}`);
+  });
+  if(pts.length) amap.fitBounds(L.latLngBounds(pts).pad(0.2));
+  else amap.setView([51.6,-3.4],9);
+  const used=[...new Set(list.map(a=>a.driver_id))];
+  document.getElementById('map-legend').innerHTML=
+    used.map(id=>`<span><span class="sw" style="background:${drvColor(id)}"></span>${esc(drvName(id))}</span>`).join('')+
+    '<span style="color:var(--muted)">'+t('Ободок: белый — в работе, зелёный — выполнено, красный — не отвечает, жёлтый — проблема')+'</span>';
+}
+
+/* ---------- geocode ---------- */
+const SW_VIEWBOX='-5.6,52.2,-2.4,51.2';
+async function geocode(text){
+  const q=text.replace(/\s+/g,' ').trim();
+  if(!q) return null;
+  try{
+    const u='https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=gb&viewbox='+SW_VIEWBOX+'&q='+encodeURIComponent(q);
+    const r=await fetch(u); const j=await r.json();
+    if(j&&j[0]) return {lat:+j[0].lat,lng:+j[0].lon};
+  }catch(e){}
+  const m=q.toUpperCase().match(/\b([A-Z]{1,2}\d[A-Z\d]?)\s*(\d[A-Z]{2})\b/);
+  if(m){
+    try{
+      const r=await fetch('https://api.postcodes.io/postcodes/'+encodeURIComponent(m[1]+m[2]));
+      const j=await r.json();
+      if(j&&j.result) return {lat:j.result.latitude,lng:j.result.longitude};
+    }catch(e){}
+  }
+  return null;
+}
+
+/* ---------- modals ---------- */
+function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+function openAddrModal(id){
+  editAddrId=id||null;
+  const a=id?ADDR.find(x=>x.id===id):null;
+  document.getElementById('m-addr-title').textContent=t(a?'Адрес':'Добавить адрес');
+  document.getElementById('ma-text').value=a?a.text:'';
+  document.getElementById('ma-bags').value=a?(a.bags||''):'';
+  document.getElementById('ma-phone').value=a?(a.phone||''):'';
+  document.getElementById('ma-note').value=a?(a.note||''):'';
+  document.getElementById('ma-date').value=a?(a.date||''):document.getElementById('fl-date').value||'';
+  document.getElementById('ma-driver').value=a?(a.driver_id||''):'';
+  document.getElementById('ma-status').value=a?a.status:'new';
+  document.getElementById('ma-resnote').value=a?(a.result_note||''):'';
+  document.getElementById('ma-del').style.display=a?'':'none';
+  document.getElementById('m-addr-bg').classList.add('show');
+}
+async function saveAddrModal(){
+  const text=document.getElementById('ma-text').value.trim();
+  if(!text){ toast(t('Введите адрес')); return; }
+  const btn=document.getElementById('ma-save');
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span> '+t('Координаты…');
+  const old=editAddrId?ADDR.find(x=>x.id===editAddrId):null;
+  const date=document.getElementById('ma-date').value||null;
+  let status=document.getElementById('ma-status').value;
+  if(status==='new'&&date) status='planned';
+  if(status==='planned'&&!date) status='new';
+  const row={
+    id: editAddrId||uuid(),
+    text, bags:parseInt(document.getElementById('ma-bags').value)||0,
+    phone:document.getElementById('ma-phone').value.trim(),
+    note:document.getElementById('ma-note').value.trim(),
+    date, driver_id:document.getElementById('ma-driver').value||null,
+    status, result_note:document.getElementById('ma-resnote').value.trim(),
+    kind: old?(old.kind||'d2d'):'d2d', bank_id: old?(old.bank_id||null):null,
+    fill_level: old?(old.fill_level??null):null,
+    lat: old?old.lat:null, lng: old?old.lng:null
+  };
+  if(!old||old.text!==text||row.lat==null){
+    const g=await geocode(text);
+    row.lat=g?g.lat:null; row.lng=g?g.lng:null;
+  }
+  const {error}=await sb.from('addresses').upsert(row);
+  btn.disabled=false; btn.innerHTML='<svg class="i"><use href="#i-save"/></svg> '+t('Сохранить');
+  if(error){ toast(t('Ошибка сохранения')); return; }
+  closeModal('m-addr-bg');
+  toast(t(row.lat!=null?'Сохранено':'Сохранено · ⚠ координаты не найдены'));
+  refreshAll(true);
+}
+async function deleteAddrModal(){
+  if(!editAddrId||!confirm(t('Удалить этот адрес?'))) return;
+  await sb.from('addresses').delete().eq('id',editAddrId);
+  closeModal('m-addr-bg');
+  refreshAll(true);
+}
+
+/* ---------- bulk add ---------- */
+function openBulkModal(){
+  document.getElementById('mb-text').value='';
+  document.getElementById('mb-date').value=document.getElementById('fl-date').value||'';
+  document.getElementById('mb-progress').textContent='';
+  document.getElementById('m-bulk-bg').classList.add('show');
+}
+async function saveBulk(){
+  const lines=document.getElementById('mb-text').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  if(!lines.length){ toast(t('Пустой список')); return; }
+  const date=document.getElementById('mb-date').value||null;
+  const driver_id=document.getElementById('mb-driver').value||null;
+  const btn=document.getElementById('mb-save');
+  const prog=document.getElementById('mb-progress');
+  btn.disabled=true;
+  let okGeo=0;
+  for(let i=0;i<lines.length;i++){
+    prog.textContent=`${t('Обрабатываю')} ${i+1} / ${lines.length}…`;
+    let text=lines[i], bags=0;
+    const m=text.match(/^(\d+)\s*(?:bags?|пак\.?|пакет\w*)\s*[-–—:.]?\s*(.+)$/i);
+    if(m){ bags=parseInt(m[1]); text=m[2].trim(); }
+    const g=await geocode(text);
+    if(g) okGeo++;
+    await sb.from('addresses').insert({
+      id:uuid(), text, bags, date, driver_id,
+      status: date?'planned':'new',
+      lat:g?g.lat:null, lng:g?g.lng:null
+    });
+    await new Promise(r=>setTimeout(r,1100)); // Nominatim: не чаще 1 запроса/сек
+  }
+  btn.disabled=false;
+  prog.textContent='';
+  closeModal('m-bulk-bg');
+  toast(`${t('Добавлено')}: ${lines.length} · ${t('с координатами')}: ${okGeo}`);
+  refreshAll(true);
+}
+
+/* ---------- drivers ---------- */
+function renderDrivers(){
+  document.getElementById('drv-tbody').innerHTML=DRIVERS.map(d=>{
+    const total=ADDR.filter(a=>a.driver_id===d.id).length;
+    return `<tr>
+      <td><span style="color:${drvColor(d.id)};font-weight:900">●</span> <b>${esc(d.name)}</b></td>
+      <td style="font-family:Archivo;font-weight:800;letter-spacing:.15em">${esc(d.pin)}</td>
+      <td>${d.active?'<span class="badge done">'+t('Активен2')+'</span>':'<span class="badge noanswer">'+t('Выключен')+'</span>'}</td>
+      <td>${total}</td>
+      <td style="white-space:nowrap">
+        <button class="btn small btn-ghost" onclick="openDrvModal('${d.id}')" aria-label="edit"><svg class="i"><use href="#i-pen"/></svg></button>
+        <button class="btn small btn-ghost" onclick="toggleDriver('${d.id}',${!d.active})" aria-label="toggle"><svg class="i"><use href="#i-${d.active?'pause':'play'}"/></svg></button>
+      </td></tr>`;
+  }).join('')||'<tr><td colspan="5" class="empty">'+t('Водителей пока нет')+'</td></tr>';
+}
+function openDrvModal(id){
+  editDrvId=id||null;
+  const d=id?DRIVERS.find(x=>x.id===id):null;
+  document.getElementById('m-drv-title').textContent=t(d?'Водитель':'Добавить водителя');
+  document.getElementById('md-name').value=d?d.name:'';
+  document.getElementById('md-pin').value=d?d.pin:'';
+  document.getElementById('md-active').value=d?String(d.active):'true';
+  document.getElementById('m-drv-bg').classList.add('show');
+}
+async function saveDrvModal(){
+  const name=document.getElementById('md-name').value.trim();
+  const pin=document.getElementById('md-pin').value.trim();
+  if(!name||!/^\d{4}$/.test(pin)){ toast(t('Имя и PIN из 4 цифр обязательны')); return; }
+  if(DRIVERS.some(d=>d.pin===pin&&d.id!==editDrvId)){ toast(t('Такой PIN уже занят')); return; }
+  const row={name,pin,active:document.getElementById('md-active').value==='true'};
+  let error;
+  if(editDrvId) ({error}=await sb.from('drivers').update(row).eq('id',editDrvId));
+  else ({error}=await sb.from('drivers').insert(row));
+  if(error){ toast(t('Ошибка (PIN должен быть уникальным)')); return; }
+  closeModal('m-drv-bg');
+  toast(t('Сохранено'));
+  refreshAll(true);
+}
+async function toggleDriver(id,active){
+  await sb.from('drivers').update({active}).eq('id',id);
+  refreshAll(true);
+}
+
+/* ---------- banks ---------- */
+const BANKPL='<span class="bankplate"><svg class="i"><use href="#i-bin"/></svg>BANK</span>';
+function renderBanks(){
+  const tb=document.getElementById('bank-tbody'); if(!tb) return;
+  tb.innerHTML=BANKS.map(b=>{
+    const visits=ADDR.filter(a=>a.bank_id===b.id);
+    const doneV=visits.filter(a=>a.status==='done').sort((x,y)=>(y.date||'').localeCompare(x.date||''));
+    const last=doneV[0];
+    return `<tr class="rowtap" onclick="openBankModal('${b.id}')">
+      <td><b>${esc(b.name)}</b>${b.note?'<div class="note-red" style="color:var(--muted)">'+esc(b.note)+'</div>':''}</td>
+      <td>${esc(b.text)}${b.lat==null?'<div class="note-red">'+t('нет координат')+'</div>':''}</td>
+      <td>${b.active?'<span class="badge done">'+t('Активен2')+'</span>':'<span class="badge noanswer">'+t('Выкл')+'</span>'}</td>
+      <td>${visits.length}</td>
+      <td style="white-space:nowrap">${last?last.date+(last.fill_level!=null?' · <span class="fillcell">'+last.fill_level+'%</span>':''):'—'}</td>
+      <td><button class="btn small btn-ghost" onclick="event.stopPropagation();openBankModal('${b.id}')" aria-label="edit"><svg class="i"><use href="#i-pen"/></svg></button></td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="6" class="empty">'+t('Банков пока нет')+'</td></tr>';
+}
+function openBankModal(id){
+  editBankId=id||null;
+  const b=id?BANKS.find(x=>x.id===id):null;
+  document.getElementById('m-bank-title').textContent=t(b?'Банк':'Добавить банк');
+  document.getElementById('mk-name').value=b?b.name:'';
+  document.getElementById('mk-text').value=b?b.text:'';
+  document.getElementById('mk-note').value=b?(b.note||''):'';
+  document.getElementById('mk-active').value=b?String(b.active):'true';
+  document.getElementById('mk-del').style.display=b?'':'none';
+  document.getElementById('m-bank-bg').classList.add('show');
+}
+async function saveBankModal(){
+  const name=document.getElementById('mk-name').value.trim();
+  const text=document.getElementById('mk-text').value.trim();
+  if(!name){ toast(t('Введите название')); return; }
+  const btn=document.getElementById('mk-save');
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span> '+t('Координаты…');
+  const old=editBankId?BANKS.find(x=>x.id===editBankId):null;
+  const row={ id:editBankId||uuid(), name, text,
+    note:document.getElementById('mk-note').value.trim(),
+    active:document.getElementById('mk-active').value==='true',
+    lat:old?old.lat:null, lng:old?old.lng:null };
+  if(text&&(!old||old.text!==text||row.lat==null)){
+    const g=await geocode(text);
+    row.lat=g?g.lat:null; row.lng=g?g.lng:null;
+  }
+  const {error}=await sb.from('banks').upsert(row);
+  btn.disabled=false; btn.innerHTML='<svg class="i"><use href="#i-save"/></svg> '+t('Сохранить');
+  if(error){ toast(t('Ошибка сохранения')); return; }
+  closeModal('m-bank-bg');
+  toast(t(row.lat!=null?'Сохранено':'Сохранено · ⚠ координаты не найдены'));
+  refreshAll(true);
+}
+async function deleteBankModal(){
+  if(!editBankId||!confirm(t('Удалить этот банк? Прошлые визиты останутся.'))) return;
+  await sb.from('banks').delete().eq('id',editBankId);
+  closeModal('m-bank-bg');
+  refreshAll(true);
+}
+function openAssignModal(){
+  document.getElementById('as-date').value=document.getElementById('fl-date').value||todayStr();
+  document.getElementById('as-progress').textContent='';
+  document.getElementById('as-list').innerHTML=BANKS.filter(b=>b.active).map(b=>
+    `<label><input type="checkbox" value="${b.id}"> ${esc(b.name)}<span style="color:var(--muted);font-weight:400"> — ${esc(b.text)}</span></label>`
+  ).join('')||'<p class="empty" style="padding:14px">'+t('Банков пока нет')+'</p>';
+  document.getElementById('m-assign-bg').classList.add('show');
+}
+async function saveAssign(){
+  const date=document.getElementById('as-date').value;
+  const driver_id=document.getElementById('as-driver').value;
+  const ids=[...document.querySelectorAll('#as-list input:checked')].map(i=>i.value);
+  if(!date||!driver_id||!ids.length){ toast(t('Выберите дату, водителя и хотя бы один банк')); return; }
+  const btn=document.getElementById('as-save'); btn.disabled=true;
+  document.getElementById('as-progress').textContent=t('Обрабатываю банки…');
+  let added=0, skipped=0;
+  for(const bid of ids){
+    if(ADDR.some(a=>a.bank_id===bid&&a.date===date)){ skipped++; continue; }
+    const b=BANKS.find(x=>x.id===bid); if(!b) continue;
+    const {error}=await sb.from('addresses').insert({
+      id:uuid(), text:b.name+(b.text?' — '+b.text:''), bags:0, phone:'', note:b.note||'',
+      date, driver_id, status:'planned', kind:'bank', bank_id:b.id,
+      lat:b.lat, lng:b.lng });
+    if(!error) added++;
+  }
+  btn.disabled=false;
+  document.getElementById('as-progress').textContent='';
+  closeModal('m-assign-bg');
+  toast(t('Назначено визитов')+': '+added+(skipped?' · '+skipped+' '+t('уже были на эту дату'):''));
+  refreshAll(true);
+}
+
+/* ---------- photos ---------- */
+let PHOTOS=[], LBLIST=[], LBIDX=0;
+function photoUrl(path){
+  try{ return sb.storage.from('photos').getPublicUrl(path).data.publicUrl; }catch(e){ return ''; }
+}
+function addrById(id){ return ADDR.find(a=>a.id===id); }
+function photoCount(addressId){ return PHOTOS.reduce((n,p)=>n+(p.address_id===addressId?1:0),0); }
+function dayPhotoCount(ds){
+  return PHOTOS.reduce((n,p)=>{ const a=addrById(p.address_id); return n+((a&&a.date===ds)?1:0); },0);
+}
+function phTime(iso){
+  const d=new Date(iso);
+  return d.toLocaleDateString('ru-GB',{day:'2-digit',month:'2-digit'})+' '+
+         d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+}
+const KIND_LBL={open:'Бин открыт',empty:'Бин пуст',rubbish:'Мусор',photo:'Прочее'};
+function kindOf(p){ const k=p.kind||'photo'; return KIND_LBL[k]?k:'photo'; }
+function photoFiltered(){
+  const ds=document.getElementById('ph-date').value;
+  const all=document.getElementById('ph-all').checked;
+  const drv=document.getElementById('ph-driver').value;
+  const ks=document.getElementById('ph-kind');
+  const kf=ks?ks.value:'';
+  return PHOTOS.filter(p=>{
+    if(drv&&p.driver_id!==drv) return false;
+    if(kf&&kindOf(p)!==kf) return false;
+    if(!all&&ds){ const a=addrById(p.address_id); if(!a||a.date!==ds) return false; }
+    return true;
+  });
+}
+function renderPhotos(){
+  const list=photoFiltered();
+  document.getElementById('ph-grid').innerHTML=list.map((p,i)=>{
+    const a=addrById(p.address_id);
+    return `<div class="phcard" onclick="lbShow(${i},'grid')" style="position:relative">
+      <span class="phkind ${kindOf(p)}">${t(KIND_LBL[kindOf(p)])}</span>
+      <img loading="lazy" src="${photoUrl(p.path)}" alt="photo">
+      <div class="phmeta">
+        <span class="adr">${a&&a.kind==='bank'?BANKPL+' ':''}${a?esc(a.text):t('(адрес удалён)')}</span>
+        <span style="color:${drvColor(p.driver_id)};font-weight:700">●</span> ${esc(drvName(p.driver_id))}
+        · ${phTime(p.created_at)}
+        ${p.comment?'<div class="note-red">'+esc(p.comment)+'</div>':''}
+      </div></div>`;
+  }).join('')||'<p class="empty" style="grid-column:1/-1">'+t('Фото не найдены')+'</p>';
+  document.getElementById('ph-count').textContent=t('Показано')+': '+list.length;
+}
+function openAddrGallery(addressId){
+  LBLIST=PHOTOS.filter(p=>p.address_id===addressId);
+  if(LBLIST.length) lbShowList(0);
+}
+function lbShow(i){ LBLIST=photoFiltered(); lbShowList(i); }
+function lbShowList(i){
+  if(!LBLIST.length) return;
+  LBIDX=(i+LBLIST.length)%LBLIST.length;
+  const p=LBLIST[LBIDX], a=addrById(p.address_id);
+  document.getElementById('lb-img').src=photoUrl(p.path);
+  document.getElementById('lb-cap').textContent=
+    '['+t(KIND_LBL[kindOf(p)])+'] '+(a?a.text:t('(адрес удалён)'))+' — '+drvName(p.driver_id)+' · '+phTime(p.created_at)+
+    (p.comment?' · '+p.comment:'')+' · '+(LBIDX+1)+'/'+LBLIST.length;
+  document.getElementById('photo-lb').classList.add('show');
+}
+function lbNav(d){ lbShowList(LBIDX+d); }
+function lbClose(){ document.getElementById('photo-lb').classList.remove('show'); LBLIST=[]; }
+async function lbDelete(){
+  const p=LBLIST[LBIDX]; if(!p) return;
+  if(!confirm(t('Удалить это фото навсегда?'))) return;
+  try{
+    await sb.from('photos').delete().eq('id',p.id);
+    await sb.storage.from('photos').remove([p.path]);
+  }catch(e){}
+  PHOTOS=PHOTOS.filter(x=>x.id!==p.id);
+  LBLIST.splice(LBIDX,1);
+  renderAddrTable(); renderDash();
+  if(document.getElementById('p-photo').classList.contains('active')) renderPhotos();
+  if(LBLIST.length) lbShowList(LBIDX); else lbClose();
+  toast(t('Фото удалено'));
+}
+
+/* ---------- export ---------- */
+function exportRows(){
+  const from=document.getElementById('ex-from').value;
+  const to=document.getElementById('ex-to').value;
+  return ADDR.filter(a=>{
+    if(!a.date) return !from&&!to;
+    if(from&&a.date<from) return false;
+    if(to&&a.date>to) return false;
+    return true;
+  });
+}
+function exportCSV(){
+  const rows=exportRows();
+  const csvCell=v=>{ const s=String(v??''); return /[",;\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; };
+  const head=['date','driver','type','address','bags','fill_level','phone','note','status','result_note','done_at'];
+  const lines=[head.join(';')].concat(rows.map(a=>[
+    a.date||'', drvName(a.driver_id), a.kind||'d2d', a.text, a.bags||0,
+    (a.fill_level==null?'':a.fill_level), a.phone||'', a.note||'',
+    a.status, a.result_note||'', a.done_at||''
+  ].map(csvCell).join(';')));
+  downloadFile('\ufeff'+lines.join('\r\n'),'subnex-export-'+todayStr()+'.csv','text/csv');
+  toast('CSV: '+rows.length+' '+t('строк'));
+}
+function exportJSON(){
+  downloadFile(JSON.stringify({drivers:DRIVERS,addresses:ADDR,banks:BANKS,photos:PHOTOS},null,2),
+    'subnex-backup-'+todayStr()+'.json','application/json');
+}
+function downloadFile(content,name,type){
+  const blob=new Blob([content],{type});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=name; a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+document.querySelectorAll('.modal-bg').forEach(bg=>{
+  bg.addEventListener('click',e=>{ if(e.target===bg) bg.classList.remove('show'); });
+});
+document.getElementById('admin-pin').addEventListener('keydown',e=>{ if(e.key==='Enter') gateEnter(); });
+
+document.getElementById('lang-sel').value=LANG;
+applyLang();
+init();
+
+</script>
+</body>
+</html>
