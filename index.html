@@ -205,6 +205,11 @@ button:focus-visible,.card.tap:focus-visible{outline:3px solid var(--hiviz);outl
 .fillsel button:active{transform:translateY(2px);box-shadow:none}
 .reqmark{color:var(--no);font-weight:900}
 .count,.stopnum{font-variant-numeric:tabular-nums}
+.navpick{position:fixed;inset:0;background:rgba(16,27,36,.55);z-index:2500;display:none;align-items:flex-end;justify-content:center}
+.navpick.show{display:flex}
+.navpick-in{background:var(--paper);border-top:3px solid var(--hiviz);border-radius:20px 20px 0 0;
+  width:100%;max-width:560px;padding:18px 16px calc(18px + env(safe-area-inset-bottom))}
+.navpick-in .btn+.btn{margin-top:10px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
 /* ---------- photos ---------- */
@@ -442,6 +447,12 @@ button:focus-visible,.card.tap:focus-visible{outline:3px solid var(--hiviz);outl
   <input type="number" id="s-fuel" step="0.1" inputmode="decimal">
   <label data-i18n="priceLbl">Цена топлива, £/л</label>
   <input type="number" id="s-price" step="0.01" inputmode="decimal">
+  <label data-i18n="navAppLbl">Навигатор</label>
+  <select id="s-nav">
+    <option value="ask" data-i18n="navAsk">Спрашивать каждый раз</option>
+    <option value="google">Google Maps</option>
+    <option value="waze">Waze</option>
+  </select>
   <label data-i18n="langLbl">Язык / Language</label>
   <select id="s-lang">
     <option value="ru">Русский</option>
@@ -464,6 +475,15 @@ button:focus-visible,.card.tap:focus-visible{outline:3px solid var(--hiviz);outl
   <button id="nav-set" onclick="showView('v-set')"><svg class="i" ><use href="#i-set"/></svg><span data-i18n="navSet">Настройки</span></button>
 </div></nav>
 
+<div class="navpick" id="nav-chooser" onclick="if(event.target===this)navCancel()">
+  <div class="navpick-in">
+    <div class="seclbl" style="margin-top:0" data-i18n="navWith">Открыть маршрут в</div>
+    <button class="btn btn-dark" onclick="navGo('google')"><svg class="i" style="fill:currentColor;stroke:none"><use href="#i-nav"/></svg> Google Maps</button>
+    <button class="btn btn-primary" onclick="navGo('waze')"><svg class="i" style="fill:currentColor;stroke:none"><use href="#i-nav"/></svg> Waze</button>
+    <button class="btn btn-ghost" onclick="navCancel()" data-i18n="cancelWord">Отмена</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <div class="photo-lb" id="photo-lb">
@@ -480,8 +500,9 @@ button:focus-visible,.card.tap:focus-visible{outline:3px solid var(--hiviz);outl
 /* ---- Supabase credentials.
    Вариант А: впишите сюда и залейте файл.
    Вариант Б: оставьте пустыми — приложение спросит при первом запуске. ---- */
-const CFG_URL = '';
-const CFG_KEY = '';
+const CFG_URL = 'https://hgnihlkiccfbrejbpojp.supabase.co';
+const CFG_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhnbmlobGtpY2NmYnJlamJwb2pwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2OTU2MDMsImV4cCI6MjA5OTI3MTYwM30.AqPTMYqWt_Kc1IZX5pkB9MvrGL1IXr_PAVlH9I0g3ZQ
+';
 
 /* ---------- i18n ---------- */
 const STR = {
@@ -529,6 +550,8 @@ const STR = {
     needFill:'Укажите заполненность бина',
     rubbishCmt:'Комментарий к мусору (необязательно):',
     fillWord:'Заполнен',
+    navAppLbl:'Навигатор', navAsk:'Спрашивать каждый раз',
+    navWith:'Открыть маршрут в', cancelWord:'Отмена',
     photoDelQ:'Удалить это фото?'
   },
   en: {
@@ -575,7 +598,9 @@ const STR = {
     needPhotos:'Required: photo of open bin AND empty bin before closing',
     needFill:'Select the bin fill level',
     rubbishCmt:'Comment about the rubbish (optional):',
-    fillWord:'Fill'
+    fillWord:'Fill',
+    navAppLbl:'Navigation app', navAsk:'Ask every time',
+    navWith:'Navigate with', cancelWord:'Cancel'
   }
 };
 function t(k){ return (STR[LOCAL.lang]||STR.ru)[k] || STR.ru[k] || k; }
@@ -584,7 +609,7 @@ function t(k){ return (STR[LOCAL.lang]||STR.ru)[k] || STR.ru[k] || k; }
 const LKEY='subnexDriver2_local';
 const LOCAL = Object.assign({
   lang:'ru', home:{text:'',lat:null,lng:null}, depot:{text:'',lat:null,lng:null},
-  fuelPer100:9.0, fuelPrice:1.45, routes:{}, cache:[], outbox:[]
+  fuelPer100:9.0, fuelPrice:1.45, nav:'ask', routes:{}, cache:[], outbox:[]
 }, JSON.parse(localStorage.getItem(LKEY)||'{}'));
 function saveLocal(){ localStorage.setItem(LKEY, JSON.stringify(LOCAL)); }
 
@@ -880,9 +905,30 @@ async function tryLogin(){
   }
 }
 function logout(){
+  stopGeoWatch();
   localStorage.removeItem('driver'); ME=null; ADDR=[];
   document.getElementById('mainnav').style.display='none';
   pinClear(); showView('v-login',false); viewStack=['v-login'];
+}
+
+/* ---------- live location: only while the app is open ---------- */
+let geoWatchId=null, lastLocSent=0, lastLoc=null;
+function startGeoWatch(){
+  if(geoWatchId!=null || !('geolocation' in navigator)) return;
+  try{
+    geoWatchId=navigator.geolocation.watchPosition(p=>{
+      const lat=p.coords.latitude, lng=p.coords.longitude, now=Date.now();
+      const movedM=lastLoc?hav([lastLoc.lat,lastLoc.lng],[lat,lng])*1000:1e9;
+      if(now-lastLocSent<45000 && movedM<150) return;
+      lastLocSent=now; lastLoc={lat,lng};
+      try{
+        sb.from('driver_locations').upsert({driver_id:ME.id,lat:lat,lng:lng,updated_at:new Date().toISOString()}).then(()=>{},()=>{});
+      }catch(e){}
+    }, ()=>{}, {enableHighAccuracy:false, maximumAge:30000, timeout:20000});
+  }catch(e){}
+}
+function stopGeoWatch(){
+  if(geoWatchId!=null){ try{navigator.geolocation.clearWatch(geoWatchId);}catch(e){} geoWatchId=null; }
 }
 
 async function enterApp(){
@@ -890,6 +936,7 @@ async function enterApp(){
   document.getElementById('mainnav').style.display='';
   await loadAddresses();
   subscribeRealtime();
+  startGeoWatch();
   flushOutbox();
   viewStack=['v-home'];
   showView('v-home',false);
@@ -1148,6 +1195,48 @@ function hav(a,b){
   const x=Math.sin(dLa/2)**2+Math.cos(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*Math.sin(dLo/2)**2;
   return 2*R*Math.asin(Math.sqrt(x));
 }
+/* Решатель порядка объезда: старт и финиш зафиксированы (0 и n+1).
+   Матрица M — время/расстояние между всеми точками.
+   Nearest neighbour -> 2-opt (развороты сегментов) -> Or-opt (перенос цепочек 1-3 точек).
+   Для <=50 точек даёт близкий к оптимальному маршрут без «прыжков к дальним и обратно». */
+function tspSolve(M,n){
+  const INF=1e15;
+  const cost=(i,j)=>{ const v=(M[i]||[])[j]; return (v==null)?INF:v; };
+  let pool=[]; for(let k=1;k<=n;k++) pool.push(k);
+  let route=[], cur=0;
+  while(pool.length){
+    let bi=0;
+    for(let k=1;k<pool.length;k++) if(cost(cur,pool[k])<cost(cur,pool[bi])) bi=k;
+    cur=pool[bi]; route.push(cur); pool.splice(bi,1);
+  }
+  const len=r=>{
+    let d=cost(0,r[0]);
+    for(let i=0;i<r.length-1;i++) d+=cost(r[i],r[i+1]);
+    return d+cost(r[r.length-1],n+1);
+  };
+  let best=len(route), improved=true, guard=0;
+  while(improved && guard++<120){
+    improved=false;
+    for(let i=0;i<route.length-1;i++)for(let j=i+1;j<route.length;j++){
+      const cand=route.slice(0,i).concat(route.slice(i,j+1).reverse(),route.slice(j+1));
+      const l=len(cand);
+      if(l<best-1e-6){ route=cand; best=l; improved=true; }
+    }
+    for(let seg=1;seg<=3&&route.length>seg;seg++){
+      for(let i=0;i+seg<=route.length;i++){
+        const chain=route.slice(i,i+seg);
+        const rest=route.slice(0,i).concat(route.slice(i+seg));
+        for(let k=0;k<=rest.length;k++){
+          const cand=rest.slice(0,k).concat(chain,rest.slice(k));
+          const l=len(cand);
+          if(l<best-1e-6){ route=cand; best=l; improved=true; i=route.length; break; }
+        }
+      }
+    }
+  }
+  return route;
+}
+
 async function optimizeDay(){
   const ds=currentDay;
   const list=dayAddrs(ds).filter(a=>a.lat!=null);
@@ -1156,45 +1245,41 @@ async function optimizeDay(){
   btn.disabled=true; btn.innerHTML='<span class="spin"></span> '+t('optimizing');
   const start=LOCAL.home.lat!=null?[LOCAL.home.lat,LOCAL.home.lng]:[list[0].lat,list[0].lng];
   const end=LOCAL.depot.lat!=null?[LOCAL.depot.lat,LOCAL.depot.lng]:start;
+  const n=list.length;
+  const all=[start,...list.map(a=>[a.lat,a.lng]),end];
+  const toCs=arr=>arr.map(c=>c[1].toFixed(6)+','+c[0].toFixed(6)).join(';');
   let done=false;
   try{
-    const coords=[[start[1],start[0]],...list.map(a=>[a.lng,a.lat]),[end[1],end[0]]]
-      .map(c=>c[0].toFixed(6)+','+c[1].toFixed(6)).join(';');
-    const u=`https://router.project-osrm.org/trip/v1/driving/${coords}?source=first&destination=last&roundtrip=false&overview=full&geometries=geojson`;
-    const r=await fetch(u); const j=await r.json();
-    if(j.code==='Ok'&&j.trips&&j.trips[0]){
-      const trip=j.trips[0];
-      const orderIdx=j.waypoints.map((w,i)=>({i,wi:w.waypoint_index}))
-        .filter(o=>o.i>0&&o.i<list.length+1).sort((a,b)=>a.wi-b.wi).map(o=>o.i-1);
-      LOCAL.routes[ds]={order:orderIdx.map(i=>list[i].id),km:trip.distance/1000,
-        min:trip.duration/60+list.length*4,source:'osrm',
-        geometry:trip.geometry.coordinates.map(c=>[c[1],c[0]])};
-      done=true;
+    if(n<=90){
+      /* 1. матрица реального времени в пути по дорогам */
+      const tr=await fetch(`https://router.project-osrm.org/table/v1/driving/${toCs(all)}?annotations=duration`);
+      const tj=await tr.json();
+      if(tj.code==='Ok'&&tj.durations){
+        /* 2. сами решаем порядок по этой матрице */
+        const order=tspSolve(tj.durations,n);
+        /* 3. геометрия итогового маршрута */
+        const path=[0,...order,n+1].map(i=>all[i]);
+        const rr=await fetch(`https://router.project-osrm.org/route/v1/driving/${toCs(path)}?overview=full&geometries=geojson`);
+        const rj=await rr.json();
+        if(rj.code==='Ok'&&rj.routes&&rj.routes[0]){
+          const rt=rj.routes[0];
+          LOCAL.routes[ds]={order:order.map(i=>list[i-1].id),km:rt.distance/1000,
+            min:rt.duration/60+n*4,source:'osrm',
+            geometry:rt.geometry.coordinates.map(c=>[c[1],c[0]])};
+          done=true;
+        }
+      }
     }
   }catch(e){}
   if(!done){
-    const pts=list.map(a=>[a.lat,a.lng]);
-    let route=[],pool=[...pts.keys()],cur=start;
-    while(pool.length){
-      pool.sort((x,y)=>hav(cur,pts[x])-hav(cur,pts[y]));
-      const nx=pool.shift(); route.push(nx); cur=pts[nx];
-    }
-    const tourLen=rt=>{
-      let d=hav(start,pts[rt[0]]);
-      for(let i=0;i<rt.length-1;i++) d+=hav(pts[rt[i]],pts[rt[i+1]]);
-      return d+hav(pts[rt[rt.length-1]],end);
-    };
-    let improved=true;
-    while(improved&&route.length>3){
-      improved=false;
-      for(let i=0;i<route.length-1;i++)for(let j=i+1;j<route.length;j++){
-        const cand=route.slice(0,i).concat(route.slice(i,j+1).reverse(),route.slice(j+1));
-        if(tourLen(cand)<tourLen(route)-0.01){route=cand;improved=true;}
-      }
-    }
-    const km=tourLen(route)*1.3;
-    LOCAL.routes[ds]={order:route.map(i=>list[i].id),km,min:km/45*60+list.length*4,
-      source:'fallback',geometry:[start,...route.map(i=>pts[i]),end]};
+    /* без сети: та же оптимизация по прямым расстояниям */
+    const M=all.map(p=>all.map(q=>hav(p,q)));
+    const order=tspSolve(M,n);
+    const path=[0,...order,n+1].map(i=>all[i]);
+    let km=0; for(let i=0;i<path.length-1;i++) km+=hav(path[i],path[i+1]);
+    km*=1.3;
+    LOCAL.routes[ds]={order:order.map(i=>list[i-1].id),km,min:km/45*60+n*4,
+      source:'fallback',geometry:path};
   }
   saveLocal();
   btn.disabled=false;
@@ -1239,11 +1324,28 @@ function renderAddr(){
   document.getElementById('btn-del').style.display=isBank?'none':'';
   if(isBank) renderFillSel();
 }
+function navUrl(app,a){
+  if(app==='waze'){
+    return a.lat!=null
+      ? 'https://waze.com/ul?ll='+a.lat+','+a.lng+'&navigate=yes'
+      : 'https://waze.com/ul?q='+encodeURIComponent(a.text)+'&navigate=yes';
+  }
+  const dest=a.lat!=null?a.lat+','+a.lng:a.text;
+  return 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+encodeURIComponent(dest);
+}
+let NAVID=null;
 function navTo(id){
   const a=ADDR.find(x=>x.id===id); if(!a) return;
-  const dest=a.lat!=null?a.lat+','+a.lng:a.text;
-  window.open('https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+encodeURIComponent(dest),'_blank');
+  if(LOCAL.nav==='google'||LOCAL.nav==='waze'){ window.open(navUrl(LOCAL.nav,a),'_blank'); return; }
+  NAVID=id;
+  document.getElementById('nav-chooser').classList.add('show');
 }
+function navGo(app){
+  const a=ADDR.find(x=>x.id===NAVID);
+  document.getElementById('nav-chooser').classList.remove('show');
+  if(a) window.open(navUrl(app,a),'_blank');
+}
+function navCancel(){ document.getElementById('nav-chooser').classList.remove('show'); }
 function navToCurrent(){ navTo(currentAddrId); }
 async function setResult(status){
   const a=ADDR.find(x=>x.id===currentAddrId); if(!a) return;
@@ -1323,6 +1425,7 @@ function renderSettings(){
   document.getElementById('s-depot').value=LOCAL.depot.text||'';
   document.getElementById('s-fuel').value=LOCAL.fuelPer100;
   document.getElementById('s-price').value=LOCAL.fuelPrice;
+  document.getElementById('s-nav').value=LOCAL.nav||'ask';
   document.getElementById('s-lang').value=LOCAL.lang;
   document.getElementById('s-home-geo').innerHTML=LOCAL.home.lat!=null?'<span class="pill-geo ok">✓ '+t('coordsOk')+'</span>':'';
   document.getElementById('s-depot-geo').innerHTML=LOCAL.depot.lat!=null?'<span class="pill-geo ok">✓ '+t('coordsOk')+'</span>':'';
@@ -1332,6 +1435,7 @@ async function saveSettings(){
   const depotT=document.getElementById('s-depot').value.trim();
   LOCAL.fuelPer100=parseFloat(document.getElementById('s-fuel').value)||9;
   LOCAL.fuelPrice=parseFloat(document.getElementById('s-price').value)||1.45;
+  LOCAL.nav=document.getElementById('s-nav').value||'ask';
   const newLang=document.getElementById('s-lang').value;
   const langChanged=newLang!==LOCAL.lang;
   LOCAL.lang=newLang;

@@ -479,10 +479,11 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px soli
 'use strict';
 
 /* Supabase credentials: впишите сюда, либо оставьте пустыми — спросит при первом запуске */
-const CFG_URL = '';
-const CFG_KEY = '';
+const CFG_URL = 'https://hgnihlkiccfbrejbpojp.supabase.co';
+const CFG_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhnbmlobGtpY2NmYnJlamJwb2pwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2OTU2MDMsImV4cCI6MjA5OTI3MTYwM30.AqPTMYqWt_Kc1IZX5pkB9MvrGL1IXr_PAVlH9I0g3ZQ
+';
 
-let sb=null, DRIVERS=[], ADDR=[], BANKS=[], editAddrId=null, editDrvId=null, editBankId=null;
+let sb=null, DRIVERS=[], ADDR=[], BANKS=[], LOCS=[], editAddrId=null, editDrvId=null, editBankId=null;
 const LANG=localStorage.getItem('admin_lang')||'ru';
 function setAdminLang(v){ localStorage.setItem('admin_lang',v); location.reload(); }
 const EN={
@@ -533,6 +534,8 @@ const EN={
 'Назначено визитов':'Visits assigned','уже были на эту дату':'already existed for this date',
 'Заполнен':'Fill','строк':'rows','Обрабатываю банки…':'Processing banks…',
 'Ободок: белый — в работе, зелёный — выполнено, красный — не отвечает, жёлтый — проблема':'Ring: white — open, green — done, red — no answer, yellow — problem',
+'онлайн':'online','только что':'just now','мин назад':'min ago',
+'грузовик — водитель онлайн (приложение открыто)':'truck — driver online (app open)',
 'пак.':'bags'
 };
 function t(k){ return LANG==='en'?(EN[k]??k):k; }
@@ -632,6 +635,13 @@ async function enterMain(){
       .on('postgres_changes',{event:'*',schema:'public',table:'addresses'},()=>refreshAll(true))
       .on('postgres_changes',{event:'*',schema:'public',table:'photos'},()=>refreshAll(true))
       .on('postgres_changes',{event:'*',schema:'public',table:'banks'},()=>refreshAll(true))
+      .on('postgres_changes',{event:'*',schema:'public',table:'driver_locations'},async()=>{
+        try{
+          const {data}=await sb.from('driver_locations').select('*');
+          if(data) LOCS=data;
+          if(document.getElementById('p-map').classList.contains('active')) renderMap();
+        }catch(e){}
+      })
       .subscribe();
   }catch(e){}
 }
@@ -651,14 +661,15 @@ async function cleanupOldPhotos(){
 
 async function refreshAll(silent){
   try{
-    const [d,a,p,b]=await Promise.all([
+    const [d,a,p,b,l]=await Promise.all([
       sb.from('drivers').select('*').order('created_at'),
       sb.from('addresses').select('*').order('created_at',{ascending:false}),
       sb.from('photos').select('*').order('created_at',{ascending:false}),
-      sb.from('banks').select('*').order('created_at')
+      sb.from('banks').select('*').order('created_at'),
+      sb.from('driver_locations').select('*')
     ]);
     if(d.error||a.error) throw (d.error||a.error);
-    DRIVERS=d.data; ADDR=a.data; PHOTOS=p.error?[]:p.data; BANKS=b.error?[]:b.data;
+    DRIVERS=d.data; ADDR=a.data; PHOTOS=p.error?[]:p.data; BANKS=b.error?[]:b.data; LOCS=l.error?[]:l.data;
     fillDriverSelects();
     renderDash(); renderAddrTable(); renderDrivers(); renderBanks();
     if(document.getElementById('p-map').classList.contains('active')) renderMap();
@@ -787,12 +798,29 @@ function renderMap(){
     L.marker([a.lat,a.lng],{icon}).addTo(amap)
       .bindPopup(`<b>${a.kind==='bank'?t('Банк')+': ':''}${esc(a.text)}</b><br>${a.bags||0} ${t('пак.')} · ${esc(drvName(a.driver_id))}<br>${ST(a.status)}${(a.kind==='bank'&&a.fill_level!=null)?' · '+a.fill_level+'%':''}`);
   });
+  const cutoff=Date.now()-30*60000;
+  let liveCnt=0;
+  LOCS.forEach(l=>{
+    if(!l.updated_at||Date.parse(l.updated_at)<cutoff) return;
+    const d=DRIVERS.find(x=>x.id===l.driver_id); if(!d) return;
+    liveCnt++;
+    pts.push([l.lat,l.lng]);
+    const mins=Math.max(0,Math.round((Date.now()-Date.parse(l.updated_at))/60000));
+    const icon=L.divIcon({className:'',html:
+      `<div style="width:36px;height:36px;border-radius:11px;background:#101B24;border:3px solid ${drvColor(l.driver_id)};
+       box-shadow:0 2px 6px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center">
+       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#FFC400" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 5h14v11H1zM15 9h4l4 4v3h-8"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg></div>`,
+      iconSize:[36,36],iconAnchor:[18,18]});
+    L.marker([l.lat,l.lng],{icon,zIndexOffset:1000}).addTo(amap)
+      .bindPopup(`<b>${esc(d.name)}</b><br>${t('онлайн')} · ${mins===0?t('только что'):mins+' '+t('мин назад')}`);
+  });
   if(pts.length) amap.fitBounds(L.latLngBounds(pts).pad(0.2));
   else amap.setView([51.6,-3.4],9);
   const used=[...new Set(list.map(a=>a.driver_id))];
   document.getElementById('map-legend').innerHTML=
     used.map(id=>`<span><span class="sw" style="background:${drvColor(id)}"></span>${esc(drvName(id))}</span>`).join('')+
-    '<span style="color:var(--muted)">'+t('Ободок: белый — в работе, зелёный — выполнено, красный — не отвечает, жёлтый — проблема')+'</span>';
+    '<span style="color:var(--muted)">'+t('Ободок: белый — в работе, зелёный — выполнено, красный — не отвечает, жёлтый — проблема')+'</span>'+
+    (liveCnt?'<span><span style="display:inline-block;width:15px;height:15px;border-radius:5px;background:#101B24;border:2px solid var(--hiviz);vertical-align:-3px;margin-right:6px"></span>'+t('грузовик — водитель онлайн (приложение открыто)')+'</span>':'');
 }
 
 /* ---------- geocode ---------- */
