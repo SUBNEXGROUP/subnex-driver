@@ -411,7 +411,7 @@ button:focus-visible,.card.tap:focus-visible{outline:3px solid var(--hiviz);outl
     <div class="photostrip" id="ai-photos"></div>
     <button class="btn btn-dark" onclick="takePhoto('photo')"><svg class="i" ><use href="#i-cam"/></svg> <span data-i18n="takePhoto">Сделать фото</span></button>
   </div>
-  <input type="file" id="photo-input" accept="image/*" capture="environment" multiple hidden onchange="onPhotoPicked(this.files)">
+  <input type="file" id="photo-input" accept="image/*" capture="environment" hidden onchange="onPhotoPicked(this.files)">
   <div class="seclbl" data-i18n="result">Результат</div>
   <button class="btn btn-ok" onclick="setResult('done')"><svg class="i" style="stroke:#fff"><use href="#i-check"/></svg> <span data-i18n="visited">Выполнено</span></button>
   <button class="btn btn-no" id="btn-noanswer" onclick="setResult('noanswer')"><svg class="i" style="stroke:#fff"><use href="#i-x"/></svg> <span data-i18n="noAnswer">Не отвечает</span></button>
@@ -500,8 +500,8 @@ button:focus-visible,.card.tap:focus-visible{outline:3px solid var(--hiviz);outl
 /* ---- Supabase credentials.
    Вариант А: впишите сюда и залейте файл.
    Вариант Б: оставьте пустыми — приложение спросит при первом запуске. ---- */
-const CFG_URL = 'https://hgnihlkiccfbrejbpojp.supabase.co';
-const CFG_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhnbmlobGtpY2NmYnJlamJwb2pwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2OTU2MDMsImV4cCI6MjA5OTI3MTYwM30.AqPTMYqWt_Kc1IZX5pkB9MvrGL1IXr_PAVlH9I0g3ZQ';
+const CFG_URL = '';
+const CFG_KEY = '';
 
 /* ---------- i18n ---------- */
 const STR = {
@@ -549,6 +549,7 @@ const STR = {
     needFill:'Укажите заполненность бина',
     rubbishCmt:'Комментарий к мусору (необязательно):',
     fillWord:'Заполнен',
+    photoErr:'Фото не обработано', photoUpErr:'Фото пока не отправились',
     navAppLbl:'Навигатор', navAsk:'Спрашивать каждый раз',
     navWith:'Открыть маршрут в', cancelWord:'Отмена',
     photoDelQ:'Удалить это фото?'
@@ -598,6 +599,7 @@ const STR = {
     needFill:'Select the bin fill level',
     rubbishCmt:'Comment about the rubbish (optional):',
     fillWord:'Fill',
+    photoErr:'Photo could not be processed', photoUpErr:'Photos not uploaded yet',
     navAppLbl:'Navigation app', navAsk:'Ask every time',
     navWith:'Navigate with', cancelWord:'Cancel'
   }
@@ -786,11 +788,16 @@ function takePhoto(kind){
 async function onPhotoPicked(files){
   if(!files||!files.length) return;
   for(const f of Array.from(files)){
+    let rec=null;
     try{
       const blob=await compressPhoto(f);
-      const rec={id:uuid(),address_id:currentAddrId,driver_id:ME.id,blob:blob,created:Date.now(),kind:PENDKIND,comment:RUBCMT};
-      await pdbPut(rec); CURPENDING.push(rec);
-    }catch(e){}
+      rec={id:uuid(),address_id:currentAddrId,driver_id:ME.id,blob:blob,created:Date.now(),kind:PENDKIND,comment:RUBCMT};
+    }catch(e){
+      toast('⚠ '+t('photoErr')+(e&&e.message?' ('+e.message+')':''));
+      continue;
+    }
+    CURPENDING.push(rec);            /* сначала в память — фото уже не потеряется */
+    try{ await pdbPut(rec); }catch(e){}  /* оффлайн-копия — как получится */
   }
   document.getElementById('photo-input').value='';
   renderAddrPhotos();
@@ -817,8 +824,11 @@ let photoBusy=false;
 async function flushPhotos(){
   if(photoBusy||!sb||!ME||!online()) return;
   photoBusy=true;
+  let upErr=null;
   try{
-    const q=await pdbAll();
+    let idb=[]; try{ idb=await pdbAll(); }catch(e){}
+    const mem=CURPENDING.filter(m=>!idb.some(x=>x.id===m.id));
+    const q=[...idb,...mem];
     for(const p of q){
       try{
         const path=p.address_id+'/'+p.id+'.jpg';
@@ -826,15 +836,16 @@ async function flushPhotos(){
         if(up.error) throw up.error;
         const ins=await sb.from('photos').insert({id:p.id,address_id:p.address_id,driver_id:p.driver_id,path:path,kind:p.kind||'photo',comment:p.comment||''});
         if(ins.error&&ins.error.code!=='23505') throw ins.error;
-        await pdbDel(p.id);
+        try{ await pdbDel(p.id); }catch(e){}
         if(p.address_id===currentAddrId){
           CURPENDING=CURPENDING.filter(x=>x.id!==p.id);
           if(!CURPHOTOS.some(x=>x.id===p.id)) CURPHOTOS.push({id:p.id,address_id:p.address_id,path:path,kind:p.kind||'photo',comment:p.comment||''});
           renderAddrPhotos();
         }
-      }catch(e){}
+      }catch(e){ upErr=e; }
     }
   }finally{ photoBusy=false; }
+  if(upErr) toast('⚠ '+t('photoUpErr')+(upErr.message?' ('+String(upErr.message).slice(0,80)+')':''));
 }
 setInterval(flushPhotos,30000);
 window.addEventListener('online',()=>flushPhotos());
