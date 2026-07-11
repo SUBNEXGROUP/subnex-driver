@@ -220,7 +220,11 @@ button:focus-visible,.card.tap:focus-visible{outline:3px solid var(--hiviz);outl
 .photothumb img{width:100%;height:100%;object-fit:cover;display:block}
 .photothumb.pending{border-style:dashed;border-color:var(--warn)}
 .photothumb.pending::after{content:'\23F3';position:absolute;right:4px;bottom:2px;font-size:15px}
-.photo-lb{position:fixed;inset:0;background:rgba(10,14,18,.94);z-index:300;display:none;flex-direction:column}
+.photo-lb{position:fixed;inset:0;height:100dvh;background:rgba(10,14,18,.94);z-index:300;display:none;flex-direction:column}
+.lb-x{position:absolute;top:calc(10px + env(safe-area-inset-top));right:12px;width:54px;height:54px;
+  border-radius:14px;background:var(--paper);border:2.5px solid var(--ink);box-shadow:0 3px 0 var(--ink);
+  display:flex;align-items:center;justify-content:center;z-index:2;cursor:pointer}
+.lb-x .i{width:24px;height:24px}
 .photo-lb.show{display:flex}
 .photo-lb img{flex:1;min-height:0;width:100%;object-fit:contain}
 .photo-lb .lb-bar{display:flex;gap:10px;padding:12px calc(12px + env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
@@ -487,7 +491,8 @@ button:focus-visible,.card.tap:focus-visible{outline:3px solid var(--hiviz);outl
 <div class="toast" id="toast"></div>
 
 <div class="photo-lb" id="photo-lb">
-  <img id="lb-img" alt="photo">
+  <button class="lb-x" onclick="lbClose()" aria-label="close"><svg class="i"><use href="#i-x"/></svg></button>
+  <img id="lb-img" alt="photo" onclick="lbClose()">
   <div class="lb-bar">
     <button style="background:var(--paper);color:var(--ink)" onclick="lbClose()"><svg class="i" ><use href="#i-x"/></svg> <span data-i18n="close">Закрыть</span></button>
     <button style="background:var(--no);color:#fff" onclick="lbDelete()"><svg class="i" style="stroke:#fff"><use href="#i-trash"/></svg> <span data-i18n="delete">Удалить</span></button>
