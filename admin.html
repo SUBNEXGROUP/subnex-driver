@@ -569,6 +569,13 @@ function saveConfig(){
 
 /* ---------- gate ---------- */
 let adminPinIsNew=false;
+/* Хэш PIN: SHA-256(соль + PIN). В базе — только отпечаток, сам PIN не хранится. */
+const PIN_SALT='subnex::admin::v1';
+async function hashPin(pin){
+  const data=new TextEncoder().encode(PIN_SALT+String(pin));
+  const buf=await crypto.subtle.digest('SHA-256',data);
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
 async function init(){
   const {url,key}=getCreds();
   if(!url||!key){
@@ -597,13 +604,20 @@ async function gateEnter(){
   const err=document.getElementById('gate-err');
   if(pin.length<4){ err.textContent=t('Минимум 4 цифры'); return; }
   try{
+    const h=await hashPin(pin);
     if(adminPinIsNew){
-      const {error}=await sb.from('app_settings').insert({key:'admin_pin',value:{pin}});
+      const {error}=await sb.from('app_settings').insert({key:'admin_pin',value:{hash:h}});
       if(error) throw error;
     } else {
       const {data,error}=await sb.from('app_settings').select('value').eq('key','admin_pin').single();
       if(error) throw error;
-      if(data.value.pin!==pin){ err.textContent=t('Неверный PIN'); return; }
+      const v=data.value||{};
+      const okHash = v.hash && v.hash===h;
+      const okLegacy = (v.hash==null && v.pin!=null && v.pin===pin); /* старый открытый PIN — принять один раз */
+      if(!okHash && !okLegacy){ err.textContent=t('Неверный PIN'); return; }
+      if(okLegacy){ /* тихо переводим на хэш */
+        try{ await sb.from('app_settings').update({value:{hash:h}}).eq('key','admin_pin'); }catch(e){}
+      }
     }
     sessionStorage.setItem('admin_ok','1');
     enterMain();
@@ -612,7 +626,8 @@ async function gateEnter(){
 async function changeAdminPin(){
   const pin=document.getElementById('new-admin-pin').value.trim();
   if(pin.length<4){ toast(t('Минимум 4 цифры')); return; }
-  const {error}=await sb.from('app_settings').upsert({key:'admin_pin',value:{pin}});
+  const h=await hashPin(pin);
+  const {error}=await sb.from('app_settings').upsert({key:'admin_pin',value:{hash:h}});
   toast(t(error?'Ошибка':'PIN изменён'));
   document.getElementById('new-admin-pin').value='';
 }
