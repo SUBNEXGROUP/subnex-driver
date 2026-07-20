@@ -498,6 +498,7 @@ button:focus-visible,.card.tap:focus-visible{outline:3px solid var(--hiviz);outl
     <button style="background:var(--no);color:#fff" onclick="lbDelete()"><svg class="i" style="stroke:#fff"><use href="#i-trash"/></svg> <span data-i18n="delete">Удалить</span></button>
   </div>
 </div>
+<script src="config.js"></script>
 <script>
 /* ============ SUBNEX Driver v2 — Supabase sync, PIN auth, offline outbox ============ */
 'use strict';
@@ -505,8 +506,9 @@ button:focus-visible,.card.tap:focus-visible{outline:3px solid var(--hiviz);outl
 /* ---- Supabase credentials.
    Вариант А: впишите сюда и залейте файл.
    Вариант Б: оставьте пустыми — приложение спросит при первом запуске. ---- */
-const CFG_URL = '';
-const CFG_KEY = '';
+const CFG = (typeof window!=='undefined' && window.SUBNEX_CONFIG) ? window.SUBNEX_CONFIG : {};
+const CFG_URL = CFG.url || '';
+const CFG_KEY = CFG.key || '';
 
 /* ---------- i18n ---------- */
 const STR = {

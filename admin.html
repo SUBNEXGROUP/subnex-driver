@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -479,8 +480,9 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px soli
 'use strict';
 
 /* Supabase credentials: впишите сюда, либо оставьте пустыми — спросит при первом запуске */
-const CFG_URL = 'https://hgnihlkiccfbrejbpojp.supabase.co';
-const CFG_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhnbmlobGtpY2NmYnJlamJwb2pwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2OTU2MDMsImV4cCI6MjA5OTI3MTYwM30.AqPTMYqWt_Kc1IZX5pkB9MvrGL1IXr_PAVlH9I0g3ZQ';
+const CFG = (typeof window!=='undefined' && window.SUBNEX_CONFIG) ? window.SUBNEX_CONFIG : {};
+const CFG_URL = CFG.url || '';
+const CFG_KEY = CFG.key || '';
 
 let sb=null, DRIVERS=[], ADDR=[], BANKS=[], LOCS=[], editAddrId=null, editDrvId=null, editBankId=null;
 const LANG=localStorage.getItem('admin_lang')||'ru';
