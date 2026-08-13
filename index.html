@@ -200,7 +200,10 @@ button:focus-visible,.card.tap:focus-visible{outline:3px solid var(--hiviz);outl
 .bankplate .i{width:14px;height:14px;stroke-width:2.4;stroke:#fff}
 .fillsel{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:4px 0 2px}
 .fillsel button{border:2px solid var(--ink);border-radius:10px;background:var(--card);padding:11px 2px;
-  font-family:'Archivo';font-weight:900;font-size:14px;box-shadow:0 2px 0 var(--ink);color:var(--ink)}
+  font-family:'Archivo';font-weight:900;font-size:13px;box-shadow:0 2px 0 var(--ink);color:var(--ink)}
+.fillsel button.kgzero{grid-column:1/-1;font-size:12px;letter-spacing:.08em;text-transform:uppercase;
+  background:var(--paper);color:var(--muted);padding:9px 2px}
+.fillsel button.kgzero.on{background:var(--ink);color:#fff;border-color:var(--ink)}
 .fillsel button.on{background:var(--hiviz)}
 .fillsel button:active{transform:translateY(2px);box-shadow:none}
 .reqmark{color:var(--no);font-weight:900}
@@ -398,7 +401,7 @@ button:focus-visible,.card.tap:focus-visible{outline:3px solid var(--hiviz);outl
     <div id="ai-geo"></div>
   </div>
   <div id="bank-sec" style="display:none">
-    <div class="seclbl"><span data-i18n="fillLbl">Заполненность бина</span> <span class="reqmark">*</span></div>
+    <div class="seclbl"><span data-i18n="fillLbl">Вес собранного</span> <span class="reqmark">*</span></div>
     <div class="fillsel" id="fillsel"></div>
     <div class="seclbl"><span data-i18n="phOpen">Фото: открытый бин + содержимое</span> <span class="reqmark">*</span></div>
     <div class="photostrip" id="ph-open"></div>
@@ -549,13 +552,13 @@ const STR = {
     photos:'Фото', takePhoto:'Сделать фото', close:'Закрыть',
     photoQueued:'Фото сохранено, отправится при появлении сети',
     offlineMsg:'Offline — изменения отправятся при появлении сети',
-    fillLbl:'Заполненность бина', phOpen:'Фото: открытый бин + содержимое',
+    fillLbl:'Вес собранного', phOpen:'Фото: открытый бин + содержимое',
     phEmpty:'Фото: пустой бин перед закрытием', phRubbish:'Мусор рядом (по желанию)',
     addRubbish:'Фото мусора + комментарий',
     needPhotos:'Нужно фото открытого бина И пустого перед закрытием',
-    needFill:'Укажите заполненность бина',
+    needFill:'Укажите вес собранного',
     rubbishCmt:'Комментарий к мусору (необязательно):',
-    fillWord:'Заполнен',
+    fillWord:'Собрано', kgUnit:'кг', emptyBin:'Пусто — ничего не собрано',
     photoErr:'Фото не обработано', photoUpErr:'Фото пока не отправились',
     navAppLbl:'Навигатор', navAsk:'Спрашивать каждый раз',
     navWith:'Открыть маршрут в', cancelWord:'Отмена',
@@ -599,13 +602,13 @@ const STR = {
     photoQueued:'Photo saved, will upload when back online',
     photoDelQ:'Delete this photo?',
     offlineMsg:'Offline — changes will sync when back online',
-    fillLbl:'Bin fill level', phOpen:'Photo: open bin + contents',
+    fillLbl:'Collected weight', phOpen:'Photo: open bin + contents',
     phEmpty:'Photo: empty bin before closing', phRubbish:'Rubbish nearby (optional)',
     addRubbish:'Rubbish photo + comment',
     needPhotos:'Required: photo of open bin AND empty bin before closing',
-    needFill:'Select the bin fill level',
+    needFill:'Select the collected weight',
     rubbishCmt:'Comment about the rubbish (optional):',
-    fillWord:'Fill',
+    fillWord:'Collected', kgUnit:'kg', emptyBin:'Empty — nothing collected',
     photoErr:'Photo could not be processed', photoUpErr:'Photos not uploaded yet',
     navAppLbl:'Navigation app', navAsk:'Ask every time',
     navWith:'Navigate with', cancelWord:'Cancel'
@@ -1309,10 +1312,13 @@ function openAddr(id){ currentAddrId=id; showView('v-addr'); renderAddr(); loadA
 const ICH=(n,st)=>'<svg class="i" style="width:15px;height:15px;vertical-align:-2px;'+(st||'')+'"><use href="#i-'+n+'"/></svg>';
 const BANKPLATE='<span class="bankplate">'+ICH('bin','stroke:#fff;')+'CLOTHES BANK</span>';
 let FILL=null;
+const KGVALS=[10,20,30,40,50,60,70,80,90,100];
 function renderFillSel(){
   const el=document.getElementById('fillsel'); if(!el) return;
-  el.innerHTML=[0,25,50,75,100].map(v=>
-    '<button class="'+(FILL===v?'on':'')+'" onclick="setFill('+v+')">'+v+'%</button>').join('');
+  el.innerHTML='<button class="kgzero'+(FILL===0?' on':'')+'" onclick="setFill(0)">'
+    +t('emptyBin')+'</button>'
+    +KGVALS.map(v=>'<button class="'+(FILL===v?'on':'')+'" onclick="setFill('+v+')">'
+    +v+' '+t('kgUnit')+'</button>').join('');
 }
 async function setFill(v){
   FILL=v; renderFillSel();
@@ -1432,7 +1438,7 @@ function renderArchive(){
       ${a.resultNote?'<div class="arc-note">'+esc(a.resultNote)+'</div>':''}
       <span class="badge ${a.status}">${badge[a.status]}</span>
       ${a.date?'<span class="badge new">'+a.date+'</span>':''}
-      ${(a.kind==='bank'&&a.fill!=null)?'<span class="badge new">'+t('fillWord')+' '+a.fill+'%</span>':''}
+      ${(a.kind==='bank'&&a.fill!=null)?'<span class="badge new">'+t('fillWord')+' '+a.fill+' '+t('kgUnit')+'</span>':''}
     </div>`).join('');
 }
 
