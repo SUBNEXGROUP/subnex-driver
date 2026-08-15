@@ -9,6 +9,8 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfmake@0.2.10/build/pdfmake.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfmake@0.2.10/build/vfs_fonts.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -231,6 +233,7 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px soli
     <button id="tb-dash" class="on" onclick="setTab('dash')"><svg class="i" ><use href="#i-grid"/></svg> <span data-t>Сводка</span></button>
     <button id="tb-addr" onclick="setTab('addr')"><svg class="i" ><use href="#i-pin"/></svg> <span data-t>Адреса</span></button>
     <button id="tb-bank" onclick="setTab('bank')"><svg class="i" ><use href="#i-bin"/></svg> <span data-t>Банки</span></button>
+    <button id="tb-rep" onclick="setTab('rep')"><svg class="i" ><use href="#i-save"/></svg> <span data-t>Отчёты</span></button>
     <button id="tb-map" onclick="setTab('map')"><svg class="i" ><use href="#i-map"/></svg> <span data-t>Карта</span></button>
     <button id="tb-photo" onclick="setTab('photo')"><svg class="i" ><use href="#i-cam"/></svg> <span data-t>Фото</span></button>
     <button id="tb-drv" onclick="setTab('drv')"><svg class="i" ><use href="#i-truck"/></svg> <span data-t>Водители</span></button>
@@ -287,6 +290,25 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px soli
       <tbody id="bank-tbody"></tbody>
     </table></div>
     <p class="legendtxt" data-t>Банк — постоянная точка. Кнопкой «Назначить на день» вы создаёте визиты выбранным банкам: они появятся у водителя в списке на дату.</p>
+  </div>
+
+  <!-- REPORTS -->
+  <div class="pane" id="p-rep">
+    <div id="rep-warn" style="display:none;background:#FFF4D6;border:2px solid var(--ink);
+      border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:13px"></div>
+    <div class="filters">
+      <div><label data-t>Месяц</label><input type="month" id="rep-month" onchange="renderReports()"></div>
+    </div>
+    <div class="toolbar">
+      <button class="btn btn-dark" onclick="internalPdf()"><svg class="i" ><use href="#i-dl"/></svg> <span data-t>Сводка для себя (PDF)</span></button>
+      <button class="btn btn-dark" onclick="allHostPdf()"><svg class="i" ><use href="#i-dl"/></svg> <span data-t>Все отчёты хостам (PDF)</span></button>
+    </div>
+    <div class="tablewrap"><table>
+      <thead><tr><th data-t>Площадка</th><th data-t>Условия</th><th data-t>Вывозов</th>
+        <th data-t>Собрано</th><th data-t>К выплате</th><th></th></tr></thead>
+      <tbody id="rep-tbody"></tbody>
+    </table></div>
+    <p class="legendtxt" data-t>Учитываются только выполненные вывозы за выбранный месяц. Ставка и контакт задаются в карточке площадки на вкладке «Банки».</p>
   </div>
 
   <!-- MAP -->
@@ -435,6 +457,20 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px soli
     <input type="text" id="mk-note">
     <label data-t>Активен</label>
     <select id="mk-active"><option value="true" data-t>Да</option><option value="false" data-t>Нет</option></select>
+    <label data-t>Условия оплаты</label>
+    <select id="mk-ratetype" onchange="onRateTypeChange()">
+      <option value="per_kg" data-t>За килограмм</option>
+      <option value="fixed" data-t>Фикс в месяц</option>
+      <option value="none" data-t>Не платим</option>
+    </select>
+    <label id="mk-ratelbl" data-t>Ставка, £ за кг</label>
+    <input type="number" id="mk-ratevalue" step="0.01" min="0" placeholder="0.20">
+    <label data-t>Контактное лицо</label>
+    <input type="text" id="mk-contact" placeholder="Emma Nelmes">
+    <label data-t>Email для отчёта</label>
+    <input type="email" id="mk-email" placeholder="office@example.org">
+    <label data-t>Показывать вес в отчёте хосту</label>
+    <select id="mk-showw"><option value="true" data-t>Да</option><option value="false" data-t>Нет</option></select>
     <div style="height:16px"></div>
     <div class="toolbar" style="margin:0">
       <button class="btn btn-primary" id="mk-save" onclick="saveBankModal()"><svg class="i" ><use href="#i-save"/></svg> <span data-t>Сохранить</span></button>
@@ -501,6 +537,16 @@ const EN={
 'Банк — постоянная точка. Кнопкой «Назначить на день» вы создаёте визиты выбранным банкам: они появятся у водителя в списке на дату.':'A bank is a permanent location. Use "Assign to a day" to create visits for selected banks: they will appear on the driver\'s list for that date.',
 'Тип фото':'Photo type','Бин открыт':'Bin open','Бин пуст':'Bin empty','Мусор':'Rubbish','Прочее':'Other','Все даты':'All dates',
 'Добавить водителя':'Add driver','Имя':'Name','Адресов всего':'Total addresses',
+'Отчёты':'Reports','Месяц':'Month','кг':'kg','месяц':'month','Площадка':'Site','Условия':'Terms','Вывозов':'Collections',
+'Собрано':'Collected','К выплате':'Payable','Сводка для себя (PDF)':'Internal summary (PDF)',
+'Все отчёты хостам (PDF)':'All host reports (PDF)','Условия оплаты':'Payment terms',
+'За килограмм':'Per kilogram','Фикс в месяц':'Fixed monthly','Не платим':'No payment',
+'Ставка, £ за кг':'Rate, £ per kg','Сумма в месяц, £':'Monthly amount, £',
+'Контактное лицо':'Contact person','Email для отчёта':'Report email',
+'Показывать вес в отчёте хосту':'Show weight in host report',
+'Учитываются только выполненные вывозы за выбранный месяц. Ставка и контакт задаются в карточке площадки на вкладке «Банки».':'Only completed collections in the selected month are counted. Rate and contact are set in the site card on the Banks tab.',
+'Нет данных за этот месяц':'No data for this month','Готовлю PDF…':'Building PDF…',
+'Столбцы ставок не найдены в базе — выполните SQL-миграцию, иначе суммы считаются по умолчанию 20p/кг.':'Rate columns not found in the database — run the SQL migration, otherwise amounts default to 20p/kg.',
 'Экспорт':'Export','С даты':'From','По дату':'To','JSON (всё)':'JSON (all)','Безопасность':'Security','Новый админ-PIN':'New admin PIN',
 'минимум 4 цифры':'minimum 4 digits','Сменить PIN':'Change PIN',
 'Хранение фото':'Photo storage','Фотографии старше 180 дней удаляются автоматически при каждом открытии этой панели.':'Photos older than 180 days are deleted automatically each time this panel is opened.',
@@ -696,10 +742,11 @@ async function refreshAll(silent){
 
 /* ---------- tabs ---------- */
 function setTab(tab){
-  ['dash','addr','bank','map','photo','drv','data'].forEach(x=>{
+  ['dash','addr','bank','rep','map','photo','drv','data'].forEach(x=>{
     document.getElementById('p-'+x).classList.toggle('active',x===tab);
     document.getElementById('tb-'+x).classList.toggle('on',x===tab);
   });
+  if(tab==='rep') renderReports();
   if(tab==='map') renderMap();
   if(tab==='photo') renderPhotos();
 }
@@ -1022,6 +1069,12 @@ function openBankModal(id){
   document.getElementById('mk-text').value=b?b.text:'';
   document.getElementById('mk-note').value=b?(b.note||''):'';
   document.getElementById('mk-active').value=b?String(b.active):'true';
+  document.getElementById('mk-ratetype').value=b?(b.rate_type||'per_kg'):'per_kg';
+  document.getElementById('mk-ratevalue').value=b?(b.rate_value==null?'':b.rate_value):'0.20';
+  document.getElementById('mk-contact').value=b?(b.contact_name||''):'';
+  document.getElementById('mk-email').value=b?(b.contact_email||''):'';
+  document.getElementById('mk-showw').value=b?String(b.show_weights!==false):'true';
+  onRateTypeChange();
   document.getElementById('mk-del').style.display=b?'':'none';
   document.getElementById('m-bank-bg').classList.add('show');
 }
@@ -1035,6 +1088,11 @@ async function saveBankModal(){
   const row={ id:editBankId||uuid(), name, text,
     note:document.getElementById('mk-note').value.trim(),
     active:document.getElementById('mk-active').value==='true',
+    rate_type:document.getElementById('mk-ratetype').value,
+    rate_value:Number(document.getElementById('mk-ratevalue').value||0),
+    contact_name:document.getElementById('mk-contact').value.trim(),
+    contact_email:document.getElementById('mk-email').value.trim(),
+    show_weights:document.getElementById('mk-showw').value==='true',
     lat:old?old.lat:null, lng:old?old.lng:null };
   if(text&&(!old||old.text!==text||row.lat==null)){
     const g=await geocode(text);
@@ -1164,6 +1222,339 @@ async function lbDelete(){
 }
 
 /* ---------- export ---------- */
+/* ================= REPORTS ================= */
+const BRAND={ink:'#10231A',green:'#2ECC71',dgreen:'#1E6B45',muted:'#6B7280',line:'#DDDDD6',soft:'#F4F6F3'};
+const MONTHS_EN=['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function rateOf(b){
+  return {type:(b.rate_type||'per_kg'), value:(b.rate_value==null?0.20:Number(b.rate_value))};
+}
+function money(n){ return '£'+Number(n||0).toFixed(2); }
+function ymNow(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+function ymLabel(ym){
+  const [y,m]=ym.split('-'); return MONTHS_EN[Number(m)-1]+' '+y;
+}
+function lastDayOf(ym){
+  const [y,m]=ym.split('-').map(Number);
+  return new Date(y,m,0).getDate();
+}
+function payDueLabel(ym){
+  const [y,m]=ym.split('-').map(Number);
+  const d=new Date(y,m,1);
+  return '1 '+MONTHS_EN[d.getMonth()]+' '+d.getFullYear();
+}
+function ukDate(iso){
+  if(!iso) return '';
+  const d=new Date(iso+'T00:00:00');
+  const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const mon=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return days[d.getDay()]+' '+d.getDate()+' '+mon[d.getMonth()]+' '+d.getFullYear();
+}
+function hhmm(ts){
+  if(!ts) return '';
+  const d=new Date(ts);
+  return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+}
+
+function monthVisits(bankId,ym){
+  return ADDR.filter(a=>a.kind==='bank'&&a.bank_id===bankId&&a.status==='done'
+      &&(a.date||'').slice(0,7)===ym)
+    .sort((x,y)=>(x.date||'').localeCompare(y.date||''));
+}
+function bankStats(b,ym){
+  const v=monthVisits(b.id,ym);
+  const kg=v.reduce((s,a)=>s+(Number(a.fill_level)||0),0);
+  const r=rateOf(b);
+  let pay=0;
+  if(r.type==='per_kg') pay=kg*r.value;
+  else if(r.type==='fixed') pay=r.value;
+  return {visits:v,kg:kg,rate:r,pay:pay};
+}
+function termsLabel(r){
+  if(r.type==='fixed') return money(r.value)+' / '+t('месяц');
+  if(r.type==='none') return '—';
+  return (r.value*100).toFixed(0)+'p / '+t('кг');
+}
+
+async function checkRateCols(){
+  try{
+    const {error}=await sb.from('banks').select('rate_type').limit(1);
+    return !error;
+  }catch(e){ return false; }
+}
+
+async function renderReports(){
+  const mEl=document.getElementById('rep-month');
+  if(!mEl.value) mEl.value=ymNow();
+  const ym=mEl.value;
+  const warn=document.getElementById('rep-warn');
+  const ok=await checkRateCols();
+  warn.style.display=ok?'none':'block';
+  if(!ok) warn.textContent=t('Столбцы ставок не найдены в базе — выполните SQL-миграцию, иначе суммы считаются по умолчанию 20p/кг.');
+
+  const rows=BANKS.map(b=>({b:b,st:bankStats(b,ym)}))
+    .filter(x=>x.st.visits.length>0)
+    .sort((a,b)=>b.st.kg-a.st.kg);
+
+  const tb=document.getElementById('rep-tbody');
+  if(!rows.length){
+    tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:22px">'
+      +t('Нет данных за этот месяц')+'</td></tr>';
+    return;
+  }
+  const totKg=rows.reduce((s,x)=>s+x.st.kg,0);
+  const totPay=rows.reduce((s,x)=>s+x.st.pay,0);
+  tb.innerHTML=rows.map(x=>`<tr>
+      <td><b>${esc(x.b.name)}</b><div style="font-size:11px;color:var(--muted)">${esc(x.b.text||'')}</div></td>
+      <td>${termsLabel(x.st.rate)}</td>
+      <td>${x.st.visits.length}</td>
+      <td><b>${x.st.kg}</b> ${t('кг')}</td>
+      <td>${x.st.rate.type==='none'?'—':'<b>'+money(x.st.pay)+'</b>'}</td>
+      <td style="text-align:right"><button class="btn btn-ghost" onclick="hostPdf('${x.b.id}')">PDF</button></td>
+    </tr>`).join('')
+    +`<tr style="background:var(--soft,#F4F6F3);font-weight:700">
+      <td>${t('Всего')}</td><td></td>
+      <td>${rows.reduce((s,x)=>s+x.st.visits.length,0)}</td>
+      <td>${totKg} ${t('кг')}</td><td>${money(totPay)}</td><td></td></tr>`;
+}
+
+/* --- изображения для PDF --- */
+async function imgToData(path,maxW){
+  try{
+    const res=await fetch(photoUrl(path));
+    if(!res.ok) return null;
+    const blob=await res.blob();
+    const bmp=await createImageBitmap(blob);
+    const sc=Math.min(1,maxW/bmp.width);
+    const c=document.createElement('canvas');
+    c.width=Math.round(bmp.width*sc); c.height=Math.round(bmp.height*sc);
+    c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);
+    bmp.close&&bmp.close();
+    return {data:c.toDataURL('image/jpeg',0.7),w:c.width,h:c.height};
+  }catch(e){ return null; }
+}
+function visitPhotos(addrId){
+  const ps=PHOTOS.filter(p=>p.address_id===addrId);
+  return {open:ps.find(p=>p.kind==='open'), empty:ps.find(p=>p.kind==='empty')};
+}
+
+/* --- общий каркас документа --- */
+function pdfShell(subtitle){
+  return {
+    pageSize:'A4', pageMargins:[40,98,40,46],
+    defaultStyle:{font:'Roboto',fontSize:9.5,color:'#1A1A18',lineHeight:1.25},
+    background:function(){ return {canvas:[
+      {type:'rect',x:0,y:0,w:595.28,h:80,color:BRAND.ink},
+      {type:'rect',x:0,y:80,w:595.28,h:4.5,color:BRAND.green}]}; },
+    header:{margin:[40,24,40,0],columns:[
+      {width:'*',stack:[
+        {text:[{text:'SUBNEX',bold:true,fontSize:16,color:'#FFFFFF'},
+               {text:'   G R O U P',bold:true,fontSize:7,color:BRAND.green}]},
+        {text:'Textile collection  ·  South Wales',fontSize:7.5,color:'#9AA6A0',margin:[0,5,0,0]}]},
+      {width:'auto',alignment:'right',stack:[
+        {text:'subnex.co.uk',fontSize:7.5,color:'#FFFFFF'},
+        {text:'info@subnex.co.uk',fontSize:7.5,color:'#9AA6A0',margin:[0,3,0,0]}]}]},
+    footer:function(cur,tot){ return {margin:[40,10,40,0],columns:[
+      {text:subtitle,fontSize:7,color:BRAND.muted},
+      {text:'Page '+cur+' / '+tot,fontSize:7,color:BRAND.muted,alignment:'right'}]}; },
+    styles:{
+      h1:{fontSize:18,bold:true,margin:[0,0,0,4]},
+      sec:{fontSize:10.5,bold:true,color:BRAND.dgreen,margin:[0,16,0,6]},
+      lbl:{fontSize:6.8,bold:true,color:BRAND.muted,characterSpacing:0.4},
+      val:{fontSize:10},
+      th:{fontSize:8,bold:true,color:'#FFFFFF'},
+      note:{fontSize:7.5,color:BRAND.muted}
+    }
+  };
+}
+function kvRow(pairs){
+  return {columns:pairs.map(p=>({width:'*',stack:[
+    {text:p[0].toUpperCase(),style:'lbl'},
+    {text:p[1]||'—',style:'val',margin:[0,2,0,0]}]})),margin:[0,0,0,10]};
+}
+function noBorder(){ return {hLineWidth:()=>0,vLineWidth:()=>0,paddingLeft:()=>0,paddingRight:()=>0,paddingTop:()=>0,paddingBottom:()=>0}; }
+
+/* --- отчёт хосту --- */
+async function hostPdf(bankId,silent){
+  const b=BANKS.find(x=>x.id===bankId); if(!b) return;
+  const ym=document.getElementById('rep-month').value||ymNow();
+  const st=bankStats(b,ym);
+  if(!st.visits.length){ toast(t('Нет данных за этот месяц')); return; }
+  if(!silent) toast(t('Готовлю PDF…'));
+
+  const showKg=b.show_weights!==false;
+  const perKg=st.rate.type==='per_kg';
+  const body=[];
+
+  body.push({text:'Monthly collection report',style:'h1'});
+  body.push({text:'This report covers every collection carried out at your site during the period below.',
+             margin:[0,0,0,14],color:'#3A3A38'});
+  body.push(kvRow([['Site',b.name],['Period',ymLabel(ym)],
+    ['Agreed rate',perKg?((st.rate.value*100).toFixed(0)+'p per kg')
+      :(st.rate.type==='fixed'?(money(st.rate.value)+' per month'):'—')]]));
+  body.push(kvRow([['Address',b.text||''],['Site contact',b.contact_name||''],
+    ['Payment due',st.rate.type==='none'?'—':payDueLabel(ym)]]));
+
+  const boxCells=[];
+  if(showKg) boxCells.push({stack:[{text:'TOTAL COLLECTED (ESTIMATED)',style:'lbl'},
+    {text:st.kg+' kg',fontSize:19,bold:true,margin:[0,3,0,0]}]});
+  if(perKg) boxCells.push({stack:[{text:'RATE',style:'lbl'},
+    {text:(st.rate.value*100).toFixed(0)+'p',fontSize:19,bold:true,margin:[0,3,0,0]}]});
+  if(st.rate.type!=='none') boxCells.push({stack:[{text:'AMOUNT PAYABLE',style:'lbl'},
+    {text:money(st.pay),fontSize:19,bold:true,color:BRAND.dgreen,margin:[0,3,0,0]}]});
+  boxCells.push({stack:[{text:'COLLECTIONS',style:'lbl'},
+    {text:String(st.visits.length),fontSize:19,bold:true,margin:[0,3,0,0]}]});
+  body.push({table:{widths:boxCells.map(()=>'*'),body:[boxCells]},
+    layout:{hLineWidth:()=>0.7,vLineWidth:(i,n)=>(i===0||i===n.table.widths.length)?0.7:0.7,
+      hLineColor:()=>BRAND.line,vLineColor:()=>BRAND.line,
+      paddingLeft:()=>11,paddingRight:()=>11,paddingTop:()=>9,paddingBottom:()=>10,
+      fillColor:()=>BRAND.soft},margin:[0,4,0,0]});
+
+  body.push({text:'Collections this period',style:'sec'});
+  const head=[{text:'#',style:'th'},{text:'DATE',style:'th'},{text:'TIME',style:'th'}];
+  if(showKg) head.push({text:'ESTIMATED WEIGHT',style:'th',alignment:'right'});
+  if(perKg) head.push({text:'VALUE',style:'th',alignment:'right'});
+  const rows=[head];
+  st.visits.forEach((a,i)=>{
+    const r=[String(i+1),ukDate(a.date),hhmm(a.done_at)];
+    if(showKg) r.push({text:(Number(a.fill_level)||0)+' kg',alignment:'right'});
+    if(perKg) r.push({text:money((Number(a.fill_level)||0)*st.rate.value),alignment:'right'});
+    rows.push(r);
+  });
+  const tot=[{text:'',border:[false,true,false,false]},{text:'Total',bold:true},{text:''}];
+  if(showKg) tot.push({text:st.kg+' kg',bold:true,alignment:'right'});
+  if(perKg) tot.push({text:money(st.pay),bold:true,alignment:'right'});
+  rows.push(tot);
+  const w=['auto','*','auto']; if(showKg) w.push('auto'); if(perKg) w.push('auto');
+  body.push({table:{headerRows:1,widths:w,body:rows},
+    layout:{hLineWidth:()=>0.4,vLineWidth:()=>0,hLineColor:()=>BRAND.line,
+      paddingTop:()=>6,paddingBottom:()=>6,paddingLeft:()=>8,paddingRight:()=>8,
+      fillColor:(i)=>i===0?BRAND.ink:(i===rows.length-1?BRAND.soft:(i%2?null:'#FAFAF7'))}});
+  if(showKg) body.push({text:'Weights are estimated by the collection driver and recorded on site at the moment of collection.',
+    style:'note',margin:[0,6,0,0]});
+
+  body.push({text:'Collection photographs',style:'sec'});
+  body.push({text:'Each collection is photographed twice: the open bank with its contents before emptying, and the same bank emptied before it is locked.',
+    color:'#3A3A38',margin:[0,0,0,8]});
+
+  for(const a of st.visits){
+    const ph=visitPhotos(a.id);
+    const io_=ph.open?await imgToData(ph.open.path,760):null;
+    const ie_=ph.empty?await imgToData(ph.empty.path,760):null;
+    const cap=[{text:ukDate(a.date)+'  ·  '+hhmm(a.done_at),bold:true}];
+    if(showKg) cap.push({text:'Estimated '+(Number(a.fill_level)||0)+' kg',bold:true,alignment:'right'});
+    const blk=[{table:{widths:showKg?['*','auto']:['*'],body:[cap]},
+      layout:{hLineWidth:()=>0.6,vLineWidth:()=>0,hLineColor:()=>BRAND.line,
+        paddingLeft:()=>9,paddingRight:()=>9,paddingTop:()=>6,paddingBottom:()=>6,
+        fillColor:()=>BRAND.soft},margin:[0,0,0,5]}];
+    const cell=(img,lab)=>({stack:[
+      img?{image:img.data,width:248}:{text:'no photo',style:'note',margin:[0,26,0,26],alignment:'center'},
+      {text:lab,style:'lbl',margin:[0,4,0,0]}]});
+    blk.push({columns:[cell(io_,'BEFORE — OPEN BANK'),{width:14,text:''},cell(ie_,'AFTER — EMPTIED')],
+      margin:[0,0,0,14]});
+    body.push({stack:blk,unbreakable:true});
+  }
+
+  body.push({table:{widths:['*'],body:[[{stack:[
+    {text:'Questions about this report?',bold:true,margin:[0,0,0,3]},
+    {text:'Reply to this email or call us and we will look into any collection listed above.'
+      +(st.rate.type==='none'?'':' Payment is made by bank transfer on the 1st of the month for the previous month.'),
+      color:'#3A3A38'}]}]]},
+    layout:{hLineWidth:()=>0,vLineWidth:(i)=>i===0?2.5:0,vLineColor:()=>BRAND.green,
+      paddingLeft:()=>11,paddingRight:()=>11,paddingTop:()=>10,paddingBottom:()=>10,
+      fillColor:()=>BRAND.soft},margin:[0,10,0,0]});
+
+  const doc=pdfShell('Subnex Group Ltd  ·  Collection report  ·  '+b.name+'  ·  '+ymLabel(ym));
+  doc.content=body;
+  doc.info={title:'Subnex collection report — '+b.name+' — '+ymLabel(ym),author:'Subnex Group Ltd'};
+  const fname='Subnex-'+b.name.replace(/[^\w\-]+/g,'-').replace(/^-|-$/g,'')+'-'+ym+'.pdf';
+  return new Promise(res=>pdfMake.createPdf(doc).download(fname,res));
+}
+
+async function allHostPdf(){
+  const ym=document.getElementById('rep-month').value||ymNow();
+  const list=BANKS.filter(b=>monthVisits(b.id,ym).length>0);
+  if(!list.length){ toast(t('Нет данных за этот месяц')); return; }
+  toast(t('Готовлю PDF…'));
+  for(const b of list){ await hostPdf(b.id,true); await new Promise(r=>setTimeout(r,600)); }
+}
+
+/* --- внутренняя сводка --- */
+async function internalPdf(){
+  const ym=document.getElementById('rep-month').value||ymNow();
+  const rows=BANKS.map(b=>({b:b,st:bankStats(b,ym)})).filter(x=>x.st.visits.length>0);
+  if(!rows.length){ toast(t('Нет данных за этот месяц')); return; }
+  toast(t('Готовлю PDF…'));
+
+  const body=[{text:'Internal summary — '+ymLabel(ym),style:'h1'},
+    {text:'Operational totals and amounts payable to sites. Not for distribution.',
+     margin:[0,0,0,14],color:'#3A3A38'}];
+
+  const totKg=rows.reduce((s,x)=>s+x.st.kg,0);
+  const totPay=rows.reduce((s,x)=>s+x.st.pay,0);
+  const totVis=rows.reduce((s,x)=>s+x.st.visits.length,0);
+  body.push({table:{widths:['*','*','*','*'],body:[[
+    {stack:[{text:'SITES',style:'lbl'},{text:String(rows.length),fontSize:19,bold:true,margin:[0,3,0,0]}]},
+    {stack:[{text:'COLLECTIONS',style:'lbl'},{text:String(totVis),fontSize:19,bold:true,margin:[0,3,0,0]}]},
+    {stack:[{text:'TOTAL COLLECTED',style:'lbl'},{text:totKg+' kg',fontSize:19,bold:true,margin:[0,3,0,0]}]},
+    {stack:[{text:'TOTAL PAYABLE',style:'lbl'},{text:money(totPay),fontSize:19,bold:true,color:BRAND.dgreen,margin:[0,3,0,0]}]}]]},
+    layout:{hLineWidth:()=>0.7,vLineWidth:()=>0.7,hLineColor:()=>BRAND.line,vLineColor:()=>BRAND.line,
+      paddingLeft:()=>11,paddingRight:()=>11,paddingTop:()=>9,paddingBottom:()=>10,
+      fillColor:()=>BRAND.soft}});
+
+  body.push({text:'By site',style:'sec'});
+  const sr=[[{text:'SITE',style:'th'},{text:'TERMS',style:'th'},{text:'COLL.',style:'th',alignment:'right'},
+             {text:'COLLECTED',style:'th',alignment:'right'},{text:'PAYABLE',style:'th',alignment:'right'}]];
+  rows.sort((a,b)=>b.st.kg-a.st.kg).forEach(x=>{
+    const r=x.st.rate;
+    sr.push([x.b.name,
+      r.type==='per_kg'?((r.value*100).toFixed(0)+'p / kg'):(r.type==='fixed'?(money(r.value)+' / month'):'no payment'),
+      {text:String(x.st.visits.length),alignment:'right'},
+      {text:x.st.kg+' kg',alignment:'right'},
+      {text:r.type==='none'?'—':money(x.st.pay),alignment:'right',bold:true}]);
+  });
+  sr.push([{text:'Total',bold:true},'',{text:String(totVis),alignment:'right',bold:true},
+    {text:totKg+' kg',alignment:'right',bold:true},{text:money(totPay),alignment:'right',bold:true}]);
+  body.push({table:{headerRows:1,widths:['*','auto','auto','auto','auto'],body:sr},
+    layout:{hLineWidth:()=>0.4,vLineWidth:()=>0,hLineColor:()=>BRAND.line,
+      paddingTop:()=>6,paddingBottom:()=>6,paddingLeft:()=>8,paddingRight:()=>8,
+      fillColor:(i)=>i===0?BRAND.ink:(i===sr.length-1?BRAND.soft:(i%2?null:'#FAFAF7'))}});
+
+  const byDay={};
+  rows.forEach(x=>x.st.visits.forEach(a=>{
+    const d=a.date||'';
+    if(!byDay[d]) byDay[d]={kg:0,n:0};
+    byDay[d].kg+=Number(a.fill_level)||0; byDay[d].n++;
+  }));
+  const days=Object.keys(byDay).sort();
+  body.push({text:'By day',style:'sec'});
+  const dr=[[{text:'DATE',style:'th'},{text:'COLLECTIONS',style:'th',alignment:'right'},
+             {text:'COLLECTED',style:'th',alignment:'right'}]];
+  days.forEach(d=>dr.push([ukDate(d),{text:String(byDay[d].n),alignment:'right'},
+    {text:byDay[d].kg+' kg',alignment:'right'}]));
+  dr.push([{text:'Total',bold:true},{text:String(totVis),alignment:'right',bold:true},
+    {text:totKg+' kg',alignment:'right',bold:true}]);
+  body.push({table:{headerRows:1,widths:['*','auto','auto'],body:dr},
+    layout:{hLineWidth:()=>0.4,vLineWidth:()=>0,hLineColor:()=>BRAND.line,
+      paddingTop:()=>6,paddingBottom:()=>6,paddingLeft:()=>8,paddingRight:()=>8,
+      fillColor:(i)=>i===0?BRAND.ink:(i===dr.length-1?BRAND.soft:(i%2?null:'#FAFAF7'))}});
+
+  const doc=pdfShell('Subnex Group Ltd  ·  Internal summary  ·  '+ymLabel(ym));
+  doc.content=body;
+  doc.info={title:'Subnex internal summary — '+ymLabel(ym),author:'Subnex Group Ltd'};
+  pdfMake.createPdf(doc).download('Subnex-INTERNAL-'+ym+'.pdf');
+}
+
+function onRateTypeChange(){
+  const v=document.getElementById('mk-ratetype').value;
+  const lbl=document.getElementById('mk-ratelbl');
+  const inp=document.getElementById('mk-ratevalue');
+  if(v==='none'){ lbl.style.display='none'; inp.style.display='none'; return; }
+  lbl.style.display=''; inp.style.display='';
+  lbl.textContent=t(v==='fixed'?'Сумма в месяц, £':'Ставка, £ за кг');
+  inp.placeholder=v==='fixed'?'50':'0.20';
+}
+
 function exportRows(){
   const from=document.getElementById('ex-from').value;
   const to=document.getElementById('ex-to').value;
@@ -1183,7 +1574,7 @@ function exportCSV(){
     (a.fill_level==null?'':a.fill_level), a.phone||'', a.note||'',
     a.status, a.result_note||'', a.done_at||''
   ].map(csvCell).join(';')));
-  downloadFile('\ufeff'+lines.join('\r\n'),'subnex-export-'+todayStr()+'.csv','text/csv');
+  downloadFile('\ufeff'+'sep=;\r\n'+lines.join('\r\n'),'subnex-export-'+todayStr()+'.csv','text/csv');
   toast('CSV: '+rows.length+' '+t('строк'));
 }
 function exportJSON(){
