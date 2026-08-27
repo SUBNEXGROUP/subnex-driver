@@ -1433,28 +1433,6 @@ async function hostPdf(bankId,silent){
   if(showKg) body.push({text:'Weights are estimated by the collection driver and recorded on site at the moment of collection.',
     style:'note',margin:[0,6,0,0]});
 
-  body.push({text:'Collection photographs',style:'sec'});
-  body.push({text:'Each collection is photographed twice: the open bank with its contents before emptying, and the same bank emptied before it is locked.',
-    color:'#3A3A38',margin:[0,0,0,8]});
-
-  for(const a of st.visits){
-    const ph=visitPhotos(a.id);
-    const io_=ph.open?await imgToData(ph.open.path,760):null;
-    const ie_=ph.empty?await imgToData(ph.empty.path,760):null;
-    const cap=[{text:ukDate(a.date)+'  ·  '+hhmm(a.done_at),bold:true}];
-    if(showKg) cap.push({text:'Estimated '+(Number(a.fill_level)||0)+' kg',bold:true,alignment:'right'});
-    const blk=[{table:{widths:showKg?['*','auto']:['*'],body:[cap]},
-      layout:{hLineWidth:()=>0.6,vLineWidth:()=>0,hLineColor:()=>BRAND.line,
-        paddingLeft:()=>9,paddingRight:()=>9,paddingTop:()=>6,paddingBottom:()=>6,
-        fillColor:()=>BRAND.soft},margin:[0,0,0,5]}];
-    const cell=(img,lab)=>({stack:[
-      img?{image:img.data,width:248}:{text:'no photo',style:'note',margin:[0,26,0,26],alignment:'center'},
-      {text:lab,style:'lbl',margin:[0,4,0,0]}]});
-    blk.push({columns:[cell(io_,'BEFORE — OPEN BANK'),{width:14,text:''},cell(ie_,'AFTER — EMPTIED')],
-      margin:[0,0,0,14]});
-    body.push({stack:blk,unbreakable:true});
-  }
-
   body.push({table:{widths:['*'],body:[[{stack:[
     {text:'Questions about this report?',bold:true,margin:[0,0,0,3]},
     {text:'Reply to this email or call us and we will look into any collection listed above.'
