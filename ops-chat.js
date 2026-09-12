@@ -74,7 +74,7 @@ class Chat{
    this.renderHead();this.renderMessages(data.messages);this.$('#oc-send')?.toggleAttribute('disabled',this.sendBusy||data.thread.opted_out);
   }catch(e){if(['ACCESS_DENIED','LOGIN_REQUIRED'].includes(e.code)){this.data=null;this.threadId=null;this.$('.oc-conversation').innerHTML='<div class="oc-empty">Доступ к переписке закрыт. Войдите заново или проверьте назначение.</div>';}this.notice(errText(e));}finally{this.detailLoading=false;}
  }
- renderHead(){const {thread:t,address:a,offer:o}=this.data;this.$('.oc-head').innerHTML=`<div class="oc-row oc-between"><div class="oc-row"><button class="oc-back" data-act="back">←</button><strong>${esc(t.phone)}</strong></div><div class="oc-row"><button data-act="attach">${a?'Адрес':'Привязать адрес'}</button>${this.admin?'<button data-act="assign">Водитель</button>':''}<button data-act="refresh" aria-label="Обновить переписку">↻</button><button data-act="read" title="Отметить просмотренным">✓</button></div></div><p>${esc(a?.text||'Добавьте адрес, чтобы согласовать сбор.')}</p><div>${a?`<span class="oc-chip">${esc(sources[a.collection_source]||sources.subnex)}</span>`:''}${a?.collection_start?`<span class="oc-chip ok">Согласовано: ${esc(slotLabel(a))}</span>`:a?.date?`<span class="oc-chip ok">В маршруте: ${esc(a.date)}</span>`:'<span class="oc-chip">Вне маршрута</span>'}${t.opted_out?'<span class="oc-chip warn">Отказ от SMS</span>':t.manual_mode?'<span class="oc-chip warn">Ручное согласование</span>':o?.state==='awaiting'?'<span class="oc-chip warn">Ожидаем точный ответ YES</span>':''}</div>`;}
+ renderHead(){const {thread:t,address:a,offer:o}=this.data;this.$('.oc-head').innerHTML=`<div class="oc-row oc-between"><div class="oc-row"><button class="oc-back" data-act="back">←</button><strong>${esc(t.phone)}</strong></div><div class="oc-row"><button data-act="attach">${a?'Адрес':'Привязать адрес'}</button>${this.admin?'<button data-act="assign">Водитель</button>':''}<button data-act="refresh" aria-label="Обновить переписку">↻</button><button data-act="read" title="Отметить просмотренным">✓</button></div></div><p>${esc(a?.text||'Добавьте адрес, чтобы согласовать сбор.')}</p><div>${a?`${this.admin?`<button class="oc-chip" data-act="category" title="Изменить категорию" ${this.sendBusy?'disabled':''}>${esc(sources[a.collection_source]||sources.subnex)} ▾</button>`:`<span class="oc-chip">${esc(sources[a.collection_source]||sources.subnex)}</span>`}`:''}${a?.collection_start?`<span class="oc-chip ok">Согласовано: ${esc(slotLabel(a))}</span>`:a?.date?`<span class="oc-chip ok">В маршруте: ${esc(a.date)}</span>`:'<span class="oc-chip">Вне маршрута</span>'}${t.opted_out?'<span class="oc-chip warn">Отказ от SMS</span>':t.manual_mode?'<span class="oc-chip warn">Ручное согласование</span>':o?.state==='awaiting'?'<span class="oc-chip warn">Ожидаем точный ответ YES</span>':''}</div>`;}
  renderMessages(messages,prepend=false){const box=this.$('.oc-messages');const bottom=box.scrollHeight-box.scrollTop-box.clientHeight<90;const previous=box.scrollHeight;
   if(prepend){const all=[...messages,...this.data.messages];this.data.messages=[...new Map(all.map(x=>[x.id,x])).values()];messages=this.data.messages;}
   const html=`${messages.length>=100?'<button data-act="older">Более ранние сообщения</button>':''}`+messages.map(m=>`<article class="oc-message ${m.direction==='out'?'out':''}"><div class="oc-text">${esc(m.body)}</div>${m.num_media?'<div class="oc-help">Вложений: '+m.num_media+' (файлы не загружены)</div>':''}<footer><span class="${['unknown','failed','undelivered','dispatching'].includes(m.status)?'oc-error':''}">${esc(statuses[m.status]||m.status)}${m.error_code?' · '+esc(m.error_code):''}</span> · ${esc(ukDate(m.created_at))} ${esc(ukTime(m.created_at))}</footer></article>`).join('');
@@ -100,7 +100,7 @@ class Chat{
   if(act==='refresh'){this.notice('');await this.loadList();await this.loadDetail();return;}
   if(act==='prev'||act==='next'){this.offset=Math.max(0,this.offset+(act==='next'?60:-60));await this.loadList();return;}
   if(act==='new'){this.newThread();return;}if(act==='attach'){if(this.data.address){this.notice('Адрес: '+this.data.address.text+'. Редактирование реквизитов доступно в разделе «Адреса».');}else this.newThread(this.data.thread.phone);return;}
-  if(act==='assign'){this.assign();return;}if(act==='settings'){this.settings();return;}
+  if(act==='category'){if(!this.sendBusy)this.changeCategory();return;}if(act==='assign'){this.assign();return;}if(act==='settings'){this.settings();return;}
   if(act==='read'){await this.run(()=>this.call('read',{thread_id:this.threadId}));await this.loadList();return;}
   if(act==='older'){b.disabled=true;const first=this.data.messages[0];const old=await this.run(()=>this.call('detail',{thread_id:this.threadId,before:first.created_at,before_id:first.id}));if(old){this.renderMessages(old.messages,true);if(!old.messages.length){this.notice('Начало переписки.');this.$('[data-act=older]')?.remove();}}return;}
   if(act==='send'){await this.send();return;}if(act==='confirm'){await this.confirm();return;}
@@ -134,6 +134,30 @@ class Chat{
    const data={address_id:w.querySelector('#oc-existing').value,phone:w.querySelector('#oc-new-phone').value,address:w.querySelector('#oc-new-address').value,source:w.querySelector('#oc-new-source').value,driver_id:w.querySelector('#oc-new-driver')?.value||this.profile.driver_id};
    if(!data.address_id&&data.address&&this.o.geocode){const point=await Promise.race([this.o.geocode(data.address),new Promise(resolve=>setTimeout(()=>resolve(null),12000))]);if(point){data.lat=point.lat;data.lng=point.lng;}}
    const r=await this.call('create',data);this.o.onChanged?.();await this.select(r.thread_id);await this.loadList();},'Открыть переписку');
+ }
+ changeCategory(){
+  if(!this.admin||!this.data?.address||this.sendBusy)return;
+  const address={...this.data.address},threadId=this.threadId;
+  this.modal('Категория сбора',`<label>Категория<select id="oc-category">${Object.entries(sources).map(([v,n])=>`<option value="${v}" ${v===address.collection_source?'selected':''}>${esc(n)}</option>`).join('')}</select></label><p class="oc-help">Категория определяет шаблон новых SMS. Согласованные дата и время сохраняются.</p>`,async(w)=>{
+   if(this.sendBusy)throw new Error('Дождитесь завершения отправки SMS.');
+   const source=w.querySelector('#oc-category').value;
+   if(!Object.hasOwn(sources,source))throw new Error('Выберите категорию из списка.');
+   if(source===address.collection_source)return;
+   const {data,error}=await this.sb.from('addresses').update({collection_source:source})
+    .eq('id',address.id).eq('collection_source',address.collection_source)
+    .eq('collection_version',address.collection_version).select('id');
+   if(error)throw new Error('Не удалось сохранить категорию. Обновите переписку и проверьте доступ.');
+   if(!data?.length)throw new Error('Адрес изменился или недоступен. Обновите переписку и повторите.');
+   if(!this.closed&&this.threadId===threadId&&this.data?.address?.id===address.id){
+    this.rememberDraft();const draft=this.drafts.get(threadId);
+    this.data.address.collection_source=source;
+    if(draft&&this.mode==='offer')delete draft.body;
+    this.compose(draft);this.renderHead();
+    this.notice('Категория сохранена: '+sources[source]+'.');
+    await this.loadList();
+   }
+   this.o.onChanged?.();
+  });
  }
  assign(){this.modal('Назначить водителя',`<label>Водитель<select id="oc-assignee">${this.driverOptions(this.data.thread.driver_id)}</select></label><p class="oc-help">История останется у компании. Доступ перейдёт назначенному водителю. Незавершённое предложение перейдёт в ручное согласование.</p>`,async(w)=>{await this.call('assign',{thread_id:this.threadId,driver_id:w.querySelector('#oc-assignee').value});await this.loadDetail();await this.loadList();this.o.onChanged?.();});}
  async settings(){const result=await this.run(async()=>({hours:await this.call('hours'),members:await this.call('members')}));if(!result)return;
