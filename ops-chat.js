@@ -25,6 +25,14 @@ const ukDate=d=>new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/London',year:'
 const ukTime=d=>new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit'}).format(new Date(d));
 const slotLabel=a=>a?.collection_start?ukDate(a.collection_start)+' · '+ukTime(a.collection_start)+'–'+ukTime(a.collection_end)+' UK':'';
 const sources={subnex:'SUBNEX Collections',partner:'Partner Collections',missing:'Missing Collections'};
+function partnerOffer(day,start,end,name){
+ const d=new Date(day+'T12:00:00Z');
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||isNaN(d)||d.toISOString().slice(0,10)!==day||!/^\d{2}:\d{2}$/.test(start)||!/^\d{2}:\d{2}$/.test(end))return '';
+ const n=d.getUTCDate(),suffix=n%100>=11&&n%100<=13?'th':({1:'st',2:'nd',3:'rd'}[n%10]||'th');
+ const date=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getUTCDay()]+' '+n+suffix+' '+['January','February','March','April','May','June','July','August','September','October','November','December'][d.getUTCMonth()]+' '+d.getUTCFullYear();
+ const clock=t=>{const [h,m]=t.split(':').map(Number);return (h%12||12)+':'+String(m).padStart(2,'0')+(h<12?'am':'pm');};
+ return "Good afternoon,\n\nI'm your We Recycle Clothes driver, here to collect your clothing donation.\n\nI can collect on "+date+", between "+clock(start)+" and "+clock(end)+".\n\nPlease reply YES to confirm, or let me know if you'd prefer a different day or time.\n\nThank you, and see you then!\n"+(name?.trim()?name.trim()+'\n':'')+'We Recycle Clothes';
+}
 const statuses={received:'Получено',dispatching:'Отправка начата — ожидаем статус',unknown:'Результат неизвестен — проверьте Twilio',accepted:'Принято Twilio',queued:'В очереди',sending:'Отправляется',sent:'Отправлено оператору',delivered:'Доставлено',read:'Прочитано',failed:'Ошибка отправки',undelivered:'Не доставлено',canceled:'Отменено'};
 let current=null;
 function close(){current?.close();current=null;}
@@ -78,7 +86,9 @@ class Chat{
   const body=this.$('#oc-body');if(body){body.value=draft?.body??(isOffer?`Hi, this is SUBNEX. We'd like to collect your bags${a?.text?' from '+a.text:''}.`:'');body.addEventListener('input',()=>this.preview());}
   for(const id of ['#oc-day','#oc-start','#oc-end'])this.$(id)?.addEventListener('input',()=>this.preview());this.preview();
  }
- preview(){const b=this.$('#oc-body');if(b)this.$('#oc-count').textContent=b.value.length+' / 1000 символов';if(!this.$('#oc-preview'))return;
+ partnerTemplate(){return this.mode==='offer'&&['partner','missing'].includes(this.data?.address?.collection_source);}
+ driverName(){return this.drivers().find(d=>d.id===this.data?.thread.driver_id)?.name||(this.profile.driver_id===this.data?.thread.driver_id?this.profile.driver_name:'')||'';}
+ preview(){const b=this.$('#oc-body');if(b&&this.partnerTemplate()){b.readOnly=true;b.value=partnerOffer(this.$('#oc-day').value,this.$('#oc-start').value,this.$('#oc-end').value,this.driverName());this.$('#oc-count').textContent=b.value.length+' / 1000 символов';this.$('#oc-preview').textContent='Готовая SMS от We Recycle Clothes. Дата и часы обновляются автоматически. Подпись: '+(this.driverName()||'без имени — назначьте водителя')+'.';return;}if(b)this.$('#oc-count').textContent=b.value.length+' / 1000 символов';if(!this.$('#oc-preview'))return;
   const day=this.$('#oc-day').value;const dt=day?new Date(day+'T12:00:00Z'):null;const date=dt&&!isNaN(dt)?dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}):'…';
   const manual=this.data.thread.manual_mode||this.data.thread.active_offer_id;
   this.$('#oc-preview').textContent='К SMS будет добавлено:\nCollection: '+date+', '+this.$('#oc-start').value+'-'+this.$('#oc-end').value+' (UK time).\n'+(manual?'Please reply to agree the day/time with our team.':'Reply YES to confirm, or reply to arrange a different day/time.');
@@ -97,6 +107,7 @@ class Chat{
  }
  async send(){if(this.sendBusy)return;const text=this.$('#oc-body').value.trim();if(!text){this.notice('Введите сообщение.');return;}
   const payload={thread_id:this.threadId,kind:this.mode,body:text};if(this.mode==='offer')Object.assign(payload,{day:this.$('#oc-day').value,start:this.$('#oc-start').value,end:this.$('#oc-end').value,version:this.formVersion});
+  if(this.partnerTemplate()){payload.template='wrc-v1';payload.expected_source=this.data.address.collection_source;payload.expected_driver_name=this.driverName().trim();}
   const signature=JSON.stringify(payload);
   const key='subnex_sms_pending_'+this.profile.user_id+'_'+this.threadId;
   if(!this.pending){try{this.pending=JSON.parse(sessionStorage.getItem(key)||'null');}catch{}}
