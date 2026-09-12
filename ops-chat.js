@@ -33,6 +33,7 @@ function partnerOffer(day,start,end,name){
  const clock=t=>{const [h,m]=t.split(':').map(Number);return (h%12||12)+':'+String(m).padStart(2,'0')+(h<12?'am':'pm');};
  return "Good afternoon,\n\nI'm your We Recycle Clothes driver, here to collect your clothing donation.\n\nI can collect on "+date+", between "+clock(start)+" and "+clock(end)+".\n\nPlease reply YES to confirm, or let me know if you'd prefer a different day or time.\n\nThank you, and see you then!\n"+(name?.trim()?name.trim()+'\n':'')+'We Recycle Clothes';
 }
+function subnexOffer(text){return text.replace("Good afternoon,\n\nI'm your We Recycle Clothes driver, here to collect your clothing donation.","Hi,\n\nI'm getting in touch from SUBNEX to arrange your clothing collection.").replace(/We Recycle Clothes$/,'SUBNEX');}
 const statuses={received:'Получено',dispatching:'Отправка начата — ожидаем статус',unknown:'Результат неизвестен — проверьте Twilio',accepted:'Принято Twilio',queued:'В очереди',sending:'Отправляется',sent:'Отправлено оператору',delivered:'Доставлено',read:'Прочитано',failed:'Ошибка отправки',undelivered:'Не доставлено',canceled:'Отменено'};
 let current=null;
 function close(){current?.close();current=null;}
@@ -86,9 +87,9 @@ class Chat{
   const body=this.$('#oc-body');if(body){body.value=draft?.body??(isOffer?`Hi, this is SUBNEX. We'd like to collect your bags${a?.text?' from '+a.text:''}.`:'');body.addEventListener('input',()=>this.preview());}
   for(const id of ['#oc-day','#oc-start','#oc-end'])this.$(id)?.addEventListener('input',()=>this.preview());this.preview();
  }
- partnerTemplate(){return this.mode==='offer'&&['partner','missing'].includes(this.data?.address?.collection_source);}
+ partnerTemplate(){return this.mode==='offer'&&['subnex','partner','missing'].includes(this.data?.address?.collection_source);}
  driverName(){return this.drivers().find(d=>d.id===this.data?.thread.driver_id)?.name||(this.profile.driver_id===this.data?.thread.driver_id?this.profile.driver_name:'')||'';}
- preview(){const b=this.$('#oc-body');if(b&&this.partnerTemplate()){b.readOnly=true;b.value=partnerOffer(this.$('#oc-day').value,this.$('#oc-start').value,this.$('#oc-end').value,this.driverName());this.$('#oc-count').textContent=b.value.length+' / 1000 символов';this.$('#oc-preview').textContent='Готовая SMS от We Recycle Clothes. Дата и часы обновляются автоматически. Подпись: '+(this.driverName()||'без имени — назначьте водителя')+'.';return;}if(b)this.$('#oc-count').textContent=b.value.length+' / 1000 символов';if(!this.$('#oc-preview'))return;
+ preview(){const b=this.$('#oc-body');if(b&&this.partnerTemplate()){b.readOnly=true;b.value=partnerOffer(this.$('#oc-day').value,this.$('#oc-start').value,this.$('#oc-end').value,this.driverName());if(this.data.address.collection_source==='subnex')b.value=subnexOffer(b.value);this.$('#oc-count').textContent=b.value.length+' / 1000 символов';this.$('#oc-preview').textContent='Готовая SMS от '+(this.data.address.collection_source==='subnex'?'SUBNEX':'We Recycle Clothes')+'. Дата и часы обновляются автоматически. Подпись: '+(this.driverName()||'без имени — назначьте водителя')+'.';return;}if(b)this.$('#oc-count').textContent=b.value.length+' / 1000 символов';if(!this.$('#oc-preview'))return;
   const day=this.$('#oc-day').value;const dt=day?new Date(day+'T12:00:00Z'):null;const date=dt&&!isNaN(dt)?dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}):'…';
   const manual=this.data.thread.manual_mode||this.data.thread.active_offer_id;
   this.$('#oc-preview').textContent='К SMS будет добавлено:\nCollection: '+date+', '+this.$('#oc-start').value+'-'+this.$('#oc-end').value+' (UK time).\n'+(manual?'Please reply to agree the day/time with our team.':'Reply YES to confirm, or reply to arrange a different day/time.');
