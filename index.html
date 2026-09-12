@@ -236,6 +236,9 @@ button:focus-visible,.card.tap:focus-visible{outline:3px solid var(--hiviz);outl
   box-shadow:0 3px 0 var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
 .photo-lb .lb-bar button:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
 </style>
+<link rel="stylesheet" href="ops-chat.css?v=2">
+<script src="ops-chat.js?v=2"></script>
+<script src="ops-route.js?v=2"></script>
 </head>
 <body>
 <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
@@ -277,21 +280,8 @@ button:focus-visible,.card.tap:focus-visible{outline:3px solid var(--hiviz);outl
   </div>
 </section>
 
-<!-- ============ LOGIN (PIN pad) ============ -->
-<section class="view" id="v-login">
-  <div class="pinwrap">
-    <div class="wordmark">SUBNEX <span>DRIVER</span></div>
-    <p class="eyebrow" style="margin-top:8px">Введите ваш PIN</p>
-    <div class="pindots" id="pindots"><i></i><i></i><i></i><i></i></div>
-    <div class="pinpad">
-      <button onclick="pinKey('1')">1</button><button onclick="pinKey('2')">2</button><button onclick="pinKey('3')">3</button>
-      <button onclick="pinKey('4')">4</button><button onclick="pinKey('5')">5</button><button onclick="pinKey('6')">6</button>
-      <button onclick="pinKey('7')">7</button><button onclick="pinKey('8')">8</button><button onclick="pinKey('9')">9</button>
-      <button onclick="pinClear()" style="font-size:16px">✕</button><button onclick="pinKey('0')">0</button><button onclick="pinBack()" style="font-size:18px">⌫</button>
-    </div>
-    <div class="pinerr" id="pinerr"></div>
-  </div>
-</section>
+<!-- Supabase Auth; a local PIN never grants access. -->
+<section class="view" id="v-login"><div class="pinwrap oc-login"><div class="wordmark">SUBNEX <span>DRIVER</span></div><p class="eyebrow">Вход водителя</p><label>Email<input id="driver-email" type="email" autocomplete="username"></label><label>Пароль<input id="driver-password" type="password" autocomplete="current-password"></label><button id="driver-login" onclick="tryLogin()">Войти</button><div class="pinerr" id="pinerr" role="alert"></div><p class="oc-auth-note">Доступ выдаёт администратор компании.</p></div></section>
 
 <!-- ============ HOME ============ -->
 <section class="view" id="v-home">
@@ -301,6 +291,7 @@ button:focus-visible,.card.tap:focus-visible{outline:3px solid var(--hiviz);outl
       <h1 style="margin-top:2px" data-i18n="home">Главная</h1>
     </div>
   </div>
+  <button class="btn btn-dark" onclick="openSMS()">SMS · Переписки и сборы</button>
   <button class="btn btn-primary" onclick="openAdd()"><svg class="i" ><use href="#i-plus"/></svg> <span data-i18n="addAddress">Добавить адрес</span></button>
   <div style="height:16px"></div>
   <div class="card tap" onclick="openDay(todayStr())">
@@ -478,6 +469,7 @@ button:focus-visible,.card.tap:focus-visible{outline:3px solid var(--hiviz);outl
 <nav id="mainnav" style="display:none"><div class="inner">
   <button id="nav-home" onclick="showView('v-home')"><svg class="i" ><use href="#i-home"/></svg><span data-i18n="navHome">Главная</span></button>
   <button id="nav-cal" onclick="showView('v-cal')"><svg class="i" ><use href="#i-caldot"/></svg><span data-i18n="navCal">Календарь</span></button>
+  <button onclick="openSMS()"><span style="font-weight:800">SMS</span><span>Чат</span></button>
   <button id="nav-arch" onclick="showView('v-archive')"><svg class="i" ><use href="#i-box"/></svg><span data-i18n="navArch">Архив</span></button>
   <button id="nav-set" onclick="showView('v-set')"><svg class="i" ><use href="#i-set"/></svg><span data-i18n="navSet">Настройки</span></button>
 </div></nav>
@@ -628,9 +620,8 @@ function getCreds(){
   return { url: CFG_URL || localStorage.getItem('sb_url') || '',
            key: CFG_KEY || localStorage.getItem('sb_key') || '' };
 }
-function getDriver(){ try{ return JSON.parse(localStorage.getItem('driver')||'null'); }catch(e){ return null; } }
 
-let sb=null, ME=null, ADDR=[];
+let sb=null, ME=null, ADDR=[], OPS_PROFILE=null;
 
 function uuid(){
   if(crypto.randomUUID) return crypto.randomUUID();
@@ -655,6 +646,7 @@ fetch('https://www.gov.uk/bank-holidays.json').then(r=>r.json()).then(j=>{
 function fromRow(r){
   return { id:r.id, text:r.text, bags:r.bags||0, phone:r.phone||'', note:r.note||'',
     date:r.date, lat:r.lat, lng:r.lng, status:r.status||'new',
+    collection_start:r.collection_start,collection_end:r.collection_end,collection_version:r.collection_version||0,collection_source:r.collection_source,driver_id:r.driver_id,
     kind:r.kind||'d2d', bankId:r.bank_id||null, fill:(r.fill_level==null?null:r.fill_level),
     resultNote:r.result_note||'', doneAt:r.done_at?Date.parse(r.done_at):null,
     createdAt:r.created_at?Date.parse(r.created_at):Date.now() };
@@ -674,45 +666,43 @@ window.addEventListener('offline',setOfflineBar);
 
 function queueOp(op){ LOCAL.outbox.push(op); saveLocal(); setOfflineBar(); toast(t('queued')); }
 
+let syncing=false;
+function networkFailure(e){return !online()||e instanceof TypeError||/Failed to fetch|NetworkError|Network request|fetch failed/i.test(e?.message||'');}
+async function executeOp(op){
+ let r;if(op.t==='i')r=await sb.from('addresses').insert(op.row).select('id');
+ else if(op.t==='u')r=await sb.from('addresses').update(op.fields).eq('id',op.id).select('id');
+ else r=await sb.from('addresses').delete().eq('id',op.id).select('id');
+ if(r.error){if(op.t==='i'&&r.error.code==='23505')return;throw r.error;}
+ if(op.t!=='i'&&!r.data?.length)throw new Error('Адрес уже изменён, удалён или передан другому водителю. Обновите данные.');
+}
 async function flushOutbox(){
-  if(!sb || !LOCAL.outbox.length) return;
-  const box=[...LOCAL.outbox]; LOCAL.outbox=[]; saveLocal();
-  for(const op of box){
-    try{
-      if(op.t==='i'){ const {error}=await sb.from('addresses').insert(op.row); if(error&&error.code!=='23505') throw error; }
-      if(op.t==='u'){ const {error}=await sb.from('addresses').update(op.fields).eq('id',op.id); if(error) throw error; }
-      if(op.t==='d'){ const {error}=await sb.from('addresses').delete().eq('id',op.id); if(error) throw error; }
-    }catch(e){ LOCAL.outbox.push(op); }
-  }
-  saveLocal(); setOfflineBar();
+ if(syncing||!sb||!ME||!OPS_PROFILE||LOCAL.owner!==OPS_PROFILE.user_id||!LOCAL.outbox.length||!online())return;
+ syncing=true;const owner=OPS_PROFILE.user_id;
+ try{while(LOCAL.outbox.length&&ME&&OPS_PROFILE?.user_id===owner){
+  const op=LOCAL.outbox[0];try{await executeOp(op);LOCAL.outbox.shift();}
+  catch(e){if(networkFailure(e))break;LOCAL.outbox.shift();toast('Изменение не принято: '+Ops.error(e));}
+  saveLocal();
+ }}finally{syncing=false;setOfflineBar();}
 }
-setInterval(flushOutbox, 30000);
-
-async function dbInsert(a){
-  const row=toRow(a);
-  try{ const {error}=await sb.from('addresses').insert(row); if(error) throw error; }
-  catch(e){ queueOp({t:'i',row}); }
+setInterval(flushOutbox,30000);
+async function writeOp(op){
+ if(!ME||!OPS_PROFILE||LOCAL.owner!==OPS_PROFILE.user_id)throw new Error('Войдите заново.');
+ try{if(!online()){queueOp(op);return;}await executeOp(op);}
+ catch(e){if(networkFailure(e)){queueOp(op);return;}await loadAddresses();refreshDriverView();throw e;}
 }
-async function dbUpdate(id,fields){
-  try{ const {error}=await sb.from('addresses').update(fields).eq('id',id); if(error) throw error; }
-  catch(e){ queueOp({t:'u',id,fields}); }
-}
-async function dbDelete(id){
-  try{ const {error}=await sb.from('addresses').delete().eq('id',id); if(error) throw error; }
-  catch(e){ queueOp({t:'d',id}); }
-}
-
+async function dbInsert(a){await writeOp({t:'i',row:toRow(a)});}
+async function dbUpdate(id,fields){await writeOp({t:'u',id,fields});}
+async function dbDelete(id){await writeOp({t:'d',id});}
 async function loadAddresses(){
-  try{
-    const {data,error}=await sb.from('addresses').select('*').eq('driver_id',ME.id)
-      .order('created_at',{ascending:true});
-    if(error) throw error;
-    ADDR=data.map(fromRow);
-    LOCAL.cache=ADDR; saveLocal();
-  }catch(e){
-    ADDR=LOCAL.cache||[];
-  }
-  setOfflineBar();
+ if(!ME||!OPS_PROFILE)return;const owner=OPS_PROFILE.user_id;const driver=ME.id;
+ try{const {data,error}=await sb.from('addresses').select('*').eq('driver_id',driver).order('created_at',{ascending:true});if(error)throw error;
+  if(OPS_PROFILE?.user_id!==owner||ME?.id!==driver)return;
+  ADDR=data.map(fromRow);
+  // Pending offline edits belong only to this verified account.
+  for(const op of LOCAL.outbox){if(op.t==='i'&&op.row.driver_id===driver&&!ADDR.some(a=>a.id===op.row.id))ADDR.push(fromRow(op.row));else if(op.t==='u'){const i=ADDR.findIndex(a=>a.id===op.id);if(i>=0)ADDR[i]=fromRow({...toRow(ADDR[i]),...op.fields,collection_start:ADDR[i].collection_start,collection_end:ADDR[i].collection_end,collection_version:ADDR[i].collection_version});}else if(op.t==='d')ADDR=ADDR.filter(a=>a.id!==op.id);}
+  LOCAL.cache=ADDR;saveLocal();
+ }catch(e){if(OPS_PROFILE?.user_id!==owner)return;if(networkFailure(e)&&LOCAL.owner===owner)ADDR=LOCAL.cache||[];else{ADDR=[];LOCAL.cache=[];saveLocal();toast(Ops.error(e));}}
+ setOfflineBar();
 }
 
 let rtChannel=null;
@@ -754,19 +744,17 @@ function pdbDel(id){ return pdbOpen().then(db=>new Promise((res,rej)=>{
 
 let CURPHOTOS=[], CURPENDING=[], lbCur=null;
 
-function photoUrl(path){
-  try{ return sb.storage.from('photos').getPublicUrl(path).data.publicUrl; }catch(e){ return ''; }
-}
+function photoUrl(path){return Ops.photoUrl(path);}
 async function loadAddrPhotos(){
   CURPHOTOS=[]; CURPENDING=[]; renderAddrPhotos();
-  const my=currentAddrId;
+  const my=currentAddrId,owner=OPS_PROFILE?.user_id;
   try{
     const {data,error}=await sb.from('photos').select('*').eq('address_id',my).order('created_at');
-    if(!error&&data&&my===currentAddrId) CURPHOTOS=data;
+    if(!error&&data&&my===currentAddrId&&OPS_PROFILE?.user_id===owner){await Ops.signPhotos(sb,data.map(p=>p.path));if(OPS_PROFILE?.user_id===owner&&my===currentAddrId)CURPHOTOS=data;}
   }catch(e){}
   try{
     const all=await pdbAll();
-    if(my===currentAddrId) CURPENDING=all.filter(p=>p.address_id===my);
+    if(my===currentAddrId&&OPS_PROFILE?.user_id===owner) CURPENDING=all.filter(p=>p.address_id===my&&p.driver_id===ME?.id);
   }catch(e){}
   renderAddrPhotos();
 }
@@ -838,8 +826,10 @@ async function flushPhotos(){
   try{
     let idb=[]; try{ idb=await pdbAll(); }catch(e){}
     const mem=CURPENDING.filter(m=>!idb.some(x=>x.id===m.id));
-    const q=[...idb,...mem];
+    const q=[...idb,...mem].filter(p=>p.driver_id===ME.id);
+    const owner=OPS_PROFILE?.user_id;
     for(const p of q){
+      if(!ME||OPS_PROFILE?.user_id!==owner)break;
       try{
         const path=p.address_id+'/'+p.id+'.jpg';
         const up=await sb.storage.from('photos').upload(path,p.blob,{contentType:'image/jpeg',upsert:true});
@@ -860,11 +850,11 @@ async function flushPhotos(){
 setInterval(flushPhotos,30000);
 window.addEventListener('online',()=>flushPhotos());
 
-function lbOpen(id,pending){
+async function lbOpen(id,pending){
   lbCur={id:id,pending:pending};
   const img=document.getElementById('lb-img');
   if(pending){ const p=CURPENDING.find(x=>x.id===id); if(!p) return; img.src=URL.createObjectURL(p.blob); }
-  else{ const p=CURPHOTOS.find(x=>x.id===id); if(!p) return; img.src=photoUrl(p.path); }
+  else{ const p=CURPHOTOS.find(x=>x.id===id); if(!p) return;await Ops.signPhotos(sb,[p.path]);if(!ME)return;img.src=photoUrl(p.path); }
   document.getElementById('photo-lb').classList.add('show');
 }
 function lbClose(){ document.getElementById('photo-lb').classList.remove('show'); lbCur=null; }
@@ -895,41 +885,36 @@ function saveConfig(){
   init();
 }
 
-let pinBuf='';
-function pinRender(){
-  const dots=document.querySelectorAll('#pindots i');
-  dots.forEach((d,i)=>d.classList.toggle('on', i<pinBuf.length));
+async function acceptDriver(){
+ const p=await Ops.profile(sb);if(!p.driver_id)throw new Error('Назначьте аккаунту водителя: SMS → График и доступ.');
+ const {data,error}=await sb.from('drivers').select('id,name,active').eq('id',p.driver_id).single();if(error||!data.active)throw new Error('Водитель отключён или не назначен.');
+ OPS_PROFILE=p;ME={id:data.id,name:data.name};
+ if(LOCAL.owner!==p.user_id){
+   if(LOCAL.outbox.length)localStorage.setItem(LKEY+'_pending_'+(LOCAL.owner||'legacy'),JSON.stringify(LOCAL.outbox));
+   LOCAL.cache=[];LOCAL.routes={};LOCAL.outbox=[];
+   const pending=localStorage.getItem(LKEY+'_pending_'+p.user_id);if(pending){try{LOCAL.outbox=JSON.parse(pending);}catch{}localStorage.removeItem(LKEY+'_pending_'+p.user_id);}
+ }
+ LOCAL.owner=p.user_id;saveLocal();localStorage.removeItem('driver');
+ await enterApp();
 }
-function pinKey(d){
-  if(pinBuf.length>=4) return;
-  pinBuf+=d; pinRender();
-  if(pinBuf.length===4) tryLogin();
-}
-function pinBack(){ pinBuf=pinBuf.slice(0,-1); pinRender(); }
-function pinClear(){ pinBuf=''; pinRender(); document.getElementById('pinerr').textContent=''; }
-
 async function tryLogin(){
-  const err=document.getElementById('pinerr');
-  err.textContent='…';
-  try{
-    const {data,error}=await sb.from('drivers').select('*')
-      .eq('pin',pinBuf).eq('active',true).maybeSingle();
-    if(error) throw error;
-    if(!data){ err.textContent=t('wrongPin'); pinBuf=''; pinRender(); return; }
-    ME={id:data.id,name:data.name};
-    localStorage.setItem('driver',JSON.stringify(ME));
-    err.textContent='';
-    await enterApp();
-  }catch(e){
-    err.textContent=t('connErr'); pinBuf=''; pinRender();
-  }
+ const btn=document.getElementById('driver-login'),err=document.getElementById('pinerr');if(btn.disabled)return;btn.disabled=true;err.textContent='';
+ try{const {error}=await sb.auth.signInWithPassword({email:document.getElementById('driver-email').value.trim(),password:document.getElementById('driver-password').value});if(error)throw new Error('Проверьте email и пароль.');await acceptDriver();document.getElementById('driver-password').value='';}
+ catch(e){err.textContent=Ops.error(e);}finally{btn.disabled=false;}
 }
-function logout(){
-  stopGeoWatch();
-  localStorage.removeItem('driver'); ME=null; ADDR=[];
-  document.getElementById('mainnav').style.display='none';
-  pinClear(); showView('v-login',false); viewStack=['v-login'];
+function clearDriver(){
+ stopGeoWatch();OPS_PROFILE=null;ME=null;ADDR=[];CURPHOTOS=[];CURPENDING=[];currentAddrId=null;editId=null;Ops.clear();
+ sb?.removeAllChannels();LOCAL.cache=[];LOCAL.routes={};saveLocal();localStorage.removeItem('driver');
+ document.getElementById('mainnav').style.display='none';document.getElementById('photo-lb').classList.remove('show');document.getElementById('lb-img').removeAttribute('src');
+ showView('v-login',false);viewStack=['v-login'];
 }
+async function logout(){clearDriver();await sb.auth.signOut();}
+async function openSMS(addressId){
+ if(!OPS_PROFILE)return;
+ await Ops.open({sb,profile:OPS_PROFILE,addressId,geocode,addresses:()=>ADDR,drivers:()=>ME?[{...ME,active:true}]:[],onChanged:async()=>{if(ME){await loadAddresses();refreshDriverView();}}});
+}
+function refreshDriverView(){const v=document.querySelector('.view.active')?.id;if(v==='v-home')renderHome();if(v==='v-day')renderDay();if(v==='v-addr')renderAddr();if(v==='v-cal')renderCal();if(v==='v-new')renderNew();if(v==='v-archive')renderArchive();}
+window.addEventListener('unhandledrejection',event=>{event.preventDefault();toast(Ops.error(event.reason));});
 
 /* ---------- live location: only while the app is open ---------- */
 let geoWatchId=null, lastLocSent=0, lastLoc=null;
@@ -1042,37 +1027,23 @@ function openEdit(id){
   showView('v-add');
 }
 async function saveAddress(){
-  const text=document.getElementById('f-addr').value.trim();
-  if(!text){ toast(t('geoFail')); return; }
-  const btn=document.getElementById('btn-save-addr');
-  btn.disabled=true; btn.innerHTML='<span class="spin"></span> '+t('geocoding');
-  const bags=parseInt(document.getElementById('f-bags').value)||0;
-  const phone=document.getElementById('f-phone').value.trim();
-  const note=document.getElementById('f-note').value.trim();
-  const date=document.getElementById('f-date').value||null;
-
-  let a, isNew=false;
-  if(editId){ a=ADDR.find(x=>x.id===editId); }
-  else { isNew=true; a={id:uuid(),status:'new',createdAt:Date.now(),lat:null,lng:null,resultNote:'',doneAt:null,kind:'d2d',bankId:null,fill:null}; ADDR.push(a); }
-  const textChanged=a.text!==text;
-  Object.assign(a,{text,bags,phone,note,date});
-  if(date&&a.status==='new') a.status='planned';
-  if(!date&&a.status==='planned') a.status='new';
-  if(textChanged||a.lat==null){
-    const g=await geocode(text);
-    if(g){a.lat=g.lat;a.lng=g.lng;} else {a.lat=null;a.lng=null;}
-  }
-  if(a.date) delete LOCAL.routes[a.date];
-  LOCAL.cache=ADDR; saveLocal();
-  if(isNew) await dbInsert(a);
-  else await dbUpdate(a.id,{text:a.text,bags:a.bags,phone:a.phone,note:a.note,date:a.date,
-    lat:a.lat,lng:a.lng,status:a.status});
-  btn.disabled=false;
-  btn.innerHTML=ICH('save')+' <span>'+t('save')+'</span>';
-  toast(a.lat!=null? t('saved')+' · '+t('coordsOk') : t('saved')+' · ⚠ '+t('noCoords'));
-  editId=null;
-  goBack();
-  renderHome();
+ const text=document.getElementById('f-addr').value.trim();if(!text){toast(t('geoFail'));return;}
+ const btn=document.getElementById('btn-save-addr');if(btn.disabled)return;btn.disabled=true;
+ try{
+ const old=editId?ADDR.find(x=>x.id===editId):null;const date=document.getElementById('f-date').value||null;
+ if(old&&old.date!==date&&old.date){
+   if(old.collection_start){await openSMS(old.id);throw new Error('Для переноса согласованного времени используйте подтверждение в чате.');}
+   if(!confirm('Клиент согласовал дату '+(date||'не назначена')+'?'))return;
+   await Ops.api(sb,'legacy_date',{address_id:old.id,day:date||'',version:old.collection_version,agreed:true});
+ }
+ const a={...(old||{id:uuid(),status:'new',createdAt:Date.now(),lat:null,lng:null,resultNote:'',doneAt:null,kind:'d2d',bankId:null,fill:null}),text,date,bags:parseInt(document.getElementById('f-bags').value)||0,phone:document.getElementById('f-phone').value.trim(),note:document.getElementById('f-note').value.trim()};
+ if(date&&a.status==='new')a.status='planned';if(!date&&a.status==='planned')a.status='new';
+ if(!old||old.text!==text||a.lat==null){const g=await geocode(text);a.lat=g?g.lat:null;a.lng=g?g.lng:null;}
+ if(old)await dbUpdate(a.id,{text:a.text,bags:a.bags,phone:a.phone,note:a.note,date:a.date,lat:a.lat,lng:a.lng,status:a.status});else await dbInsert(a);
+ if(old)ADDR=ADDR.map(x=>x.id===a.id?a:x);else ADDR.push(a);
+ if(old?.date)delete LOCAL.routes[old.date];if(a.date)delete LOCAL.routes[a.date];LOCAL.cache=ADDR;saveLocal();
+ toast(a.lat!=null?t('saved')+' · '+t('coordsOk'):t('saved')+' · ⚠ '+t('noCoords'));editId=null;goBack();renderHome();
+ }catch(e){toast(Ops.error(e));}finally{btn.disabled=false;btn.innerHTML=ICH('save')+' <span>'+t('save')+'</span>';}
 }
 
 /* ---------- home ---------- */
@@ -1137,7 +1108,9 @@ function openDay(ds){ currentDay=ds; showView('v-day'); renderDay(); }
 function dayAddrs(ds){ return ADDR.filter(a=>a.date===ds); }
 function orderedDayAddrs(ds){
   const list=dayAddrs(ds);
-  const r=LOCAL.routes[ds];
+  let r=LOCAL.routes[ds];
+  if(list.some(a=>a.collection_start)&&(!r?.signature||r.signature!==OpsRoute.signature(list,LOCAL.home,LOCAL.depot))){delete LOCAL.routes[ds];r=null;}
+  if(!r&&list.some(a=>a.collection_start))list.sort((a,b)=>(Date.parse(a.collection_start)||Infinity)-(Date.parse(b.collection_start)||Infinity));
   if(r&&r.order){
     const pos={}; r.order.forEach((id,i)=>pos[id]=i);
     list.sort((a,b)=>(pos[a.id]??999)-(pos[b.id]??999));
@@ -1185,7 +1158,7 @@ function renderDay(){
       `<span>${t('cost')}: <b>£${cost.toFixed(2)}</b></span>`+
       `<span>${t('stops')}: <b>${r.order.length}</b></span>`;
     document.getElementById('sign-src').textContent=
-      (r.source==='osrm'?'✅ '+t('optOSRM'):'⚠️ '+t('optFallback'));
+      (r.source==='osrm-windows'?'Согласованные окна · 4 мин/сбор · запас 20% · без прогноза пробок':r.source==='osrm'?'✅ '+t('optOSRM'):'⚠️ '+t('optFallback'));
     strip.classList.add('show');
   } else strip.classList.remove('show');
   const el=document.getElementById('day-list');
@@ -1200,7 +1173,7 @@ function renderDay(){
       <div class="stopcard">
         <div class="stopnum ${numCls}">${i+1}</div>
         <div class="stopinfo">
-          <div class="addr">${a.kind==='bank'?BANKPLATE+' ':''}${a.bags?('<b>'+a.bags+' '+t('bags')+'</b> · '):''}${esc(a.text)}</div>
+          <div class="addr">${a.kind==='bank'?BANKPLATE+' ':''}${a.bags?('<b>'+a.bags+' '+t('bags')+'</b> · '):''}${esc(a.text)}<small class="ops-slot-label">${esc(Ops.slotLabel(a))}</small></div>
           <div class="meta">${a.phone?esc(a.phone)+' · ':''}${a.note?esc(a.note)+' · ':''}${a.lat==null?'⚠ '+t('noCoordAddr'):''}</div>
         </div>
         <button class="navbtn" onclick="event.stopPropagation();navTo('${a.id}')" aria-label="navigate"><svg class="i" style="fill:#fff;stroke:none"><use href="#i-nav"/></svg></button>
@@ -1257,9 +1230,38 @@ function tspSolve(M,n){
   return route;
 }
 
+async function optimizeFixedDay(ds,list){
+ const btn=document.getElementById('btn-opt');if(btn.disabled)return;btn.disabled=true;
+ try{
+  if(list.some(a=>a.lat==null||a.lng==null))throw new Error('Для расчёта времени нужны координаты каждого адреса. Уточните их в редакторе адреса.');
+  if(LOCAL.home.lat==null||LOCAL.depot.lat==null)throw new Error('Укажите старт (King Street, Abertillery) и склад (CF43 4SX) с координатами в настройках.');
+  if(list.length>90)throw new Error('Расчёт с фиксированным временем поддерживает до 90 остановок.');
+  const hours=await Ops.api(sb,'hours');const wd=new Date(ds+'T12:00:00Z').getUTCDay();const h=hours.days.find(x=>x.day===ds)||hours.week.find(x=>x.weekday===wd);
+  if(!h||h.closed)throw new Error('По графику это выходной. Существующие договорённости сохранены. Проверьте график.');
+  const tm=x=>Number(x.slice(0,2))*60+Number(x.slice(3,5));let departure=tm(h.opens);
+  if(ds===Ops.ukDate())departure=Math.max(departure,OpsRoute.minutes(new Date()));
+  const all=[[LOCAL.home.lat,LOCAL.home.lng],...list.map(a=>[a.lat,a.lng]),[LOCAL.depot.lat,LOCAL.depot.lng]];
+  const coords=a=>a.map(c=>c[1].toFixed(6)+','+c[0].toFixed(6)).join(';');
+  const signature=OpsRoute.signature(dayAddrs(ds),LOCAL.home,LOCAL.depot);
+  const tr=await fetch('https://router.project-osrm.org/table/v1/driving/'+coords(all)+'?annotations=duration',{signal:AbortSignal.timeout(15000)});const tj=await tr.json();
+  if(!tr.ok||tj.code!=='Ok')throw new Error('Не удалось получить время в пути. Повторите при подключении к сети.');
+  const plan=OpsRoute.plan(tj.durations,list,departure,tm(h.closes));
+  if(!plan)throw new Error('Не удалось найти маршрут в согласованных окнах и рабочем графике. Проверьте длительность поездок и договоритесь о переносе отдельных сборов.');
+  const path=[0,...plan.order,list.length+1].map(i=>all[i]);
+  const rr=await fetch('https://router.project-osrm.org/route/v1/driving/'+coords(path)+'?overview=full&geometries=geojson',{signal:AbortSignal.timeout(15000)});const rj=await rr.json();
+  if(!rr.ok||rj.code!=='Ok'||!rj.routes?.[0])throw new Error('Не удалось получить маршрут. Попробуйте ещё раз.');
+  if(signature!==OpsRoute.signature(dayAddrs(ds),LOCAL.home,LOCAL.depot))throw new Error('Список адресов изменился во время расчёта. Повторите оптимизацию.');
+  const rt=rj.routes[0];LOCAL.routes[ds]={order:plan.order.map(i=>list[i-1].id),km:rt.distance/1000,min:plan.minutes,source:'osrm-windows',signature,arrivals:plan.arrivals,geometry:rt.geometry.coordinates.map(c=>[c[1],c[0]])};saveLocal();renderDay();
+  toast('Окна сохранены. Расчёт: 4 минуты на сбор, запас 20% к времени поездок, без прогноза пробок.');
+ }catch(e){toast(e.message);}finally{btn.disabled=false;}
+}
+
 async function optimizeDay(){
   const ds=currentDay;
-  const list=dayAddrs(ds).filter(a=>a.lat!=null);
+  const active=dayAddrs(ds).filter(a=>!['done','noanswer','problem'].includes(a.status));
+  const hasSlots=active.some(a=>a.collection_start);
+  const list=active.filter(a=>a.lat!=null&&a.lng!=null);
+  if(hasSlots){await optimizeFixedDay(ds,active);return;}
   if(!list.length){ toast(t('needTwo')); return; }
   const btn=document.getElementById('btn-opt');
   btn.disabled=true; btn.innerHTML='<span class="spin"></span> '+t('optimizing');
@@ -1333,6 +1335,8 @@ function renderAddr(){
   if(isBank) html+=BANKPLATE+'<br>';
   html+=(a.bags?('<b>'+a.bags+' '+t('bags')+'</b><br>'):'')+esc(a.text);
   if(a.phone) html+='<br>'+ICH('phone')+' '+esc(a.phone);
+  if(a.collection_start)html+='<div class="ops-slot-label">Согласовано: '+esc(Ops.slotLabel(a))+'</div>';
+  if(a.phone&&!isBank)html+='<button class="btn btn-primary" style="margin-top:12px" onclick="openSMS(currentAddrId)">SMS · согласовать сбор</button>';
   if(a.note) html+='<br>'+ICH('note')+' '+esc(a.note);
   if(a.date) html+='<br>'+ICH('caldot')+' '+a.date;
   document.getElementById('ai-text').innerHTML=html;
@@ -1395,17 +1399,11 @@ async function setResult(status){
 }
 function editCurrent(){ openEdit(currentAddrId); }
 async function rescheduleCurrent(){
-  const a=ADDR.find(x=>x.id===currentAddrId); if(!a) return;
-  const d=prompt(t('reschedulePrompt'),todayStr());
-  if(!d) return;
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(d.trim())){ toast('⚠ YYYY-MM-DD'); return; }
-  if(a.date) delete LOCAL.routes[a.date];
-  a.date=d.trim(); a.status='planned';
-  delete LOCAL.routes[a.date];
-  LOCAL.cache=ADDR; saveLocal();
-  await dbUpdate(a.id,{date:a.date,status:'planned'});
-  toast(t('movedTo')+' '+a.date);
-  goBack();
+ const a=ADDR.find(x=>x.id===currentAddrId);if(!a)return;if(a.collection_start){await openSMS(a.id);return;}
+ const day=prompt(t('reschedulePrompt'),a.date||todayStr());if(!day)return;
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(day)){toast('YYYY-MM-DD');return;}
+ if(!confirm('Клиент согласовал перенос на '+day+'?'))return;
+ try{await Ops.api(sb,'legacy_date',{address_id:a.id,day,version:a.collection_version,agreed:true});await loadAddresses();toast(t('movedTo')+' '+day);goBack();}catch(e){toast(Ops.error(e));}
 }
 async function deleteCurrent(){
   if(!confirm(t('confirmDelete'))) return;
@@ -1485,17 +1483,12 @@ function applyLang(){
 
 /* ---------- init ---------- */
 async function init(){
-  applyLang();
-  const {url,key}=getCreds();
-  if(!url||!key){ showView('v-config',false); viewStack=['v-config']; return; }
-  try{ sb=window.supabase.createClient(url,key); }
-  catch(e){ showView('v-config',false); viewStack=['v-config']; return; }
-  ME=getDriver();
-  if(!ME){ showView('v-login',false); viewStack=['v-login']; return; }
-  await enterApp();
+ applyLang();const {url,key}=getCreds();if(!url||!key){showView('v-config',false);viewStack=['v-config'];return;}
+ try{sb=window.supabase.createClient(url,key);}catch{showView('v-config',false);viewStack=['v-config'];return;}
+ showView('v-login',false);viewStack=['v-login'];
+ sb.auth.onAuthStateChange(event=>{if(event==='SIGNED_OUT')setTimeout(clearDriver,0);});
+ document.getElementById('driver-password').addEventListener('keydown',e=>{if(e.key==='Enter')tryLogin();});
+ try{const {data}=await sb.auth.getSession();if(data.session)await acceptDriver();}catch(e){document.getElementById('pinerr').textContent=Ops.error(e);}
 }
 init();
-
-</script>
-</body>
-</html>
+</script></body></html>

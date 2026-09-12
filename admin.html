@@ -174,6 +174,8 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px soli
 .photo-lb .lb-bar button:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
 .chkline{display:flex;align-items:center;gap:7px;font-weight:700;font-size:14px;align-self:end;padding-bottom:9px;cursor:pointer}
 </style>
+<link rel="stylesheet" href="ops-chat.css?v=2">
+<script src="ops-chat.js?v=2"></script>
 </head>
 <body>
 <div class="hazard"></div>
@@ -205,7 +207,7 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px soli
   <button class="btn small btn-ghost" id="btn-refresh" onclick="refreshAll()" style="display:none"><svg class="i" ><use href="#i-refresh"/></svg> <span data-t>Обновить</span></button>
 </header>
 
-<!-- ===== GATE: config + admin pin ===== -->
+<!-- Supabase Auth; server membership decides access. -->
 <div class="gate" id="gate">
   <div class="wordmark" style="margin-bottom:4px">SUBNEX <span>OPS</span></div>
   <div class="eyebrow" data-t>Панель управления</div>
@@ -219,8 +221,8 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px soli
     <p class="legendtxt" data-t>URL и anon key — в Supabase: Project Settings → API.</p>
   </div>
   <div id="gate-pin" style="display:none">
-    <label id="gate-pin-lbl" data-t>Админ-PIN</label>
-    <input type="password" id="admin-pin" inputmode="numeric" placeholder="••••">
+    <label>Email администратора</label><input type="email" id="admin-email" autocomplete="username" placeholder="info@subnex.co.uk">
+    <label>Пароль</label><input type="password" id="admin-password" autocomplete="current-password">
     <div style="height:16px"></div>
     <button class="btn btn-primary" style="width:100%" onclick="gateEnter()" id="gate-btn" data-t>Войти</button>
     <p class="legendtxt note-red" id="gate-err"></p>
@@ -229,6 +231,7 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px soli
 
 <!-- ===== MAIN ===== -->
 <div class="wrap" id="main" style="display:none">
+  <div class="toolbar"><button class="btn btn-primary" onclick="openSMS()">SMS · Переписки и сборы</button><button class="btn btn-ghost" onclick="adminLogout()">Выйти</button></div>
   <div class="tabs">
     <button id="tb-dash" class="on" onclick="setTab('dash')"><svg class="i" ><use href="#i-grid"/></svg> <span data-t>Сводка</span></button>
     <button id="tb-addr" onclick="setTab('addr')"><svg class="i" ><use href="#i-pin"/></svg> <span data-t>Адреса</span></button>
@@ -341,7 +344,7 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px soli
       <button class="btn btn-primary" onclick="openDrvModal()"><svg class="i" ><use href="#i-plus"/></svg> <span data-t>Добавить водителя</span></button>
     </div>
     <div class="tablewrap"><table>
-      <thead><tr><th data-t>Имя</th><th>PIN</th><th data-t>Статус</th><th data-t>Адресов всего</th><th></th></tr></thead>
+      <thead><tr><th data-t>Имя</th><th>Вход</th><th data-t>Статус</th><th data-t>Адресов всего</th><th></th></tr></thead>
       <tbody id="drv-tbody"></tbody>
     </table></div>
   </div>
@@ -361,10 +364,10 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px soli
     </div>
     <div class="card">
       <h3 style="margin:0 0 10px;text-transform:uppercase;font-size:15px" data-t>Безопасность</h3>
-      <label data-t>Новый админ-PIN</label>
-      <input type="password" id="new-admin-pin" inputmode="numeric" placeholder="минимум 4 цифры" data-t-ph>
+      <label>Новый пароль</label>
+      <input type="password" id="new-admin-password" autocomplete="new-password" placeholder="Минимум 12 символов">
       <div style="height:12px"></div>
-      <button class="btn btn-ghost" onclick="changeAdminPin()" data-t>Сменить PIN</button>
+      <button class="btn btn-ghost" onclick="changePassword()">Сменить пароль</button>
     </div>
     <div class="card">
       <h3 style="margin:0 0 10px;text-transform:uppercase;font-size:15px" data-t>Хранение фото</h3>
@@ -376,6 +379,7 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px soli
 <!-- ===== MODALS ===== -->
 <div class="modal-bg" id="m-addr-bg">
   <div class="modal">
+    <button class="btn btn-primary" id="ma-chat" onclick="openAddressSMS()">SMS · согласовать сбор</button><p class="ops-slot-label" id="ma-slot"></p>
     <h2 id="m-addr-title">Добавить адрес</h2>
     <div id="ma-bankinfo" style="display:none;margin-top:6px"></div>
     <label data-t>Адрес</label>
@@ -434,8 +438,7 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px soli
     <h2 id="m-drv-title">Добавить водителя</h2>
     <label data-t>Имя</label>
     <input type="text" id="md-name" placeholder="Jonas">
-    <label data-t>PIN (4 цифры, уникальный)</label>
-    <input type="text" id="md-pin" inputmode="numeric" maxlength="4" placeholder="1234">
+    <p class="legendtxt">После создания водителя назначьте ему аккаунт: SMS → График и доступ.</p>
     <label data-t>Активен</label>
     <select id="md-active"><option value="true" data-t>Да</option><option value="false" data-t>Нет (не может войти)</option></select>
     <div style="height:16px"></div>
@@ -613,70 +616,42 @@ function saveConfig(){
   init();
 }
 
-/* ---------- gate ---------- */
-let adminPinIsNew=false;
-/* Хэш PIN: SHA-256(соль + PIN). В базе — только отпечаток, сам PIN не хранится. */
-const PIN_SALT='subnex::admin::v1';
-async function hashPin(pin){
-  const data=new TextEncoder().encode(PIN_SALT+String(pin));
-  const buf=await crypto.subtle.digest('SHA-256',data);
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-}
+/* ---------- Supabase Auth + server-checked membership ---------- */
+let OPS_PROFILE=null, authListener=null, entering=false;
 async function init(){
   const {url,key}=getCreds();
-  if(!url||!key){
-    document.getElementById('gate-config').style.display='';
-    document.getElementById('gate-pin').style.display='none';
-    return;
-  }
-  document.getElementById('gate-config').style.display='none';
-  sb=window.supabase.createClient(url,key);
-  try{
-    const {data,error}=await sb.from('app_settings').select('value').eq('key','admin_pin').maybeSingle();
-    if(error) throw error;
-    adminPinIsNew=!data;
-    document.getElementById('gate-pin-lbl').textContent = t(adminPinIsNew
-      ? 'Придумайте админ-PIN (первый запуск)' : 'Админ-PIN');
-    document.getElementById('gate-btn').textContent = t(adminPinIsNew ? 'Создать и войти' : 'Войти');
-    document.getElementById('gate-pin').style.display='';
-    if(sessionStorage.getItem('admin_ok')==='1' && !adminPinIsNew) enterMain();
-  }catch(e){
-    document.getElementById('gate-pin').style.display='';
-    document.getElementById('gate-err').textContent=t('Нет связи с базой. Проверьте URL/key и что SQL-схема выполнена.');
-  }
+  if(!url||!key){document.getElementById('gate-config').style.display='';document.getElementById('gate-pin').style.display='none';return;}
+  document.getElementById('gate-config').style.display='none';document.getElementById('gate-pin').style.display='';
+  sb=window.supabase.createClient(url,key);sessionStorage.removeItem('admin_ok');
+  authListener=sb.auth.onAuthStateChange(event=>{if(event==='SIGNED_OUT')setTimeout(clearAdmin,0);});
+  try{const {data}=await sb.auth.getSession();if(data.session)await acceptAdmin();}catch(e){document.getElementById('gate-err').textContent=Ops.error(e);}
+}
+async function acceptAdmin(){
+  if(entering)return;entering=true;
+  try{const profile=await Ops.profile(sb);if(profile.role!=='admin')throw new Error('Требуется доступ администратора.');OPS_PROFILE=profile;await enterMain();}
+  finally{entering=false;}
 }
 async function gateEnter(){
-  const pin=document.getElementById('admin-pin').value.trim();
-  const err=document.getElementById('gate-err');
-  if(pin.length<4){ err.textContent=t('Минимум 4 цифры'); return; }
-  try{
-    const h=await hashPin(pin);
-    if(adminPinIsNew){
-      const {error}=await sb.from('app_settings').insert({key:'admin_pin',value:{hash:h}});
-      if(error) throw error;
-    } else {
-      const {data,error}=await sb.from('app_settings').select('value').eq('key','admin_pin').single();
-      if(error) throw error;
-      const v=data.value||{};
-      const okHash = v.hash && v.hash===h;
-      const okLegacy = (v.hash==null && v.pin!=null && v.pin===pin); /* старый открытый PIN — принять один раз */
-      if(!okHash && !okLegacy){ err.textContent=t('Неверный PIN'); return; }
-      if(okLegacy){ /* тихо переводим на хэш */
-        try{ await sb.from('app_settings').update({value:{hash:h}}).eq('key','admin_pin'); }catch(e){}
-      }
-    }
-    sessionStorage.setItem('admin_ok','1');
-    enterMain();
-  }catch(e){ err.textContent=t('Ошибка соединения с базой'); }
+  const btn=document.getElementById('gate-btn');if(btn.disabled)return;btn.disabled=true;
+  const err=document.getElementById('gate-err');err.textContent='';
+  try{const {error}=await sb.auth.signInWithPassword({email:document.getElementById('admin-email').value.trim(),password:document.getElementById('admin-password').value});if(error)throw new Error('Не удалось войти. Проверьте email и пароль.');await acceptAdmin();document.getElementById('admin-password').value='';}
+  catch(e){err.textContent=Ops.error(e);}finally{btn.disabled=false;}
 }
-async function changeAdminPin(){
-  const pin=document.getElementById('new-admin-pin').value.trim();
-  if(pin.length<4){ toast(t('Минимум 4 цифры')); return; }
-  const h=await hashPin(pin);
-  const {error}=await sb.from('app_settings').upsert({key:'admin_pin',value:{hash:h}});
-  toast(t(error?'Ошибка':'PIN изменён'));
-  document.getElementById('new-admin-pin').value='';
+function clearAdmin(){
+  OPS_PROFILE=null;Ops.clear();sb?.removeAllChannels();DRIVERS=[];ADDR=[];BANKS=[];LOCS=[];PHOTOS=[];LBLIST=[];
+  document.getElementById('main').style.display='none';document.getElementById('gate').style.display='';document.getElementById('btn-refresh').style.display='none';
+  document.querySelectorAll('.modal-bg,.photo-lb').forEach(x=>x.classList.remove('show'));
+  document.getElementById('lb-img').removeAttribute('src');
 }
+async function adminLogout(){clearAdmin();await sb.auth.signOut();}
+async function changePassword(){
+ const field=document.getElementById('new-admin-password');if(field.value.length<12){toast('Минимум 12 символов');return;}
+ const {error}=await sb.auth.updateUser({password:field.value});toast(error?'Не удалось изменить пароль. Войдите заново.':'Пароль изменён');if(!error)field.value='';
+}
+async function openSMS(addressId){
+ if(!OPS_PROFILE)return;await Ops.open({sb,profile:OPS_PROFILE,addressId,geocode,addresses:()=>ADDR,drivers:()=>DRIVERS,onChanged:()=>{if(OPS_PROFILE)refreshAll(true);}});
+}
+async function openAddressSMS(){const id=editAddrId;closeModal('m-addr-bg');await openSMS(id);}
 
 async function enterMain(){
   applyLang();
@@ -722,6 +697,7 @@ async function cleanupOldPhotos(){
 }
 
 async function refreshAll(silent){
+  if(!OPS_PROFILE)return;
   try{
     const [d,a,p,b,l]=await Promise.all([
       sb.from('drivers').select('*').order('created_at'),
@@ -730,8 +706,10 @@ async function refreshAll(silent){
       sb.from('banks').select('*').order('created_at'),
       sb.from('driver_locations').select('*')
     ]);
+    if(!OPS_PROFILE)return;
     if(d.error||a.error) throw (d.error||a.error);
     DRIVERS=d.data; ADDR=a.data; PHOTOS=p.error?[]:p.data; BANKS=b.error?[]:b.data; LOCS=l.error?[]:l.data;
+    await Ops.signPhotos(sb,PHOTOS.map(p=>p.path));
     fillDriverSelects();
     renderDash(); renderAddrTable(); renderDrivers(); renderBanks();
     if(document.getElementById('p-map').classList.contains('active')) renderMap();
@@ -829,7 +807,7 @@ function renderAddrTable(){
   if(q) list=list.filter(a=>(a.text+' '+(a.note||'')+' '+(a.phone||'')).toLowerCase().includes(q));
   document.getElementById('addr-tbody').innerHTML=list.map(a=>`
     <tr class="rowtap" onclick="openAddrModal('${a.id}')">
-      <td style="white-space:nowrap">${a.date||'—'}</td>
+      <td style="white-space:nowrap">${a.date||'—'}<small class="ops-slot-label">${esc(Ops.slotLabel(a))}</small></td>
       <td>${a.kind==='bank'?BANKPL+' ':''}${esc(a.text)}${photoCount(a.id)?`<span class="phbadge" onclick="event.stopPropagation();openAddrGallery('${a.id}')">📷 ${photoCount(a.id)}</span>`:''}${a.result_note?'<div class="note-red">'+esc(a.result_note)+'</div>':''}</td>
       <td><b>${a.bags||0}</b></td>
       <td style="white-space:nowrap">${a.driver_id?('<span style="color:'+drvColor(a.driver_id)+';font-weight:700">●</span> '+esc(drvName(a.driver_id))):'<span class="note-red">—</span>'}</td>
@@ -922,15 +900,24 @@ function openAddrModal(id){
   document.getElementById('ma-status').value=a?a.status:'new';
   document.getElementById('ma-resnote').value=a?(a.result_note||''):'';
   document.getElementById('ma-del').style.display=a?'':'none';
+  document.getElementById('ma-chat').style.display=a&&a.phone&&a.kind!=='bank'?'':'none';
+  document.getElementById('ma-slot').textContent=Ops.slotLabel(a);
+  document.getElementById('ma-date').disabled=!!a?.collection_start;
   document.getElementById('m-addr-bg').classList.add('show');
 }
 async function saveAddrModal(){
+  if(!OPS_PROFILE)return;
   const text=document.getElementById('ma-text').value.trim();
   if(!text){ toast(t('Введите адрес')); return; }
   const btn=document.getElementById('ma-save');
   btn.disabled=true; btn.innerHTML='<span class="spin"></span> '+t('Координаты…');
   const old=editAddrId?ADDR.find(x=>x.id===editAddrId):null;
   const date=document.getElementById('ma-date').value||null;
+  if(old&&old.date!==date&&old.date){
+    if(!confirm('Клиент согласовал изменение даты на '+(date||'не назначена')+'?')){btn.disabled=false;btn.textContent=t('Сохранить');return;}
+    try{await Ops.api(sb,'legacy_date',{address_id:old.id,day:date||'',version:old.collection_version,agreed:true});}
+    catch(e){toast(Ops.error(e));btn.disabled=false;btn.textContent=t('Сохранить');return;}
+  }
   let status=document.getElementById('ma-status').value;
   if(status==='new'&&date) status='planned';
   if(status==='planned'&&!date) status='new';
@@ -951,14 +938,14 @@ async function saveAddrModal(){
   }
   const {error}=await sb.from('addresses').upsert(row);
   btn.disabled=false; btn.innerHTML='<svg class="i"><use href="#i-save"/></svg> '+t('Сохранить');
-  if(error){ toast(t('Ошибка сохранения')); return; }
+  if(error){toast(Ops.error(error));return;}
   closeModal('m-addr-bg');
   toast(t(row.lat!=null?'Сохранено':'Сохранено · ⚠ координаты не найдены'));
   refreshAll(true);
 }
 async function deleteAddrModal(){
   if(!editAddrId||!confirm(t('Удалить этот адрес?'))) return;
-  await sb.from('addresses').delete().eq('id',editAddrId);
+  const {error}=await sb.from('addresses').delete().eq('id',editAddrId);if(error){toast('Адрес связан с перепиской. Сохраните историю: закройте заявку через статус.');return;}
   closeModal('m-addr-bg');
   refreshAll(true);
 }
@@ -1006,7 +993,7 @@ function renderDrivers(){
     const total=ADDR.filter(a=>a.driver_id===d.id).length;
     return `<tr>
       <td><span style="color:${drvColor(d.id)};font-weight:900">●</span> <b>${esc(d.name)}</b></td>
-      <td style="font-family:Archivo;font-weight:800;letter-spacing:.15em">${esc(d.pin)}</td>
+      <td style="font-family:Archivo;font-weight:800;letter-spacing:.15em">Email</td>
       <td>${d.active?'<span class="badge done">'+t('Активен2')+'</span>':'<span class="badge noanswer">'+t('Выключен')+'</span>'}</td>
       <td>${total}</td>
       <td style="white-space:nowrap">
@@ -1020,20 +1007,18 @@ function openDrvModal(id){
   const d=id?DRIVERS.find(x=>x.id===id):null;
   document.getElementById('m-drv-title').textContent=t(d?'Водитель':'Добавить водителя');
   document.getElementById('md-name').value=d?d.name:'';
-  document.getElementById('md-pin').value=d?d.pin:'';
   document.getElementById('md-active').value=d?String(d.active):'true';
   document.getElementById('m-drv-bg').classList.add('show');
 }
 async function saveDrvModal(){
   const name=document.getElementById('md-name').value.trim();
-  const pin=document.getElementById('md-pin').value.trim();
-  if(!name||!/^\d{4}$/.test(pin)){ toast(t('Имя и PIN из 4 цифр обязательны')); return; }
-  if(DRIVERS.some(d=>d.pin===pin&&d.id!==editDrvId)){ toast(t('Такой PIN уже занят')); return; }
-  const row={name,pin,active:document.getElementById('md-active').value==='true'};
+  if(!name){toast(t('Введите имя'));return;}
+  const row={name,active:document.getElementById('md-active').value==='true'};
+  if(!editDrvId)row.pin=crypto.randomUUID(); // Legacy required column; never used for authentication.
   let error;
   if(editDrvId) ({error}=await sb.from('drivers').update(row).eq('id',editDrvId));
   else ({error}=await sb.from('drivers').insert(row));
-  if(error){ toast(t('Ошибка (PIN должен быть уникальным)')); return; }
+  if(error){ toast(t('Ошибка сохранения водителя')); return; }
   closeModal('m-drv-bg');
   toast(t('Сохранено'));
   refreshAll(true);
@@ -1100,7 +1085,7 @@ async function saveBankModal(){
   }
   const {error}=await sb.from('banks').upsert(row);
   btn.disabled=false; btn.innerHTML='<svg class="i"><use href="#i-save"/></svg> '+t('Сохранить');
-  if(error){ toast(t('Ошибка сохранения')); return; }
+  if(error){toast(Ops.error(error));return;}
   closeModal('m-bank-bg');
   toast(t(row.lat!=null?'Сохранено':'Сохранено · ⚠ координаты не найдены'));
   refreshAll(true);
@@ -1145,9 +1130,7 @@ async function saveAssign(){
 
 /* ---------- photos ---------- */
 let PHOTOS=[], LBLIST=[], LBIDX=0;
-function photoUrl(path){
-  try{ return sb.storage.from('photos').getPublicUrl(path).data.publicUrl; }catch(e){ return ''; }
-}
+function photoUrl(path){return Ops.photoUrl(path);}
 function addrById(id){ return ADDR.find(a=>a.id===id); }
 function photoCount(addressId){ return PHOTOS.reduce((n,p)=>n+(p.address_id===addressId?1:0),0); }
 function dayPhotoCount(ds){
@@ -1194,10 +1177,12 @@ function openAddrGallery(addressId){
   if(LBLIST.length) lbShowList(0);
 }
 function lbShow(i){ LBLIST=photoFiltered(); lbShowList(i); }
-function lbShowList(i){
+async function lbShowList(i){
   if(!LBLIST.length) return;
   LBIDX=(i+LBLIST.length)%LBLIST.length;
   const p=LBLIST[LBIDX], a=addrById(p.address_id);
+  await Ops.signPhotos(sb,[p.path]);
+  if(!OPS_PROFILE)return;
   document.getElementById('lb-img').src=photoUrl(p.path);
   document.getElementById('lb-cap').textContent=
     '['+t(KIND_LBL[kindOf(p)])+'] '+(a?a.text:t('(адрес удалён)'))+' — '+drvName(p.driver_id)+' · '+phTime(p.created_at)+
@@ -1321,6 +1306,7 @@ async function renderReports(){
 /* --- изображения для PDF --- */
 async function imgToData(path,maxW){
   try{
+    await Ops.signPhotos(sb,[path]);
     const res=await fetch(photoUrl(path));
     if(!res.ok) return null;
     const blob=await res.blob();
@@ -1569,7 +1555,7 @@ function downloadFile(content,name,type){
 document.querySelectorAll('.modal-bg').forEach(bg=>{
   bg.addEventListener('click',e=>{ if(e.target===bg) bg.classList.remove('show'); });
 });
-document.getElementById('admin-pin').addEventListener('keydown',e=>{ if(e.key==='Enter') gateEnter(); });
+document.getElementById('admin-password').addEventListener('keydown',e=>{ if(e.key==='Enter') gateEnter(); });
 
 document.getElementById('lang-sel').value=LANG;
 applyLang();
