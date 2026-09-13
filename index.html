@@ -514,7 +514,15 @@ const STR = {
     archive:'Архив', archSub:'Выполненные работы',
     addressLbl:'Адрес (можно вставить как есть)', bagsLbl:'Пакетов (bags)',
     phoneLbl:'Телефон', noteLbl:'Заметка', dateLbl:'Дата выезда (пусто = в «Новые»)',
-    save:'Сохранить', optimize:'Оптимизировать маршрут',
+    save:'Сохранить', optimize:'Оптимизировать маршрут', showRoute:'Показать маршрут', buildingRoute:'Строю маршрут…',
+    drivingTime:'В пути', routeStart:'Старт', routeFinish:'Склад',
+    scheduledRoute:'По согласованному времени · в пути: без ожидания, сборов и прогноза пробок',
+    scheduledLines:'Дорожный расчёт недоступен. Пунктир соединяет точки по времени и не показывает дорогу.',
+    routeNoTime:'Адреса без согласованного времени показаны в конце.',
+    routeApprox:'Часть точек приблизительная, по почтовому индексу.',
+    routeMissingCoords:'Нужны координаты всех адресов. Без координат: ',
+    routeMissingEnds:'Укажите координаты старта и склада в настройках.',
+    routeChanged:'Адреса или настройки изменились. Нажмите «Показать маршрут» ещё раз.',
     routeLbl:'Маршрут · старт: дом → финиш: склад',
     addrInfo:'Информация об адресе', addressShort:'Адрес', result:'Результат',
     visited:'Выполнено', noAnswer:'Не отвечает', problem:'Проблема',
@@ -563,7 +571,15 @@ const STR = {
     archive:'Archive', archSub:'Completed jobs',
     addressLbl:'Address (paste as is)', bagsLbl:'Bags',
     phoneLbl:'Phone', noteLbl:'Note', dateLbl:'Collection date (empty = New)',
-    save:'Save', optimize:'Optimize route',
+    save:'Save', optimize:'Optimize route', showRoute:'Show route', buildingRoute:'Building route…',
+    drivingTime:'Driving', routeStart:'Start', routeFinish:'Depot',
+    scheduledRoute:'In appointment order · driving time excludes waiting, collections and traffic forecasts',
+    scheduledLines:'Road routing is unavailable. Dashed lines join stops in appointment order; they do not show roads.',
+    routeNoTime:'Stops without an agreed time are shown at the end.',
+    routeApprox:'Some positions are approximate, based on postcodes.',
+    routeMissingCoords:'Coordinates are needed for every stop. Missing: ',
+    routeMissingEnds:'Set the start and depot coordinates in Settings.',
+    routeChanged:'Stops or settings changed. Press Show route again.',
     routeLbl:'Route · start: home → end: depot',
     addrInfo:'Address info', addressShort:'Address', result:'Result',
     visited:'Visited', noAnswer:'No answer', problem:'Problem',
@@ -1106,11 +1122,30 @@ function renderCal(){
 let map=null;
 function openDay(ds){ currentDay=ds; showView('v-day'); renderDay(); }
 function dayAddrs(ds){ return ADDR.filter(a=>a.date===ds); }
+const hasCoords=a=>a&&Number.isFinite(a.lat)&&Number.isFinite(a.lng)&&Math.abs(a.lat)<=90&&Math.abs(a.lng)<=180;
+const isScheduledRoute=r=>r?.source==='osrm-schedule'||r?.source==='schedule-lines';
+function appointmentOrder(list){
+  const at=a=>{const v=Date.parse(a.collection_start);return Number.isFinite(v)?v:Infinity;};
+  // Stable sort keeps the existing order when two appointments have the same time.
+  return list.slice().sort((a,b)=>{const x=at(a),y=at(b);return x===y?0:x<y?-1:1;});
+}
+function scheduledRouteSignature(ds){
+  const list=dayAddrs(ds);
+  return JSON.stringify([OpsRoute.signature(list,LOCAL.home,LOCAL.depot),appointmentOrder(list).map(a=>a.id)]);
+}
+function renderRouteButton(){
+  const btn=document.getElementById('btn-opt');if(btn.disabled)return;
+  const key=dayAddrs(currentDay).some(a=>a.collection_start)?'showRoute':'optimize';
+  btn.innerHTML='<svg class="i" style="fill:currentColor;stroke:none"><use href="#i-'+(key==='showRoute'?'nav':'bolt')+'"/></svg> <span data-i18n="'+key+'">'+t(key)+'</span>';
+}
 function orderedDayAddrs(ds){
   const list=dayAddrs(ds);
   let r=LOCAL.routes[ds];
-  if(list.some(a=>a.collection_start)&&(!r?.signature||r.signature!==OpsRoute.signature(list,LOCAL.home,LOCAL.depot))){delete LOCAL.routes[ds];r=null;}
-  if(!r&&list.some(a=>a.collection_start))list.sort((a,b)=>(Date.parse(a.collection_start)||Infinity)-(Date.parse(b.collection_start)||Infinity));
+  if(list.some(a=>a.collection_start)){
+    if(!isScheduledRoute(r)||r.signature!==scheduledRouteSignature(ds))delete LOCAL.routes[ds];
+    return appointmentOrder(list);
+  }
+  if(isScheduledRoute(r)){delete LOCAL.routes[ds];r=null;}
   if(r&&r.order){
     const pos={}; r.order.forEach((id,i)=>pos[id]=i);
     list.sort((a,b)=>(pos[a.id]??999)-(pos[b.id]??999));
@@ -1119,6 +1154,7 @@ function orderedDayAddrs(ds){
 }
 function renderDay(){
   const ds=currentDay;
+  renderRouteButton();
   document.getElementById('day-title').textContent=
     (ds===todayStr()?t('todayWord')+' · ':'')+ds+(BH[ds]?' · 🔴 '+t('bh'):'');
   const list=orderedDayAddrs(ds);
@@ -1129,7 +1165,7 @@ function renderDay(){
       {attribution:'© OpenStreetMap',maxZoom:19}).addTo(map);
     const pts=[];
     list.forEach((a,i)=>{
-      if(a.lat==null) return;
+      if(!hasCoords(a)) return;
       pts.push([a.lat,a.lng]);
       const col=a.status==='done'?'#1F9D55':a.status==='noanswer'?'#D64545':a.status==='problem'?'#F0A400':'#101B24';
       const icon=L.divIcon({className:'',html:
@@ -1139,11 +1175,17 @@ function renderDay(){
         iconSize:[30,30],iconAnchor:[15,15]});
       L.marker([a.lat,a.lng],{icon}).addTo(map).on('click',()=>openAddr(a.id));
     });
-    if(LOCAL.home.lat!=null) pts.push([LOCAL.home.lat,LOCAL.home.lng]);
-    if(LOCAL.depot.lat!=null) pts.push([LOCAL.depot.lat,LOCAL.depot.lng]);
+    for(const [point,label,symbol] of [[LOCAL.home,t('routeStart'),'S'],[LOCAL.depot,t('routeFinish'),'F']]){
+      if(!hasCoords(point))continue;
+      pts.push([point.lat,point.lng]);
+      const icon=L.divIcon({className:'',html:`<div style="width:30px;height:30px;border-radius:8px;background:#FFC400;color:#101B24;border:2px solid #101B24;display:flex;align-items:center;justify-content:center;font-weight:800">${symbol}</div>`,iconSize:[30,30],iconAnchor:[15,15]});
+      L.marker([point.lat,point.lng],{icon}).addTo(map).bindTooltip(esc(label)+(point.text?' · '+esc(point.text):''));
+    }
     const r=LOCAL.routes[ds];
-    if(r&&r.geometry&&r.geometry.length)
-      L.polyline(r.geometry,{color:'#101B24',weight:4,opacity:.85}).addTo(map);
+    if(r&&r.geometry&&r.geometry.length){
+      L.polyline(r.geometry,{color:'#101B24',weight:4,opacity:.85,dashArray:r.source==='schedule-lines'?'8 8':null}).addTo(map);
+      for(const point of r.geometry)pts.push(point);
+    }
     if(pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.2));
     else map.setView([51.6,-3.4],9);
   }
@@ -1151,14 +1193,16 @@ function renderDay(){
   const strip=document.getElementById('signstrip');
   if(r){
     const fuel=r.km*LOCAL.fuelPer100/100, cost=fuel*LOCAL.fuelPrice;
-    document.getElementById('sign-vals').innerHTML=
+    const totalMin=Math.round(r.min||0);
+    document.getElementById('sign-vals').innerHTML=(Number.isFinite(r.km)&&Number.isFinite(r.min)?
       `<span>${t('dist')}: <b>${r.km.toFixed(1)} km</b></span>`+
-      `<span>${t('time')}: <b>${Math.floor(r.min/60)} h ${Math.round(r.min%60)} min</b></span>`+
+      `<span>${t(isScheduledRoute(r)?'drivingTime':'time')}: <b>${Math.floor(totalMin/60)} h ${totalMin%60} min</b></span>`+
       `<span>${t('fuel')}: <b>${fuel.toFixed(1)} L</b></span>`+
-      `<span>${t('cost')}: <b>£${cost.toFixed(2)}</b></span>`+
+      `<span>${t('cost')}: <b>£${cost.toFixed(2)}</b></span>`:'')+
       `<span>${t('stops')}: <b>${r.order.length}</b></span>`;
-    document.getElementById('sign-src').textContent=
-      (r.source==='osrm-windows'?'Согласованные окна · 4 мин/сбор · запас 20% · без прогноза пробок':r.source==='osrm'?'✅ '+t('optOSRM'):'⚠️ '+t('optFallback'));
+    document.getElementById('sign-src').textContent=isScheduledRoute(r)
+      ?[t(r.source==='osrm-schedule'?'scheduledRoute':'scheduledLines'),list.some(a=>!a.collection_start)?t('routeNoTime'):'',list.some(a=>a.geocode_source==='postcode')?t('routeApprox'):''].filter(Boolean).join(' ')
+      :(r.source==='osrm'?'✅ '+t('optOSRM'):'⚠️ '+t('optFallback'));
     strip.classList.add('show');
   } else strip.classList.remove('show');
   const el=document.getElementById('day-list');
@@ -1174,7 +1218,7 @@ function renderDay(){
         <div class="stopnum ${numCls}">${i+1}</div>
         <div class="stopinfo">
           <div class="addr">${a.kind==='bank'?BANKPLATE+' ':''}${a.bags?('<b>'+a.bags+' '+t('bags')+'</b> · '):''}${esc(a.text)}<small class="ops-slot-label">${esc(Ops.slotLabel(a))}</small></div>
-          <div class="meta">${a.phone?esc(a.phone)+' · ':''}${a.note?esc(a.note)+' · ':''}${a.lat==null?'⚠ '+t('noCoordAddr'):''}</div>
+          <div class="meta">${a.phone?esc(a.phone)+' · ':''}${a.note?esc(a.note)+' · ':''}${!hasCoords(a)?'⚠ '+t('noCoordAddr'):''}</div>
         </div>
         <button class="navbtn" onclick="event.stopPropagation();navTo('${a.id}')" aria-label="navigate"><svg class="i" style="fill:#fff;stroke:none"><use href="#i-nav"/></svg></button>
       </div></div>`;
@@ -1230,38 +1274,47 @@ function tspSolve(M,n){
   return route;
 }
 
-async function optimizeFixedDay(ds,list){
+async function scheduledRoad(all){
+ // The route service follows the supplied order, including return visits.
+ // Overlapping chunks keep long days within the service's waypoint limit.
+ let km=0,min=0;const geometry=[];
+ for(let first=0;first<all.length-1;first+=74){
+  const chunk=all.slice(first,first+75);
+  const coords=chunk.map(c=>c[1].toFixed(6)+','+c[0].toFixed(6)).join(';');
+  const rr=await fetch('https://router.project-osrm.org/route/v1/driving/'+coords+'?overview=full&geometries=geojson&continue_straight=false',{signal:AbortSignal.timeout(15000)});
+  const data=await rr.json(),rt=data.routes?.[0],line=rt?.geometry?.coordinates;
+  if(!rr.ok||data.code!=='Ok'||!Array.isArray(line)||line.length<2||!line.every(c=>Array.isArray(c)&&hasCoords({lat:c[1],lng:c[0]}))||!Number.isFinite(rt.distance)||rt.distance<0||!Number.isFinite(rt.duration)||rt.duration<0)throw new Error('ROAD_UNAVAILABLE');
+  km+=rt.distance/1000;min+=rt.duration/60;
+  for(let i=first?1:0;i<line.length;i++)geometry.push([line[i][1],line[i][0]]);
+ }
+ return {km,min,geometry};
+}
+async function showScheduledRoute(ds){
  const btn=document.getElementById('btn-opt');if(btn.disabled)return;btn.disabled=true;
+ btn.innerHTML='<span class="spin"></span> '+t('buildingRoute');
  try{
-  if(list.some(a=>a.lat==null||a.lng==null))throw new Error('Для расчёта времени нужны координаты каждого адреса. Уточните их в редакторе адреса.');
-  if(LOCAL.home.lat==null||LOCAL.depot.lat==null)throw new Error('Укажите старт (King Street, Abertillery) и склад (CF43 4SX) с координатами в настройках.');
-  if(list.length>90)throw new Error('Расчёт с фиксированным временем поддерживает до 90 остановок.');
-  const hours=await Ops.api(sb,'hours');const wd=new Date(ds+'T12:00:00Z').getUTCDay();const h=hours.days.find(x=>x.day===ds)||hours.week.find(x=>x.weekday===wd);
-  if(!h||h.closed)throw new Error('По графику это выходной. Существующие договорённости сохранены. Проверьте график.');
-  const tm=x=>Number(x.slice(0,2))*60+Number(x.slice(3,5));let departure=tm(h.opens);
-  if(ds===Ops.ukDate())departure=Math.max(departure,OpsRoute.minutes(new Date()));
+  const list=appointmentOrder(dayAddrs(ds));
+  if(!list.length){toast(t('emptyDay'));return;}
+  const missing=list.filter(a=>!hasCoords(a));
+  if(missing.length)throw new Error(t('routeMissingCoords')+missing.length);
+  if(!hasCoords(LOCAL.home)||!hasCoords(LOCAL.depot))throw new Error(t('routeMissingEnds'));
+  const signature=scheduledRouteSignature(ds);
   const all=[[LOCAL.home.lat,LOCAL.home.lng],...list.map(a=>[a.lat,a.lng]),[LOCAL.depot.lat,LOCAL.depot.lng]];
-  const coords=a=>a.map(c=>c[1].toFixed(6)+','+c[0].toFixed(6)).join(';');
-  const signature=OpsRoute.signature(dayAddrs(ds),LOCAL.home,LOCAL.depot);
-  const tr=await fetch('https://router.project-osrm.org/table/v1/driving/'+coords(all)+'?annotations=duration',{signal:AbortSignal.timeout(15000)});const tj=await tr.json();
-  if(!tr.ok||tj.code!=='Ok')throw new Error('Не удалось получить время в пути. Повторите при подключении к сети.');
-  const plan=OpsRoute.plan(tj.durations,list,departure,tm(h.closes));
-  if(!plan)throw new Error('Не удалось найти маршрут в согласованных окнах и рабочем графике. Проверьте длительность поездок и договоритесь о переносе отдельных сборов.');
-  const path=[0,...plan.order,list.length+1].map(i=>all[i]);
-  const rr=await fetch('https://router.project-osrm.org/route/v1/driving/'+coords(path)+'?overview=full&geometries=geojson',{signal:AbortSignal.timeout(15000)});const rj=await rr.json();
-  if(!rr.ok||rj.code!=='Ok'||!rj.routes?.[0])throw new Error('Не удалось получить маршрут. Попробуйте ещё раз.');
-  if(signature!==OpsRoute.signature(dayAddrs(ds),LOCAL.home,LOCAL.depot))throw new Error('Список адресов изменился во время расчёта. Повторите оптимизацию.');
-  const rt=rj.routes[0];LOCAL.routes[ds]={order:plan.order.map(i=>list[i-1].id),km:rt.distance/1000,min:plan.minutes,source:'osrm-windows',signature,arrivals:plan.arrivals,geometry:rt.geometry.coordinates.map(c=>[c[1],c[0]])};saveLocal();renderDay();
-  toast('Окна сохранены. Расчёт: 4 минуты на сбор, запас 20% к времени поездок, без прогноза пробок.');
- }catch(e){toast(e.message);}finally{btn.disabled=false;}
+  let route={order:list.map(a=>a.id),source:'schedule-lines',signature,km:null,min:null,geometry:all};
+  try{route={...route,...await scheduledRoad(all),source:'osrm-schedule'};}catch{
+   // Keep every stop visible if the road service is unavailable; label the sketch.
+  }
+  if(signature!==scheduledRouteSignature(ds))throw new Error(t('routeChanged'));
+  LOCAL.routes[ds]=route;saveLocal();
+  if(currentDay===ds)renderDay();
+ }catch(e){toast(e.message);}finally{btn.disabled=false;renderRouteButton();}
 }
 
 async function optimizeDay(){
   const ds=currentDay;
+  if(dayAddrs(ds).some(a=>a.collection_start)){await showScheduledRoute(ds);return;}
   const active=dayAddrs(ds).filter(a=>!['done','noanswer','problem'].includes(a.status));
-  const hasSlots=active.some(a=>a.collection_start);
   const list=active.filter(a=>a.lat!=null&&a.lng!=null);
-  if(hasSlots){await optimizeFixedDay(ds,active);return;}
   if(!list.length){ toast(t('needTwo')); return; }
   const btn=document.getElementById('btn-opt');
   btn.disabled=true; btn.innerHTML='<span class="spin"></span> '+t('optimizing');
