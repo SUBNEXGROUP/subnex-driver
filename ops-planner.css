@@ -1,0 +1,35 @@
+.pp-overlay{position:fixed;inset:0;z-index:12000;background:#101c25b3;display:flex;justify-content:center;padding:20px;overflow:auto;color:#111e26;font:16px/1.5 system-ui,sans-serif;text-align:left}
+.pp-overlay *{box-sizing:border-box}
+.pp-overlay .pp-panel{width:min(100%,740px);height:fit-content;background:#f4f2eb;border:2px solid #111e26;border-radius:18px;box-shadow:0 6px 25px #0003;margin:auto}
+.pp-overlay .pp-header{display:flex;gap:16px;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid #c9cdc7}
+.pp-overlay .pp-body{padding:20px 24px 28px}
+.pp-overlay h2{font-size:24px;line-height:1.25;margin:0 0 4px;font-weight:800;letter-spacing:0;text-transform:none}
+.pp-overlay h3{font-size:19px;line-height:1.3;margin:18px 0 12px;font-weight:750;letter-spacing:0;text-transform:none}
+.pp-overlay h4{font-size:17px;line-height:1.45;margin:0 0 8px;letter-spacing:0;text-transform:none}
+.pp-overlay p{margin:0 0 14px;line-height:1.5}
+.pp-overlay .pp-header p{font-size:13px;color:#566473;margin:0}
+.pp-overlay label{display:block;font-size:14px;font-weight:650;text-transform:none;letter-spacing:0;margin:12px 0 6px;color:#111e26}
+.pp-overlay input,.pp-overlay select,.pp-overlay textarea{display:block;width:100%;min-width:0;border:1.5px solid #859088;border-radius:9px;padding:12px;background:white;font:inherit;color:#111e26;margin:5px 0 0;min-height:46px;letter-spacing:0;text-transform:none;resize:vertical}
+.pp-overlay .pp-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.pp-overlay button{display:inline-block;width:auto;min-height:44px;background:#fff;color:#111e26;border:2px solid #111e26;border-radius:10px;padding:10px 15px;font:600 14px/1.4 system-ui,sans-serif;cursor:pointer;letter-spacing:0;text-transform:none;box-shadow:none;white-space:normal}
+.pp-overlay button:hover{background:#eef0ea}
+.pp-overlay .pp-primary{background:#ffc400;border-color:#111e26;box-shadow:0 2px 0 #111e26}
+.pp-overlay .pp-primary:hover{background:#ffcf34}
+.pp-overlay button:disabled{opacity:.5;cursor:wait}
+.pp-overlay :focus-visible{outline:3px solid #218159;outline-offset:3px}
+.pp-overlay .pp-help{font-size:13px;color:#566473;margin:10px 0 14px}
+.pp-overlay #pp-status{font-weight:650;color:#174b38;overflow-wrap:anywhere;margin:16px 0}
+.pp-overlay .pp-section-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:24px;border-top:1px solid #c9cdc7;padding-top:16px}
+.pp-overlay .pp-section-title h3{margin:0}
+.pp-overlay .pp-card{border:1.5px solid #a9b3a8;background:#fff;border-radius:12px;padding:18px;margin:12px 0;overflow-wrap:anywhere}
+.pp-overlay .pp-card p:last-child{margin-bottom:0}
+.pp-overlay small{font-size:13px;color:#566473}
+.pp-overlay details{margin:14px 0}
+.pp-overlay summary{cursor:pointer;font-weight:650;min-height:36px}
+.pp-overlay .pp-check{display:flex;align-items:flex-start;gap:10px;margin:20px 0 14px}
+.pp-overlay .pp-check input{width:20px;min-width:20px;height:20px;min-height:20px;margin:0;accent-color:#19734e}
+.pp-overlay .pp-cancel{color:#7e3434;border-color:#d8c2c2;font-weight:500;margin-top:6px}
+.pp-overlay li{margin:10px 0;font-size:14px}
+.pp-overlay textarea[readonly]{font-size:14px;background:#fafbf8;font-weight:400}
+.pp-overlay #pp-results>.pp-primary{margin-top:10px}
+@media(max-width:600px){.pp-overlay{padding:0}.pp-overlay .pp-panel{border-radius:0;border:0;min-height:100%;margin:0}.pp-overlay .pp-header{padding:18px 16px;gap:10px}.pp-overlay .pp-body{padding:16px 16px 32px}.pp-overlay .pp-grid{grid-template-columns:1fr;gap:0}.pp-overlay h2{font-size:22px}.pp-overlay .pp-section-title{align-items:flex-start}.pp-overlay .pp-card{padding:15px}}

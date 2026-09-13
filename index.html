@@ -239,6 +239,8 @@ button:focus-visible,.card.tap:focus-visible{outline:3px solid var(--hiviz);outl
 <link rel="stylesheet" href="ops-chat.css?v=2">
 <script src="ops-chat.js?v=2"></script>
 <script src="ops-route.js?v=2"></script>
+<link rel="stylesheet" href="ops-planner.css?v=1">
+<script src="ops-planner.js?v=1"></script>
 </head>
 <body>
 <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
@@ -292,6 +294,7 @@ button:focus-visible,.card.tap:focus-visible{outline:3px solid var(--hiviz);outl
     </div>
   </div>
   <button class="btn btn-dark" onclick="openSMS()">SMS · Переписки и сборы</button>
+  <button class="btn btn-dark" onclick="openPartnerPlanner()">Подобрать время · WhatsApp / Missing</button>
   <button class="btn btn-primary" onclick="openAdd()"><svg class="i" ><use href="#i-plus"/></svg> <span data-i18n="addAddress">Добавить адрес</span></button>
   <div style="height:16px"></div>
   <div class="card tap" onclick="openDay(todayStr())">
@@ -919,6 +922,7 @@ async function tryLogin(){
  catch(e){err.textContent=Ops.error(e);}finally{btn.disabled=false;}
 }
 function clearDriver(){
+ window.OpsPlanner?.close();
  stopGeoWatch();OPS_PROFILE=null;ME=null;ADDR=[];CURPHOTOS=[];CURPENDING=[];currentAddrId=null;editId=null;Ops.clear();
  sb?.removeAllChannels();LOCAL.cache=[];LOCAL.routes={};saveLocal();localStorage.removeItem('driver');
  document.getElementById('mainnav').style.display='none';document.getElementById('photo-lb').classList.remove('show');document.getElementById('lb-img').removeAttribute('src');
@@ -928,6 +932,13 @@ async function logout(){clearDriver();await sb.auth.signOut();}
 async function openSMS(addressId){
  if(!OPS_PROFILE)return;
  await Ops.open({sb,profile:OPS_PROFILE,addressId,geocode,addresses:()=>ADDR,drivers:()=>ME?[{...ME,active:true}]:[],onChanged:async()=>{if(ME){await loadAddresses();refreshDriverView();}}});
+}
+async function openPartnerPlanner(){
+ if(!ME||!OPS_PROFILE)return;
+ if(!window.OpsPlanner){toast('Загрузите ops-planner.js и ops-planner.css из обновления, затем обновите страницу.');return;}
+ await OpsPlanner.open({sb,driver:ME,home:LOCAL.home,depot:LOCAL.depot,addresses:()=>ADDR,
+   hasOutbox:()=>LOCAL.outbox.length>0,
+   onChanged:async()=>{if(ME){await loadAddresses();LOCAL.routes={};saveLocal();refreshDriverView();}}});
 }
 function refreshDriverView(){const v=document.querySelector('.view.active')?.id;if(v==='v-home')renderHome();if(v==='v-day')renderDay();if(v==='v-addr')renderAddr();if(v==='v-cal')renderCal();if(v==='v-new')renderNew();if(v==='v-archive')renderArchive();}
 window.addEventListener('unhandledrejection',event=>{event.preventDefault();toast(Ops.error(event.reason));});
