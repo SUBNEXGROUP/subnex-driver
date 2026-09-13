@@ -1,4 +1,4 @@
-/* SUBNEX partner time finder. Does not send messages or move appointments. */
+/* SUBNEX time finder. SMS is reviewed and sent through the existing chat. */
 (function(root){
 'use strict';
 const SERVICE=10, BUFFER=1.2, LEG_MARGIN=5;
@@ -39,7 +39,7 @@ function blocksFor(day){
  return {blocks,opens,closes};
 }
 
-function evaluate(day,point,matrix,home,depot,requestedTime){
+function evaluate(day,point,matrix,home,depot,requestedTime,windowMinutes=0){
  const b=blocksFor(day);if(b.error)return b;
  if(!coord(point)||!coord(home)||!coord(depot))return {error:'Нужны координаты адреса, старта и финиша.'};
  const {blocks,opens,closes}=b,n=blocks.length,c=n+1,f=n+2;
@@ -59,18 +59,18 @@ function evaluate(day,point,matrix,home,depot,requestedTime){
   const next=i===n?{from:closes,text:depot.text||'Финиш'}:blocks[i];
   const j=i===n?f:i+1;
   const earliest=Math.ceil((previous.to+travel(i,c))/5)*5;
-  const latest=Math.floor((next.from-travel(c,j)-SERVICE)/5)*5;
+  const latest=Math.floor((next.from-travel(c,j)-SERVICE-windowMinutes)/5)*5;
   const arrival=requestedTime===undefined?earliest:requestedTime;
   if(!Number.isFinite(arrival)||arrival<earliest||arrival>latest)continue;
   const added=raw(i,c)+raw(c,j)-raw(i,j);
   if(!Number.isFinite(added))continue;
-  candidates.push({day:day.day,start:hm(arrival),end:hm(arrival+SERVICE),arrival,
+  candidates.push({day:day.day,start:hm(arrival),end:hm(arrival+(windowMinutes||SERVICE)),arrival,
     extra:Math.max(0,Math.round(added)),before:previous.text,after:next.text,
     inMinutes:Math.ceil(raw(i,c)),outMinutes:Math.ceil(raw(c,j)),token:day.token,
     existing:blocks.length});
  }
  candidates.sort((a,b)=>a.extra-b.extra||a.arrival-b.arrival);
- return candidates.length?{candidates,blocks}:{error:'Свободного промежутка с учётом дороги и 10 минут на сбор нет.'};
+ return candidates.length?{candidates,blocks}:{error:'Свободного промежутка с учётом дороги, '+(windowMinutes?'часового интервала прибытия и ':'')+'10 минут на сбор нет.'};
 }
 
 async function getJSON(url,signal){
@@ -103,6 +103,9 @@ async function locate(text,signal){
  return p;
 }
 const errors={
+ STALE_ADDRESS:'Заявка или маршрут изменились. Подберите время заново.',
+ ALREADY_SCHEDULED_USE_MANUAL:'Этот сбор уже согласован. Для переноса нужно отдельное подтверждение клиента.',
+ UK_MOBILE_REQUIRED:'Для SMS нужен британский мобильный номер: 07… или +447…',
  PLAN_CHANGED:'Маршрут или предложения изменились. Нажмите «Подобрать время» заново.',
  PARTNER_TIME_RESERVED:'Этот промежуток уже предложен партнёру. Нужно подобрать другое время.',
  SLOT_CONFLICT:'В это время появилась другая заявка. Подберите время заново.',
@@ -121,16 +124,37 @@ const errors={
 function errorText(e){
  const msg=String(e?.message||e||'Ошибка');
  for(const [code,txt]of Object.entries(errors))if(msg.includes(code)||e?.code===code)return txt;
- if(e?.code==='PGRST202'||msg.includes('subnex_partner_planner'))return 'Подбор ещё не подключён к базе. Выполните файл 01_partner_planner.sql из обновления.';
+ if(e?.code==='PGRST202'||msg.includes('subnex_partner_planner')||msg.includes('subnex_sms_planner'))return 'Подбор ещё не подключён к базе. Выполните 01_partner_planner.sql и 02_sms_planner.sql из обновления.';
  if(e?.name==='AbortError')return 'Расчёт прерван или сервис дорог не ответил. Повторите поиск.';
  if(e instanceof TypeError||/Failed to fetch|NetworkError/.test(msg))return 'Нет связи. Проверьте интернет и повторите действие.';
  return msg;
 }
 
+const smsSource=s=>s==='subnex'||s==='partner_email';
+async function smsRpc(sb,action,data){
+ const {data:value,error}=await sb.rpc('subnex_sms_planner',{p_action:action,p_data:data});
+ if(error){const e=new Error(errorText(error));e.code=error.message;throw e;}return value;
+}
+// No reservation is made for an unsent SMS draft. A fresh ticket protects the later send.
+async function prepareSms(options,plan,payload){
+ if(options.hasOutbox?.())throw new Error('Сначала синхронизируйте изменения адресов.');
+ if(plan.day!==payload.day||plan.start!==payload.start||plan.end!==payload.end)throw new Error('Время изменено после подбора. Подберите его заново.');
+ const snapshot=await smsRpc(options.sb,'snapshot',{driver_id:plan.driver_id,address_id:plan.address_id,from_day:plan.day});
+ const a=snapshot.address;
+ if(!a||a.id!==plan.address_id||a.collection_version!==payload.version||a.text!==plan.address_text)throw new Error(errors.STALE_ADDRESS);
+ const point=coord(a)?a:await locate(a.text);
+ const day=snapshot.days[0],matrix=await roadMatrix(day,point,plan.home,plan.depot);
+ const result=evaluate(day,point,matrix,plan.home,plan.depot,clock(plan.start),60);
+ if(result.error)throw new Error('Повторная проверка: '+result.error+' Подберите другое время.');
+ const response=await smsRpc(options.sb,'ticket',{driver_id:plan.driver_id,address_id:a.id,thread_id:payload.thread_id,
+  day:plan.day,start:plan.start,end:plan.end,token:day.token,address_hash:snapshot.address_hash,
+  lat:point.lat,lng:point.lng,postcode:postcode(a.text)});
+ return {planner_required:true,planner_ticket:response.ticket};
+}
 let ctx=null,modal=null,controller=null,epoch=0,busy=false,results=[],originalFocus=null,originalOverflow='';
 const $=id=>modal?.querySelector('#pp-'+id);
 function status(text){if($('status'))$('status').textContent=text;}
-function setBusy(v){busy=v;if(modal)modal.querySelectorAll('button[data-work],input,select,textarea').forEach(el=>el.disabled=v||el.hasAttribute('data-expired'));}
+function setBusy(v){busy=v;if(modal)modal.querySelectorAll('button[data-work],input,select,textarea').forEach(el=>el.disabled=v||el.hasAttribute('data-expired')||el.hasAttribute('data-locked'));}
 async function rpc(action,data={}){
  const c=ctx;if(!c)throw new Error('Сеанс закрыт.');
  const {data:value,error}=await c.sb.rpc('subnex_partner_planner',{p_action:action,p_data:{...data,driver_id:c.driver.id}});
@@ -148,21 +172,22 @@ function buildShell(){
  modal=document.createElement('div');modal.className='pp-overlay';
  modal.innerHTML=`<section class="pp-panel" role="dialog" aria-modal="true" aria-labelledby="pp-title">
   <header class="pp-header"><div><h2 id="pp-title">Подобрать время</h2><p>WhatsApp партнёра · Missing Collections</p></div><button id="pp-close" aria-label="Закрыть подбор">Закрыть ×</button></header>
-  <div class="pp-body"><p>Вставьте адрес. Приложение предложит место в графике для согласования с партнёром.</p>
+  <div class="pp-body"><p id="pp-intro">Вставьте адрес. Приложение предложит свободное время для согласования.</p>
    <p class="pp-help" id="pp-points"></p>
    <form id="pp-form">
-    <label>Источник<select id="pp-source"><option value="partner_whatsapp">Partner Collections WhatsApp</option><option value="missing">Missing Collections</option></select></label>
+    <label>Источник<select id="pp-source"><option value="partner_whatsapp">Partner Collections WhatsApp</option><option value="missing">Missing Collections</option><option value="subnex">SUBNEX Collections</option><option value="partner_email">Emails from partner</option></select></label>
+    <details><summary>Старт и финиш для расчёта</summary><label>Старт — полный адрес с postcode<input id="pp-home" required maxlength="2000"></label><label>Финиш — полный адрес с postcode<input id="pp-depot" required maxlength="2000"></label></details>
     <label>Полный адрес с postcode<textarea id="pp-address" required maxlength="2000" rows="2" placeholder="Номер дома, улица, город, postcode"></textarea></label>
-    <div class="pp-grid"><label>Мешки, если известно<input id="pp-bags" maxlength="80" placeholder="Например: 4–10"></label><label>Телефон, необязательно<input id="pp-phone" type="tel" maxlength="80"></label></div>
+    <div class="pp-grid"><label>Мешки, если известно<input id="pp-bags" maxlength="80" placeholder="Например: 4–10"></label><label><span id="pp-phone-label">Телефон, необязательно</span><input id="pp-phone" type="tel" maxlength="80"></label></div>
     <label>Примечание<input id="pp-note" maxlength="4000" placeholder="Доступ, этаж, пожелания клиента"></label>
     <label>Искать на 7 дней, начиная с<input id="pp-from" type="date" required></label>
     <p class="pp-help">Время Великобритании. На сбор — 10 минут. К дороге добавляется запас 20% и 5 минут на каждый переезд. Поиск начинается с завтрашнего дня.</p>
     <button type="submit" class="pp-primary" data-work>Подобрать время</button>
    </form>
    <p id="pp-status" role="status" aria-live="polite"></p><div id="pp-results"></div>
-   <div class="pp-section-title"><h3>Ожидаем подтверждения партнёра</h3><button id="pp-refresh" data-work>Обновить</button></div>
+   <div id="pp-partners"><div class="pp-section-title"><h3>Ожидаем подтверждения партнёра</h3><button id="pp-refresh" data-work>Обновить</button></div>
    <p class="pp-help">Сохранённые предложения учитываются при следующем подборе. После ответа партнёра откройте предложение и вручную добавьте сбор.</p>
-   <div id="pp-pending"></div>
+   <div id="pp-pending"></div></div>
   </div></section>`;
  document.body.append(modal);
  $('close').onclick=close;
@@ -179,6 +204,23 @@ function buildShell(){
  $('form').addEventListener('input',clearResults);
  $('refresh').onclick=()=>run(async()=>{clearResults();await loadPending();status('Список обновлён.');});
  $('points').textContent=`Водитель: ${ctx.driver.name}. Старт: ${ctx.home?.text||'не указан'}. Финиш: ${ctx.depot?.text||'не указан'}.`;
+ $('home').value=ctx.home?.text||'';$('depot').value=ctx.depot?.text||'';
+ if(!coord(ctx.home)||!coord(ctx.depot))$('home').closest('details').open=true;
+ if(ctx.source)$('source').value=ctx.source;
+ if(ctx.address){
+  $('address').value=ctx.address.text;$('address').readOnly=true;
+  $('phone').value=ctx.address.phone||'';$('phone').readOnly=true;
+  $('source').setAttribute('data-locked','');$('source').disabled=true;
+  $('bags').closest('label').hidden=true;$('note').closest('label').hidden=true;
+ }
+ const sourceChanged=()=>{
+  const sms=smsSource($('source').value);$('partners').hidden=sms;
+  $('phone').required=sms&&!ctx.address;
+  $('phone-label').textContent=sms?'Мобильный телефон для SMS':'Телефон, необязательно';
+  $('intro').textContent=sms?'Выберите время, затем проверьте и отправьте SMS. До подтверждения клиентом заявка остаётся вне маршрута.':'Выберите время и перешлите предложение партнёру. После его ответа добавьте сбор вручную.';
+  modal.querySelector('.pp-header p').textContent=sms?'SUBNEX · Emails from partner':'WhatsApp партнёра · Missing Collections';
+ };
+ $('source').addEventListener('change',sourceChanged);sourceChanged();
  $('from').min=nextDay(ukDay(Date.now()));$('from').value=$('from').min;
  $('address').focus();
 }
@@ -190,7 +232,7 @@ async function run(fn){
 async function open(options){
  if(modal)close();ctx={...options,home:{...options.home},depot:{...options.depot}};
  originalFocus=document.activeElement;originalOverflow=document.body.style.overflow;document.body.style.overflow='hidden';buildShell();
- await run(async()=>{await loadPending();});
+ await run(async()=>{if(!smsSource($('source').value))await loadPending();});
 }
 async function loadPending(){
  const current=epoch,data=await rpc('pending');if(current!==epoch)return;
@@ -225,38 +267,55 @@ async function copyText(textarea,p){
 }
 async function search(){await run(async current=>{
  clearResults();const data={address:$('address').value.trim(),source:$('source').value,bags_text:$('bags').value.trim(),phone:$('phone').value.trim(),note:$('note').value.trim(),from_day:$('from').value};
+ const isSms=smsSource(data.source),addressId=ctx.address?.id;
  if(data.address.length<5)throw new Error('Введите полный адрес.');
  if(data.from_day<$('from').min)throw new Error(errors.DATE_RANGE);
- if(!coord(ctx.home)||!coord(ctx.depot))throw new Error('Сначала укажите старт и финиш с координатами в настройках приложения.');
  if(ctx.hasOutbox?.())throw new Error('Сначала синхронизируйте несохранённые изменения адресов.');
- const duplicates=(ctx.addresses?.()||[]).filter(a=>!['done','noanswer','problem'].includes(a.status)&&key(a.text)===key(data.address));
+ const duplicates=(ctx.addresses?.()||[]).filter(a=>a.id!==addressId&&a.driver_id===ctx.driver.id&&!['done','noanswer','problem'].includes(a.status)&&key(a.text)===key(data.address));
  if(duplicates.length)throw new Error(errors.DUPLICATE_ADDRESS);
  controller?.abort();controller=new AbortController();const signal=controller.signal;
+ for(const name of ['home','depot']){
+  const text=$(name).value.trim();
+  if(!coord(ctx[name])||ctx[name].text!==text){const p=await locate(text,signal);if(current!==epoch)return;ctx[name]={...p,text};}
+ }
+ $('points').textContent=`Водитель: ${ctx.driver.name}. Старт: ${ctx.home.text}. Финиш: ${ctx.depot.text}.`;
  status('Проверяю postcode и занятые интервалы…');
- const snapshot=await rpc('snapshot',{from_day:data.from_day});if(current!==epoch)return;
- const point=await locate(data.address,signal);if(current!==epoch)return;
+ const snapshot=isSms?await smsRpc(ctx.sb,'snapshot',{driver_id:ctx.driver.id,address_id:addressId,from_day:data.from_day}):await rpc('snapshot',{from_day:data.from_day});if(current!==epoch)return;
+ if(addressId&&snapshot.address?.text!==data.address)throw new Error(errors.STALE_ADDRESS);
+ const point=snapshot.address&&coord(snapshot.address)?{lat:snapshot.address.lat,lng:snapshot.address.lng,postcode:postcode(data.address)}:await locate(data.address,signal);if(current!==epoch)return;
  const found=[],skipped=[];
  for(const day of snapshot.days){
   if(current!==epoch)return;status('Считаю дорогу: '+dayLabel(day.day)+'…');
   const base=blocksFor(day);if(base.error){skipped.push({day:day.day,reason:base.error});continue;}
   try{const matrix=await roadMatrix(day,point,ctx.home,ctx.depot,signal);if(current!==epoch)return;
-   const r=evaluate(day,point,matrix,ctx.home,ctx.depot);
+   const r=evaluate(day,point,matrix,ctx.home,ctx.depot,undefined,isSms?60:0);
    if(r.error)skipped.push({day:day.day,reason:r.error});else found.push(r.candidates[0]);
   }catch(e){if(current!==epoch)return;skipped.push({day:day.day,reason:errorText(e)});}
  }
  if(current!==epoch)return;
  found.sort((a,b)=>a.extra-b.extra||a.day.localeCompare(b.day)||a.arrival-b.arrival);
  results=found.slice(0,3).map(r=>({...r,...point,...data,id:crypto.randomUUID()}));
- const area=$('results');area.innerHTML='<h3>Варианты для согласования</h3><p class="pp-help">Вначале — варианты с меньшим добавочным временем в дороге. Координаты нового адреса — центр postcode: проверьте дом и подъезд. Расчёт дороги ориентировочный, без прогноза пробок.</p>';
+ const area=$('results');area.innerHTML='<h3>Варианты для согласования</h3><p class="pp-help">Вначале — варианты с меньшим добавочным временем в дороге. Для адресов с координатами по postcode используется его центр: проверьте дом и подъезд. Расчёт дороги ориентировочный, без прогноза пробок.</p>';
  if(!results.length)area.insertAdjacentHTML('beforeend','<p>На выбранные дни проверенного варианта нет. Ниже указаны причины; можно выбрать другую неделю.</p>');
  results.forEach((r,i)=>{
   const card=document.createElement('article');card.className='pp-card';
-  card.innerHTML=`<h4>${esc(dayLabel(r.day))} · ${esc(r.start)} UK</h4><p>Примерно +${r.extra} мин дороги к маршруту</p>
+  card.innerHTML=`<h4>${esc(dayLabel(r.day))} · ${esc(r.start)}${isSms?'–'+esc(r.end):''} UK</h4><p>Примерно +${r.extra} мин дороги к маршруту</p>
    <p><small>После</small> ${esc(r.before)}<br><small>Перед</small> ${esc(r.after)}</p>
-   <p class="pp-help">Переезды: около ${r.inMinutes} и ${r.outMinutes} мин без запаса. Сбор — до 10 мин.</p>
-   <button class="pp-primary" data-work>Сохранить предложение</button>`;
+   <p class="pp-help">Переезды: около ${r.inMinutes} и ${r.outMinutes} мин без запаса. ${isSms?'Клиенту предлагается часовой интервал прибытия. ':''}Сбор — до 10 мин.</p>
+   <button class="pp-primary" data-work>${isSms?'Открыть предложение в SMS':'Сохранить предложение'}</button>`;
   card.querySelector('button').onclick=()=>run(async()=>{
    if(ctx.hasOutbox?.())throw new Error('Сначала синхронизируйте изменения адресов.');
+   if(isSms){
+    const c=ctx,chosenEpoch=epoch;
+    if(!addressId&&!c.onSms)throw new Error('Обновите index.html из этого обновления.');
+    const saved=addressId?{address_id:addressId}:await smsRpc(c.sb,'create',{...r,driver_id:c.driver.id});
+    if(chosenEpoch!==epoch)return;
+    const plan={day:r.day,start:r.start,end:r.end,driver_id:c.driver.id,address_id:saved.address_id,address_text:r.address,
+     home:{...c.home},depot:{...c.depot}};
+    close();
+    if(addressId)await c.onChoose?.(plan);else await c.onSms(saved.address_id,plan);
+    return;
+   }
    const {from_day,extra,before,after,inMinutes,outMinutes,existing,arrival,end,...payload}=r;
    const saved=await rpc('reserve',payload);
    if(saved.item.state!=='held'){
@@ -271,7 +330,7 @@ async function search(){await run(async current=>{
   });area.append(card);
  });
  if(skipped.length){const details=document.createElement('details');details.innerHTML='<summary>Почему другие дни не предложены</summary><ul>'+skipped.map(x=>`<li><strong>${esc(dayLabel(x.day))}:</strong> ${esc(x.reason)}</li>`).join('')+'</ul>';if(!results.length)details.open=true;area.append(details);}
- status(results.length?'Выберите вариант для пересылки партнёру.':'Подбор завершён.');
+ status(results.length?(isSms?'Выберите вариант, затем проверьте SMS. Отправка — отдельной кнопкой в переписке. Время удерживается после отправки.':'Выберите вариант для пересылки партнёру.'):'Подбор завершён.');
 });}
 async function confirmProposal(p){
  const current=epoch;if(ctx.hasOutbox?.())throw new Error('Сначала синхронизируйте изменения адресов.');
@@ -289,5 +348,5 @@ async function confirmProposal(p){
  status('Сбор добавлен в маршрут на '+dayLabel(ukDay(p.starts_at))+' в '+hm(at(p.starts_at))+' UK.');
  try{await ctx.onChanged?.(reply.address_id);}catch{status('Сбор добавлен. Обновите главный экран, чтобы увидеть его в маршруте.');}
 }
-root.OpsPlanner={open,close,core:{evaluate,blocksFor,coord,postcode,key,ukDay,at,hm,nextDay,textFor,roadMatrix,locate,errorText}};
+root.OpsPlanner={open,close,prepareSms,core:{evaluate,blocksFor,coord,postcode,key,ukDay,at,hm,nextDay,textFor,roadMatrix,locate,errorText}};
 })(typeof window!=='undefined'?window:globalThis);

@@ -175,7 +175,9 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px soli
 .chkline{display:flex;align-items:center;gap:7px;font-weight:700;font-size:14px;align-self:end;padding-bottom:9px;cursor:pointer}
 </style>
 <link rel="stylesheet" href="ops-chat.css?v=2">
-<script src="ops-chat.js?v=2"></script>
+<script src="ops-chat.js?v=planner2"></script>
+<link rel="stylesheet" href="ops-planner.css?v=2">
+<script src="ops-planner.js?v=2"></script>
 </head>
 <body>
 <div class="hazard"></div>
@@ -649,7 +651,13 @@ async function changePassword(){
  const {error}=await sb.auth.updateUser({password:field.value});toast(error?'Не удалось изменить пароль. Войдите заново.':'Пароль изменён');if(!error)field.value='';
 }
 async function openSMS(addressId){
- if(!OPS_PROFILE)return;await Ops.open({sb,profile:OPS_PROFILE,addressId,geocode,addresses:()=>ADDR,drivers:()=>DRIVERS,onChanged:()=>{if(OPS_PROFILE)refreshAll(true);}});
+ if(!OPS_PROFILE)return;await Ops.open({sb,profile:OPS_PROFILE,addressId,geocode,addresses:()=>ADDR,drivers:()=>DRIVERS,
+  plannerPoints:driverId=>{
+   if(driverId!==OPS_PROFILE.driver_id)return {};
+   try{const p=JSON.parse(localStorage.getItem('subnexDriver2_local')||'{}');return p.owner===OPS_PROFILE.user_id?{home:p.home,depot:p.depot}:{};}catch{return {};}
+  },
+  hasOutbox:()=>{try{const p=JSON.parse(localStorage.getItem('subnexDriver2_local')||'{}');return p.owner===OPS_PROFILE.user_id&&p.outbox?.length>0;}catch{return false;}},
+  onChanged:()=>{if(OPS_PROFILE)refreshAll(true);}});
 }
 async function openAddressSMS(){const id=editAddrId;closeModal('m-addr-bg');await openSMS(id);}
 

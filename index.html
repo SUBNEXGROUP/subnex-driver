@@ -237,10 +237,10 @@ button:focus-visible,.card.tap:focus-visible{outline:3px solid var(--hiviz);outl
 .photo-lb .lb-bar button:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
 </style>
 <link rel="stylesheet" href="ops-chat.css?v=2">
-<script src="ops-chat.js?v=2"></script>
+<script src="ops-chat.js?v=planner2"></script>
 <script src="ops-route.js?v=2"></script>
-<link rel="stylesheet" href="ops-planner.css?v=1">
-<script src="ops-planner.js?v=1"></script>
+<link rel="stylesheet" href="ops-planner.css?v=2">
+<script src="ops-planner.js?v=2"></script>
 </head>
 <body>
 <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
@@ -294,7 +294,7 @@ button:focus-visible,.card.tap:focus-visible{outline:3px solid var(--hiviz);outl
     </div>
   </div>
   <button class="btn btn-dark" onclick="openSMS()">SMS · Переписки и сборы</button>
-  <button class="btn btn-dark" onclick="openPartnerPlanner()">Подобрать время · WhatsApp / Missing</button>
+  <button class="btn btn-dark" onclick="openPartnerPlanner()">Подобрать время · новый клиент</button>
   <button class="btn btn-primary" onclick="openAdd()"><svg class="i" ><use href="#i-plus"/></svg> <span data-i18n="addAddress">Добавить адрес</span></button>
   <div style="height:16px"></div>
   <div class="card tap" onclick="openDay(todayStr())">
@@ -929,15 +929,16 @@ function clearDriver(){
  showView('v-login',false);viewStack=['v-login'];
 }
 async function logout(){clearDriver();await sb.auth.signOut();}
-async function openSMS(addressId){
+async function openSMS(addressId,planner){
  if(!OPS_PROFILE)return;
- await Ops.open({sb,profile:OPS_PROFILE,addressId,geocode,addresses:()=>ADDR,drivers:()=>ME?[{...ME,active:true}]:[],onChanged:async()=>{if(ME){await loadAddresses();refreshDriverView();}}});
+ await Ops.open({sb,profile:OPS_PROFILE,addressId,planner,geocode,addresses:()=>ADDR,drivers:()=>ME?[{...ME,active:true}]:[],plannerPoints:()=>({home:LOCAL.home,depot:LOCAL.depot}),hasOutbox:()=>LOCAL.outbox.length>0,onChanged:async()=>{if(ME){await loadAddresses();refreshDriverView();}}});
 }
 async function openPartnerPlanner(){
  if(!ME||!OPS_PROFILE)return;
  if(!window.OpsPlanner){toast('Загрузите ops-planner.js и ops-planner.css из обновления, затем обновите страницу.');return;}
  await OpsPlanner.open({sb,driver:ME,home:LOCAL.home,depot:LOCAL.depot,addresses:()=>ADDR,
    hasOutbox:()=>LOCAL.outbox.length>0,
+   onSms:async(id,plan)=>{if(ME){await loadAddresses();await openSMS(id,plan);}},
    onChanged:async()=>{if(ME){await loadAddresses();LOCAL.routes={};saveLocal();refreshDriverView();}}});
 }
 function refreshDriverView(){const v=document.querySelector('.view.active')?.id;if(v==='v-home')renderHome();if(v==='v-day')renderDay();if(v==='v-addr')renderAddr();if(v==='v-cal')renderCal();if(v==='v-new')renderNew();if(v==='v-archive')renderArchive();}

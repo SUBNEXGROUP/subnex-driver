@@ -25,6 +25,7 @@ const ukDate=d=>new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/London',year:'
 const ukTime=d=>new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit'}).format(new Date(d));
 const slotLabel=a=>a?.collection_start?ukDate(a.collection_start)+' · '+ukTime(a.collection_start)+'–'+ukTime(a.collection_end)+' UK':'';
 const sources={subnex:'SUBNEX Collections',partner:'Partner Collections',missing:'Missing Collections'};
+const sourceLabel=a=>a?.collection_source==='partner'&&a.intake_channel==='partner_email'?'Emails from partner':sources[a?.collection_source]||sources.subnex;
 function partnerOffer(day,start,end,name){
  const d=new Date(day+'T12:00:00Z');
  if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||isNaN(d)||d.toISOString().slice(0,10)!==day||!/^\d{2}:\d{2}$/.test(start)||!/^\d{2}:\d{2}$/.test(end))return '';
@@ -39,7 +40,7 @@ let current=null;
 function close(){current?.close();current=null;}
 async function open(options){close();current=new Chat(options);await current.start();return current;}
 class Chat{
- constructor(o){this.o=o;this.sb=o.sb;this.profile=o.profile;this.admin=o.profile.role==='admin';this.threadId=null;this.data=null;this.mode='reply';this.drafts=new Map();this.offset=0;this.sendBusy=false;this.closed=false;this.listLoading=false;this.detailLoading=false;this.oldFocus=document.activeElement;}
+ constructor(o){this.o=o;this.sb=o.sb;this.profile=o.profile;this.admin=o.profile.role==='admin';this.threadId=null;this.data=null;this.mode='reply';this.planner=null;this.drafts=new Map();this.offset=0;this.sendBusy=false;this.closed=false;this.listLoading=false;this.detailLoading=false;this.oldFocus=document.activeElement;}
  $(s){return this.root.querySelector(s);} 
  async call(action,data={}){return api(this.sb,action,data);}
  notice(s){if(this.closed)return;const n=this.$('.oc-notice');n.textContent=s||'';n.classList.toggle('on',!!s);}
@@ -55,35 +56,35 @@ class Chat{
   for(const id of ['#oc-source','#oc-attention','#oc-driver-filter'])this.$(id)?.addEventListener('change',()=>{this.offset=0;this.loadList();});
   this.$('#oc-search').addEventListener('input',()=>{clearTimeout(this.searchTimer);this.searchTimer=setTimeout(()=>{this.offset=0;this.loadList();},350);});
   this.$('#oc-search').focus();await this.loadList();
-  if(this.o.addressId)await this.run(async()=>{const t=await this.call('create',{address_id:this.o.addressId});await this.select(t.thread_id);});
+  if(this.o.addressId)await this.run(async()=>{const t=await this.call('create',{address_id:this.o.addressId});await this.select(t.thread_id);if(this.o.planner)this.applyPlanner(this.o.planner);});
   this.timer=setInterval(()=>{if(!document.hidden&&!this.closed&&!this.sendBusy){this.loadList();if(this.threadId)this.loadDetail();}},8000);
  }
- close(){if(this.closed)return;this.closed=true;clearInterval(this.timer);clearTimeout(this.searchTimer);this.root?.remove();document.body.style.overflow=this.previousOverflow||'';this.oldFocus?.focus();this.o.onChanged?.();}
+ close(){if(this.closed)return;this.closed=true;window.OpsPlanner?.close();clearInterval(this.timer);clearTimeout(this.searchTimer);this.root?.remove();document.body.style.overflow=this.previousOverflow||'';this.oldFocus?.focus();this.o.onChanged?.();}
  async loadList(){if(this.listLoading||this.closed)return;this.listLoading=true;try{
   const result=await this.call('list',{search:this.$('#oc-search').value,source:this.$('#oc-source').value,attention:this.$('#oc-attention').checked,driver_id:this.$('#oc-driver-filter')?.value||'',limit:60,offset:this.offset});
   if(this.closed)return;this.hasNext=result.threads.length>60;const list=result.threads.slice(0,60);
   this.$('.oc-list').innerHTML=list.map(t=>`<button data-act="thread" data-id="${esc(t.id)}" class="oc-thread ${t.id===this.threadId?'active':''}"><strong>${t.needs_attention?'<span class="oc-dot"></span>':''}${esc(t.phone)}</strong><p>${esc(t.address||'Адрес не привязан')}</p><p>${esc(t.last_body||'Сообщений пока нет')}</p><small>${t.date?'В маршруте · '+esc(t.date):t.offer_state==='awaiting'?'Ожидаем YES':'Согласование'} · ${esc(ukTime(t.last_activity))}</small></button>`).join('')||'<div class="oc-empty">Переписок по этому фильтру нет.</div>';
   this.$('[data-act=prev]').disabled=this.offset===0;this.$('[data-act=next]').disabled=!this.hasNext;this.$('.oc-page').textContent=String(1+this.offset/60);
  }catch(e){this.notice(errText(e));}finally{this.listLoading=false;}}
- rememberDraft(){const b=this.$('#oc-body');if(b&&this.threadId){this.drafts.set(this.threadId,{mode:this.mode,body:b.value,day:this.$('#oc-day')?.value,start:this.$('#oc-start')?.value,end:this.$('#oc-end')?.value});}}
- async select(id){if(this.sendBusy)return;this.rememberDraft();this.threadId=id;this.data=null;this.root.classList.add('oc-selected');this.$('.oc-conversation').innerHTML='<div class="oc-empty">Загрузка переписки…</div>';await this.loadDetail(true);this.loadList();}
+ rememberDraft(){const b=this.$('#oc-body');if(b&&this.threadId){this.drafts.set(this.threadId,{mode:this.mode,body:b.value,day:this.$('#oc-day')?.value,start:this.$('#oc-start')?.value,end:this.$('#oc-end')?.value,planner:this.planner});}}
+ async select(id){if(this.sendBusy)return;this.rememberDraft();this.threadId=id;this.data=null;this.planner=null;this.pending=null;this.root.classList.add('oc-selected');this.$('.oc-conversation').innerHTML='<div class="oc-empty">Загрузка переписки…</div>';await this.loadDetail(true);this.loadList();}
  async loadDetail(reset=false){if(!this.threadId||this.detailLoading||this.closed)return;this.detailLoading=true;const id=this.threadId;
   try{const data=await this.call('detail',{thread_id:id});if(this.closed||id!==this.threadId)return;
    if(!reset&&this.data?.thread.id===id)data.messages=[...new Map([...this.data.messages,...data.messages].map(m=>[m.id,m])).values()].sort((a,b)=>a.created_at.localeCompare(b.created_at)||a.id.localeCompare(b.id));
    this.data=data;
-   if(reset||!this.$('.oc-messages')){this.$('.oc-conversation').innerHTML='<div class="oc-head"></div><div class="oc-messages" aria-label="История сообщений"></div><div class="oc-compose"></div>';let draft=this.drafts.get(id);if(!draft){try{const pending=JSON.parse(sessionStorage.getItem('subnex_sms_pending_'+this.profile.user_id+'_'+id)||'null');if(pending){const payload=JSON.parse(pending.signature);draft={...payload,mode:payload.kind};}}catch{}}this.mode=draft?.mode||'reply';this.compose(draft);}
+   if(reset||!this.$('.oc-messages')){this.$('.oc-conversation').innerHTML='<div class="oc-head"></div><div class="oc-messages" aria-label="История сообщений"></div><div class="oc-compose"></div>';let draft=this.drafts.get(id);if(!draft){try{const pending=JSON.parse(sessionStorage.getItem('subnex_sms_pending_'+this.profile.user_id+'_'+id)||'null');if(pending){const payload=JSON.parse(pending.signature);draft={...payload,mode:payload.kind,planner:pending.planner};}}catch{}}this.mode=draft?.mode||'reply';this.compose(draft);}
    this.renderHead();this.renderMessages(data.messages);this.$('#oc-send')?.toggleAttribute('disabled',this.sendBusy||data.thread.opted_out);
   }catch(e){if(['ACCESS_DENIED','LOGIN_REQUIRED'].includes(e.code)){this.data=null;this.threadId=null;this.$('.oc-conversation').innerHTML='<div class="oc-empty">Доступ к переписке закрыт. Войдите заново или проверьте назначение.</div>';}this.notice(errText(e));}finally{this.detailLoading=false;}
  }
- renderHead(){const {thread:t,address:a,offer:o}=this.data;this.$('.oc-head').innerHTML=`<div class="oc-row oc-between"><div class="oc-row"><button class="oc-back" data-act="back">←</button><strong>${esc(t.phone)}</strong></div><div class="oc-row"><button data-act="attach">${a?'Адрес':'Привязать адрес'}</button>${this.admin?'<button data-act="assign">Водитель</button>':''}<button data-act="refresh" aria-label="Обновить переписку">↻</button><button data-act="read" title="Отметить просмотренным">✓</button></div></div><p>${esc(a?.text||'Добавьте адрес, чтобы согласовать сбор.')}</p><div>${a?`${this.admin?`<button class="oc-chip" data-act="category" title="Изменить категорию" ${this.sendBusy?'disabled':''}>${esc(sources[a.collection_source]||sources.subnex)} ▾</button>`:`<span class="oc-chip">${esc(sources[a.collection_source]||sources.subnex)}</span>`}`:''}${a?.collection_start?`<span class="oc-chip ok">Согласовано: ${esc(slotLabel(a))}</span>`:a?.date?`<span class="oc-chip ok">В маршруте: ${esc(a.date)}</span>`:'<span class="oc-chip">Вне маршрута</span>'}${t.opted_out?'<span class="oc-chip warn">Отказ от SMS</span>':t.manual_mode?'<span class="oc-chip warn">Ручное согласование</span>':o?.state==='awaiting'?'<span class="oc-chip warn">Ожидаем точный ответ YES</span>':''}</div>`;}
+ renderHead(){const {thread:t,address:a,offer:o}=this.data;this.$('.oc-head').innerHTML=`<div class="oc-row oc-between"><div class="oc-row"><button class="oc-back" data-act="back">←</button><strong>${esc(t.phone)}</strong></div><div class="oc-row"><button data-act="attach">${a?'Адрес':'Привязать адрес'}</button>${this.admin?'<button data-act="assign">Водитель</button>':''}<button data-act="refresh" aria-label="Обновить переписку">↻</button><button data-act="read" title="Отметить просмотренным">✓</button></div></div><p>${esc(a?.text||'Добавьте адрес, чтобы согласовать сбор.')}</p><div>${a?`${this.admin?`<button class="oc-chip" data-act="category" title="Изменить категорию" ${this.sendBusy?'disabled':''}>${esc(sourceLabel(a))} ▾</button>`:`<span class="oc-chip">${esc(sourceLabel(a))}</span>`}`:''}${a?.collection_start?`<span class="oc-chip ok">Согласовано: ${esc(slotLabel(a))}</span>`:a?.date?`<span class="oc-chip ok">В маршруте: ${esc(a.date)}</span>`:'<span class="oc-chip">Вне маршрута</span>'}${t.opted_out?'<span class="oc-chip warn">Отказ от SMS</span>':t.manual_mode?'<span class="oc-chip warn">Ручное согласование</span>':o?.state==='awaiting'?'<span class="oc-chip warn">Ожидаем точный ответ YES</span>':''}</div>`;}
  renderMessages(messages,prepend=false){const box=this.$('.oc-messages');const bottom=box.scrollHeight-box.scrollTop-box.clientHeight<90;const previous=box.scrollHeight;
   if(prepend){const all=[...messages,...this.data.messages];this.data.messages=[...new Map(all.map(x=>[x.id,x])).values()];messages=this.data.messages;}
   const html=`${messages.length>=100?'<button data-act="older">Более ранние сообщения</button>':''}`+messages.map(m=>`<article class="oc-message ${m.direction==='out'?'out':''}"><div class="oc-text">${esc(m.body)}</div>${m.num_media?'<div class="oc-help">Вложений: '+m.num_media+' (файлы не загружены)</div>':''}<footer><span class="${['unknown','failed','undelivered','dispatching'].includes(m.status)?'oc-error':''}">${esc(statuses[m.status]||m.status)}${m.error_code?' · '+esc(m.error_code):''}</span> · ${esc(ukDate(m.created_at))} ${esc(ukTime(m.created_at))}</footer></article>`).join('');
   if(box.innerHTML!==html)box.innerHTML=html||'<div class="oc-empty">Напишите первое сообщение.</div>';
   if(prepend)box.scrollTop=box.scrollHeight-previous;else if(bottom||!this.initialScroll){box.scrollTop=box.scrollHeight;this.initialScroll=true;}
  }
- compose(draft){const {address:a,thread:t}=this.data;this.formVersion=a?.collection_version;const isOffer=this.mode==='offer',manual=this.mode==='confirm';
-  this.$('.oc-compose').innerHTML=`<div class="oc-controls"><button data-act="mode" data-mode="reply" class="${this.mode==='reply'?'active':''}">Сообщение</button><button data-act="mode" data-mode="offer" ${a?.date?'disabled':''} class="${isOffer?'active':''}">Предложить время</button><button data-act="mode" data-mode="confirm" class="${manual?'active':''}">Подтвердить вручную</button></div>${isOffer||manual?`<div class="oc-slots"><label>Дата<input id="oc-day" type="date" min="${ukDate()}" value="${esc(draft?.day||a?.date||(this.data.offer?.starts_at?ukDate(this.data.offer.starts_at):ukDate()))}"></label><label>С<input id="oc-start" type="time" value="${esc(draft?.start||(a?.collection_start?ukTime(a.collection_start):this.data.offer?.starts_at?ukTime(this.data.offer.starts_at):'09:00'))}"></label><label>До<input id="oc-end" type="time" value="${esc(draft?.end||(a?.collection_end?ukTime(a.collection_end):this.data.offer?.ends_at?ukTime(this.data.offer.ends_at):'10:00'))}"></label></div><div class="oc-help">Время Великобритании (Europe/London). Учитывается рабочий график.</div>`:''}${manual?`<label><input id="oc-agreed" type="checkbox">Клиент согласовал эту дату и время в переписке или по телефону.</label>${a?.date?'<label style="margin-top:10px"><input id="oc-change-agreed" type="checkbox">Клиент согласен изменить ранее назначенный срок.</label>':''}<p class="oc-help">Подтверждение добавит адрес в маршрут и сохранит выбранный срок. SMS при этом не отправляется.</p><button class="oc-green" id="oc-confirm" data-act="confirm">Подтвердить и добавить в маршрут</button>`:`<label for="oc-body">${isOffer?'Текст предложения':'Сообщение клиенту'}</label><textarea id="oc-body" maxlength="1000" placeholder="Текст SMS…"></textarea>${isOffer?'<div class="oc-preview" id="oc-preview"></div>':''}<div class="oc-row oc-between" style="margin-top:8px"><span class="oc-muted" id="oc-count"></span><button class="oc-primary" id="oc-send" data-act="send" ${t.opted_out?'disabled':''}>${isOffer?'Отправить предложение':'Отправить SMS'}</button></div><p class="oc-help">${isOffer?(t.manual_mode||t.active_offer_id?'Продолжается ручное согласование. После ответа подтвердите время кнопкой выше.':'Адрес попадёт в маршрут после точного ответа YES. Другой ответ откроет ручное согласование.'):'SMS отправляется с номера компании. Статус «Доставлено» не подтверждает сбор.'}</p>`}`;
+ compose(draft){this.planner=draft?.planner||null;const {address:a,thread:t}=this.data;this.formVersion=a?.collection_version;const isOffer=this.mode==='offer',manual=this.mode==='confirm';
+  this.$('.oc-compose').innerHTML=`${a&&!a.date&&['subnex','partner'].includes(a.collection_source)?'<button data-act=planner style="margin-bottom:10px">Подобрать время по маршруту</button>':''}${this.planner?'<p class=oc-help>Интервал выбран по маршруту. Перед отправкой проверим его ещё раз.</p>':''}<div class="oc-controls"><button data-act="mode" data-mode="reply" class="${this.mode==='reply'?'active':''}">Сообщение</button><button data-act="mode" data-mode="offer" ${a?.date?'disabled':''} class="${isOffer?'active':''}">Предложить время</button><button data-act="mode" data-mode="confirm" class="${manual?'active':''}">Подтвердить вручную</button></div>${isOffer||manual?`<div class="oc-slots"><label>Дата<input id="oc-day" type="date" min="${ukDate()}" value="${esc(draft?.day||a?.date||(this.data.offer?.starts_at?ukDate(this.data.offer.starts_at):ukDate()))}"></label><label>С<input id="oc-start" type="time" value="${esc(draft?.start||(a?.collection_start?ukTime(a.collection_start):this.data.offer?.starts_at?ukTime(this.data.offer.starts_at):'09:00'))}"></label><label>До<input id="oc-end" type="time" value="${esc(draft?.end||(a?.collection_end?ukTime(a.collection_end):this.data.offer?.ends_at?ukTime(this.data.offer.ends_at):'10:00'))}"></label></div><div class="oc-help">Время Великобритании (Europe/London). Учитывается рабочий график.</div>`:''}${manual?`<label><input id="oc-agreed" type="checkbox">Клиент согласовал эту дату и время в переписке или по телефону.</label>${a?.date?'<label style="margin-top:10px"><input id="oc-change-agreed" type="checkbox">Клиент согласен изменить ранее назначенный срок.</label>':''}<p class="oc-help">Подтверждение добавит адрес в маршрут и сохранит выбранный срок. SMS при этом не отправляется.</p><button class="oc-green" id="oc-confirm" data-act="confirm">Подтвердить и добавить в маршрут</button>`:`<label for="oc-body">${isOffer?'Текст предложения':'Сообщение клиенту'}</label><textarea id="oc-body" maxlength="1000" placeholder="Текст SMS…"></textarea>${isOffer?'<div class="oc-preview" id="oc-preview"></div>':''}<div class="oc-row oc-between" style="margin-top:8px"><span class="oc-muted" id="oc-count"></span><button class="oc-primary" id="oc-send" data-act="send" ${t.opted_out?'disabled':''}>${isOffer?'Отправить предложение':'Отправить SMS'}</button></div><p class="oc-help">${isOffer?(t.manual_mode||t.active_offer_id?'Продолжается ручное согласование. После ответа подтвердите время кнопкой выше.':'Адрес попадёт в маршрут после точного ответа YES. Другой ответ откроет ручное согласование.'):'SMS отправляется с номера компании. Статус «Доставлено» не подтверждает сбор.'}</p>`}`;
   const body=this.$('#oc-body');if(body){body.value=draft?.body??(isOffer?`Hi, this is SUBNEX. We'd like to collect your bags${a?.text?' from '+a.text:''}.`:'');body.addEventListener('input',()=>this.preview());}
   for(const id of ['#oc-day','#oc-start','#oc-end'])this.$(id)?.addEventListener('input',()=>this.preview());this.preview();
  }
@@ -95,6 +96,8 @@ class Chat{
   this.$('#oc-preview').textContent='К SMS будет добавлено:\nCollection: '+date+', '+this.$('#oc-start').value+'-'+this.$('#oc-end').value+' (UK time).\n'+(manual?'Please reply to agree the day/time with our team.':'Reply YES to confirm, or reply to arrange a different day/time.');
  }
  async action(act,b){
+  if(this.sendBusy&&!['close','back'].includes(act))return;
+  if(act==='planner'){await this.run(()=>this.pickTime());return;}
   if(act==='close'){this.close();return;}if(act==='back'){this.rememberDraft();this.root.classList.remove('oc-selected');return;}
   if(act==='thread'){this.initialScroll=false;await this.select(b.dataset.id);return;}
   if(act==='mode'){if(this.sendBusy)return;const mode=b.dataset.mode;if(mode!=='reply'&&!this.data.address){this.notice(codes.ADDRESS_REQUIRED);return;}this.mode=mode;this.compose();return;}
@@ -106,19 +109,51 @@ class Chat{
   if(act==='older'){b.disabled=true;const first=this.data.messages[0];const old=await this.run(()=>this.call('detail',{thread_id:this.threadId,before:first.created_at,before_id:first.id}));if(old){this.renderMessages(old.messages,true);if(!old.messages.length){this.notice('Начало переписки.');this.$('[data-act=older]')?.remove();}}return;}
   if(act==='send'){await this.send();return;}if(act==='confirm'){await this.confirm();return;}
  }
+ applyPlanner(plan){
+  if(this.closed||!this.data?.address||this.data.address.id!==plan.address_id)return;
+  this.mode='offer';this.compose({...plan,planner:plan});this.rememberDraft();
+  this.notice('Время выбрано. Проверьте текст и нажмите «Отправить предложение».');
+ }
+ async pickTime(){
+  const a=this.data?.address,threadId=this.threadId;
+  if(!a||a.date||a.collection_start)throw new Error(codes.ALREADY_SCHEDULED_USE_MANUAL);
+  if(!window.OpsPlanner)throw new Error('Загрузите файлы обновления подбора времени и обновите страницу.');
+  const driver=this.drivers().find(d=>d.id===a.driver_id);
+  if(!driver)throw new Error(codes.DRIVER_REQUIRED);
+  const points=this.o.plannerPoints?.(driver.id)||{};
+  await OpsPlanner.open({sb:this.sb,driver,...points,address:{...a},source:a.collection_source==='subnex'?'subnex':'partner_email',
+   addresses:this.o.addresses,hasOutbox:this.o.hasOutbox,
+   onChoose:plan=>{if(!this.closed&&this.threadId===threadId)this.applyPlanner(plan);}});
+ }
  async send(){if(this.sendBusy)return;const text=this.$('#oc-body').value.trim();if(!text){this.notice('Введите сообщение.');return;}
-  const payload={thread_id:this.threadId,kind:this.mode,body:text};if(this.mode==='offer')Object.assign(payload,{day:this.$('#oc-day').value,start:this.$('#oc-start').value,end:this.$('#oc-end').value,version:this.formVersion});
+  const threadId=this.threadId,plan=this.mode==='offer'?this.planner:null;
+  const payload={thread_id:threadId,kind:this.mode,body:text};if(this.mode==='offer')Object.assign(payload,{day:this.$('#oc-day').value,start:this.$('#oc-start').value,end:this.$('#oc-end').value,version:this.formVersion});
   if(this.partnerTemplate()){payload.template='wrc-v1';payload.expected_source=this.data.address.collection_source;payload.expected_driver_name=this.driverName().trim();}
-  const signature=JSON.stringify(payload);
-  const key='subnex_sms_pending_'+this.profile.user_id+'_'+this.threadId;
+  if(plan)payload.planner_required=true;
+  const signature=JSON.stringify(payload),key='subnex_sms_pending_'+this.profile.user_id+'_'+threadId;
   if(!this.pending){try{this.pending=JSON.parse(sessionStorage.getItem(key)||'null');}catch{}}
-  if(this.pending?.signature!==signature)this.pending={signature,id:crypto.randomUUID()};payload.request_id=this.pending.id;
-  sessionStorage.setItem(key,JSON.stringify(this.pending));
-  this.sendBusy=true;this.$('#oc-send').disabled=true;this.$('#oc-body').disabled=true;this.notice('Отправка…');
-  try{const r=await this.call('send',payload);if(this.closed)return;this.$('#oc-body').value='';this.drafts.delete(this.threadId);this.pending=null;sessionStorage.removeItem(key);
+  if(this.pending?.signature!==signature)this.pending=null;
+  this.sendBusy=true;this.$('#oc-send').disabled=true;this.$('#oc-body').disabled=true;this.notice(plan?'Проверяю маршрут перед отправкой…':'Отправка…');
+  try{
+   if(!this.pending){
+    const extra=plan?await OpsPlanner.prepareSms({sb:this.sb,hasOutbox:this.o.hasOutbox},plan,payload):{};
+    if(this.closed||this.threadId!==threadId)return;
+    this.pending={signature,id:crypto.randomUUID(),extra,planner:plan};
+    sessionStorage.setItem(key,JSON.stringify(this.pending));
+   }
+   Object.assign(payload,this.pending.extra||{},{request_id:this.pending.id});
+   // A network retry reuses the original ticket and request id; never issue a new send id.
+   const r=await this.call('send',payload);if(this.closed)return;
+   this.$('#oc-body').value='';this.drafts.delete(threadId);this.pending=null;this.planner=null;sessionStorage.removeItem(key);
+   this.mode='reply';this.compose();
    this.notice(r.uncertain?'Результат неизвестен. Проверьте Message logs в Twilio перед новой отправкой.':'Статус: '+(statuses[r.message.status]||r.message.status));
    this.o.onChanged?.();
-  }catch(e){this.notice(errText(e));}finally{this.sendBusy=false;if(!this.closed){this.$('#oc-send').disabled=!!this.data?.thread.opted_out;this.$('#oc-body').disabled=false;await this.loadDetail();await this.loadList();this.preview();}}
+  }catch(e){
+   if(['STALE_ADDRESS','SLOT_CONFLICT','OUTSIDE_WORKING_HOURS','SLOT_IN_PAST','SLOT_INVALID','ALREADY_SCHEDULED_USE_MANUAL'].includes(e.code)){
+    this.pending=null;sessionStorage.removeItem(key);
+   }
+   this.notice(errText(e));
+  }finally{this.sendBusy=false;if(!this.closed){this.$('#oc-send').disabled=!!this.data?.thread.opted_out;this.$('#oc-body').disabled=false;await this.loadDetail();await this.loadList();this.preview();}}
  }
  async confirm(){const button=this.$('#oc-confirm');if(button.disabled)return;
   const data={thread_id:this.threadId,day:this.$('#oc-day').value,start:this.$('#oc-start').value,end:this.$('#oc-end').value,version:this.formVersion,agreed:this.$('#oc-agreed').checked,change_agreed:this.$('#oc-change-agreed')?.checked||false};
