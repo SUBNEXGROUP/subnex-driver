@@ -525,7 +525,7 @@ const STR = {
     fuelLbl:'Расход топлива, л/100 км', priceLbl:'Цена топлива, £/л', langLbl:'Язык / Language',
     navHome:'Главная', navCal:'Календарь', navArch:'Архив', navSet:'Настройки',
     editAddress:'Редактировать адрес',
-    bags:'пак.', noCoords:'координаты не найдены', coordsOk:'координаты найдены',
+    bags:'пак.', noCoords:'координаты не найдены', coordsOk:'координаты найдены', postcodeCoords:'Примерная точка по индексу',
     saved:'Сохранено', geocoding:'Ищу координаты…',
     emptyDay:'На эту дату адресов нет', emptyNew:'Новых адресов нет', emptyArc:'Пока пусто',
     problemPrompt:'Что случилось? (короткая заметка)',
@@ -574,7 +574,7 @@ const STR = {
     fuelLbl:'Fuel use, L/100 km', priceLbl:'Fuel price, £/L', langLbl:'Язык / Language',
     navHome:'Home', navCal:'Calendar', navArch:'Archive', navSet:'Settings',
     editAddress:'Edit address',
-    bags:'bags', noCoords:'coordinates not found', coordsOk:'coordinates found',
+    bags:'bags', noCoords:'coordinates not found', coordsOk:'coordinates found', postcodeCoords:'Approximate position (postcode)',
     saved:'Saved', geocoding:'Geocoding…',
     emptyDay:'No addresses for this date', emptyNew:'No new addresses', emptyArc:'Nothing here yet',
     problemPrompt:'What happened? (short note)',
@@ -645,7 +645,7 @@ fetch('https://www.gov.uk/bank-holidays.json').then(r=>r.json()).then(j=>{
 /* ---------- DB <-> app mapping ---------- */
 function fromRow(r){
   return { id:r.id, text:r.text, bags:r.bags||0, phone:r.phone||'', note:r.note||'',
-    date:r.date, lat:r.lat, lng:r.lng, status:r.status||'new',
+    date:r.date, lat:r.lat, lng:r.lng, geocode_source:r.geocode_source||null, status:r.status||'new',
     collection_start:r.collection_start,collection_end:r.collection_end,collection_version:r.collection_version||0,collection_source:r.collection_source,driver_id:r.driver_id,
     kind:r.kind||'d2d', bankId:r.bank_id||null, fill:(r.fill_level==null?null:r.fill_level),
     resultNote:r.result_note||'', doneAt:r.done_at?Date.parse(r.done_at):null,
@@ -653,7 +653,7 @@ function fromRow(r){
 }
 function toRow(a){
   return { id:a.id, text:a.text, bags:a.bags||0, phone:a.phone||'', note:a.note||'',
-    date:a.date||null, driver_id:ME.id, lat:a.lat, lng:a.lng, status:a.status,
+    date:a.date||null, driver_id:ME.id, lat:a.lat, lng:a.lng, geocode_source:a.geocode_source||null, status:a.status,
     kind:a.kind||'d2d', bank_id:a.bankId||null, fill_level:(a.fill==null?null:a.fill),
     result_note:a.resultNote||'', done_at:a.doneAt?new Date(a.doneAt).toISOString():null };
 }
@@ -993,14 +993,14 @@ async function geocode(text){
       '&viewbox='+SW_VIEWBOX+'&q='+encodeURIComponent(q);
     const r=await fetch(u,{headers:{'Accept':'application/json'}});
     const j=await r.json();
-    if(j&&j[0]) return {lat:+j[0].lat,lng:+j[0].lon};
+    if(j&&j[0]) return {lat:+j[0].lat,lng:+j[0].lon,source:'osm'};
   }catch(e){}
   const m=q.toUpperCase().match(/\b([A-Z]{1,2}\d[A-Z\d]?)\s*(\d[A-Z]{2})\b/);
   if(m){
     try{
       const r=await fetch('https://api.postcodes.io/postcodes/'+encodeURIComponent(m[1]+m[2]));
       const j=await r.json();
-      if(j&&j.result) return {lat:j.result.latitude,lng:j.result.longitude};
+      if(j&&j.result) return {lat:j.result.latitude,lng:j.result.longitude,source:'postcode'};
     }catch(e){}
   }
   return null;
@@ -1038,8 +1038,8 @@ async function saveAddress(){
  }
  const a={...(old||{id:uuid(),status:'new',createdAt:Date.now(),lat:null,lng:null,resultNote:'',doneAt:null,kind:'d2d',bankId:null,fill:null}),text,date,bags:parseInt(document.getElementById('f-bags').value)||0,phone:document.getElementById('f-phone').value.trim(),note:document.getElementById('f-note').value.trim()};
  if(date&&a.status==='new')a.status='planned';if(!date&&a.status==='planned')a.status='new';
- if(!old||old.text!==text||a.lat==null){const g=await geocode(text);a.lat=g?g.lat:null;a.lng=g?g.lng:null;}
- if(old)await dbUpdate(a.id,{text:a.text,bags:a.bags,phone:a.phone,note:a.note,date:a.date,lat:a.lat,lng:a.lng,status:a.status});else await dbInsert(a);
+ if(!old||old.text!==text||a.lat==null){const g=await geocode(text);a.lat=g?g.lat:null;a.lng=g?g.lng:null;a.geocode_source=g?g.source:null;}
+ if(old)await dbUpdate(a.id,{text:a.text,bags:a.bags,phone:a.phone,note:a.note,date:a.date,lat:a.lat,lng:a.lng,geocode_source:a.geocode_source||null,status:a.status});else await dbInsert(a);
  if(old)ADDR=ADDR.map(x=>x.id===a.id?a:x);else ADDR.push(a);
  if(old?.date)delete LOCAL.routes[old.date];if(a.date)delete LOCAL.routes[a.date];LOCAL.cache=ADDR;saveLocal();
  toast(a.lat!=null?t('saved')+' · '+t('coordsOk'):t('saved')+' · ⚠ '+t('noCoords'));editId=null;goBack();renderHome();
@@ -1340,8 +1340,10 @@ function renderAddr(){
   if(a.note) html+='<br>'+ICH('note')+' '+esc(a.note);
   if(a.date) html+='<br>'+ICH('caldot')+' '+a.date;
   document.getElementById('ai-text').innerHTML=html;
-  document.getElementById('ai-geo').innerHTML=a.lat!=null
-    ?'<span class="pill-geo ok">✓ '+t('coordsOk')+'</span>'
+  document.getElementById('ai-geo').innerHTML=a.lat!=null&&a.lng!=null
+    ?(a.geocode_source==='postcode'
+      ?'<span class="pill-geo">'+t('postcodeCoords')+'</span>'
+      :'<span class="pill-geo ok">✓ '+t('coordsOk')+'</span>')
     :'<span class="pill-geo fail">⚠ '+t('noCoords')+'</span>';
   FILL=(a.fill==null?null:a.fill);
   document.getElementById('bank-sec').style.display=isBank?'':'none';
@@ -1352,12 +1354,13 @@ function renderAddr(){
   if(isBank) renderFillSel();
 }
 function navUrl(app,a){
+  const usePin=Number.isFinite(a.lat)&&Number.isFinite(a.lng)&&a.geocode_source!=='postcode';
   if(app==='waze'){
-    return a.lat!=null
+    return usePin
       ? 'https://waze.com/ul?ll='+a.lat+','+a.lng+'&navigate=yes'
       : 'https://waze.com/ul?q='+encodeURIComponent(a.text)+'&navigate=yes';
   }
-  const dest=a.lat!=null?a.lat+','+a.lng:a.text;
+  const dest=usePin?a.lat+','+a.lng:a.text;
   return 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+encodeURIComponent(dest);
 }
 let NAVID=null;
