@@ -175,9 +175,9 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px soli
 .chkline{display:flex;align-items:center;gap:7px;font-weight:700;font-size:14px;align-self:end;padding-bottom:9px;cursor:pointer}
 </style>
 <link rel="stylesheet" href="ops-chat.css?v=2">
-<script src="ops-chat.js?v=planner2"></script>
-<link rel="stylesheet" href="ops-planner.css?v=2">
-<script src="ops-planner.js?v=2"></script>
+<script src="ops-chat.js?v=request3"></script>
+<link rel="stylesheet" href="ops-planner.css?v=3">
+<script src="ops-planner.js?v=3"></script>
 </head>
 <body>
 <div class="hazard"></div>
@@ -274,7 +274,7 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px soli
         <option value="" data-t>Все</option><option value="open" data-t>В работе</option>
         <option value="new" data-t>Новый</option><option value="planned" data-t>Запланирован</option>
         <option value="done" data-t>Выполнено</option><option value="noanswer" data-t>Не отвечает</option>
-        <option value="problem" data-t>Проблема</option></select></div>
+        <option value="problem" data-t>Проблема</option><option value="cancelled" data-t>Отменено</option></select></div>
       <div><label data-t>Поиск</label><input type="text" id="fl-q" oninput="renderAddrTable()" placeholder="улица, индекс…" data-t-ph></div>
     </div>
     <div class="tablewrap"><table>
@@ -400,7 +400,7 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px soli
     <select id="ma-status">
       <option value="new" data-t>Новый</option><option value="planned" data-t>Запланирован</option>
       <option value="done" data-t>Выполнено</option><option value="noanswer" data-t>Не отвечает</option>
-      <option value="problem" data-t>Проблема</option>
+      <option value="problem" data-t>Проблема</option><option value="cancelled" data-t>Отменено</option>
     </select>
     <label data-t>Заметка о результате</label>
     <input type="text" id="ma-resnote">
@@ -535,7 +535,7 @@ const EN={
 'Войти':'Log in','Создать и войти':'Create & log in',
 'Сводка':'Overview','Адреса':'Addresses','Банки':'Banks','Карта':'Map','Фото':'Photos','Водители':'Drivers','Данные':'Data',
 'Дата':'Date','Водитель':'Driver','Статус':'Status','Поиск':'Search','Все':'All','В работе':'Open',
-'Новый':'New','Запланирован':'Planned','Выполнено':'Done','Не отвечает':'No answer','Проблема':'Problem',
+'Новый':'New','Запланирован':'Planned','Выполнено':'Done','Не отвечает':'No answer','Проблема':'Problem','Отменено':'Cancelled',
 'По водителям':'By driver','Всего':'Total','Осталось':'Left','Пакетов собрано':'Bags collected',
 'Добавить адрес':'Add address','Массовое добавление':'Bulk add','Адрес':'Address','Пак.':'Bags',
 'Добавить банк':'Add bank','Назначить на день':'Assign to a day','Название':'Name','Визитов':'Visits','Последний визит':'Last visit',
@@ -599,7 +599,7 @@ function applyLang(){
   document.querySelectorAll('[data-t]').forEach(el=>{ el.textContent=t(el.textContent.trim()); });
   document.querySelectorAll('[data-t-ph]').forEach(el=>{ el.placeholder=t(el.placeholder); });
 }
-const STATUS_RU={new:'Новый',planned:'Запланирован',done:'Выполнено',noanswer:'Не отвечает',problem:'Проблема'};
+const STATUS_RU={new:'Новый',planned:'Запланирован',done:'Выполнено',noanswer:'Не отвечает',problem:'Проблема',cancelled:'Отменено'};
 function ST(x){ return t(STATUS_RU[x]||x); }
 const DRIVER_COLORS=['#2B5C9E','#C2461F','#0B8457','#8E44AD','#B7950B','#148F9E','#A93254','#5D6D2E'];
 
@@ -651,7 +651,7 @@ async function changePassword(){
  const {error}=await sb.auth.updateUser({password:field.value});toast(error?'Не удалось изменить пароль. Войдите заново.':'Пароль изменён');if(!error)field.value='';
 }
 async function openSMS(addressId){
- if(!OPS_PROFILE)return;await Ops.open({sb,profile:OPS_PROFILE,addressId,geocode,addresses:()=>ADDR,drivers:()=>DRIVERS,
+ if(!OPS_PROFILE)return;const old=ADDR.find(a=>a.id===addressId),phone=old?.status==='cancelled'?old.phone:null;await Ops.open({sb,profile:OPS_PROFILE,addressId:phone?null:addressId,phone,geocode,addresses:()=>ADDR,drivers:()=>DRIVERS,
   plannerPoints:driverId=>{
    if(driverId!==OPS_PROFILE.driver_id)return {};
    try{const p=JSON.parse(localStorage.getItem('subnexDriver2_local')||'{}');return p.owner===OPS_PROFILE.user_id?{home:p.home,depot:p.depot}:{};}catch{return {};}
@@ -807,7 +807,7 @@ function renderAddrTable(){
   const fs=document.getElementById('fl-status').value;
   const q=document.getElementById('fl-q').value.trim().toLowerCase();
   let list=[...ADDR];
-  if(fd) list=list.filter(a=>a.date===fd);
+  if(fd) list=list.filter(a=>(fs==='cancelled'?a.cancelled_date:a.date)===fd);
   if(fdr==='none') list=list.filter(a=>!a.driver_id);
   else if(fdr) list=list.filter(a=>a.driver_id===fdr);
   if(fs==='open') list=list.filter(a=>['new','planned'].includes(a.status));
@@ -815,7 +815,7 @@ function renderAddrTable(){
   if(q) list=list.filter(a=>(a.text+' '+(a.note||'')+' '+(a.phone||'')).toLowerCase().includes(q));
   document.getElementById('addr-tbody').innerHTML=list.map(a=>`
     <tr class="rowtap" onclick="openAddrModal('${a.id}')">
-      <td style="white-space:nowrap">${a.date||'—'}<small class="ops-slot-label">${esc(Ops.slotLabel(a))}</small></td>
+      <td style="white-space:nowrap">${a.date||a.cancelled_date||'—'}<small class="ops-slot-label">${esc(Ops.slotLabel(a))}</small></td>
       <td>${a.kind==='bank'?BANKPL+' ':''}${esc(a.text)}${photoCount(a.id)?`<span class="phbadge" onclick="event.stopPropagation();openAddrGallery('${a.id}')">📷 ${photoCount(a.id)}</span>`:''}${a.result_note?'<div class="note-red">'+esc(a.result_note)+'</div>':''}</td>
       <td><b>${a.bags||0}</b></td>
       <td style="white-space:nowrap">${a.driver_id?('<span style="color:'+drvColor(a.driver_id)+';font-weight:700">●</span> '+esc(drvName(a.driver_id))):'<span class="note-red">—</span>'}</td>
@@ -898,6 +898,10 @@ function closeModal(id){ document.getElementById(id).classList.remove('show'); }
 function openAddrModal(id){
   editAddrId=id||null;
   const a=id?ADDR.find(x=>x.id===id):null;
+  const cancelled=a?.status==='cancelled';
+  document.querySelectorAll('#m-addr-bg input,#m-addr-bg textarea,#m-addr-bg select').forEach(el=>{el.disabled=cancelled;});
+  document.getElementById('ma-save').disabled=cancelled;
+  document.querySelector('#ma-status option[value=cancelled]').disabled=true;
   document.getElementById('m-addr-title').textContent=t(a?'Адрес':'Добавить адрес');
   document.getElementById('ma-text').value=a?a.text:'';
   document.getElementById('ma-bags').value=a?(a.bags||''):'';
@@ -907,14 +911,14 @@ function openAddrModal(id){
   document.getElementById('ma-driver').value=a?(a.driver_id||''):'';
   document.getElementById('ma-status').value=a?a.status:'new';
   document.getElementById('ma-resnote').value=a?(a.result_note||''):'';
-  document.getElementById('ma-del').style.display=a?'':'none';
+  document.getElementById('ma-del').style.display=a&&!cancelled?'':'none';
   document.getElementById('ma-chat').style.display=a&&a.phone&&a.kind!=='bank'?'':'none';
-  document.getElementById('ma-slot').textContent=Ops.slotLabel(a);
-  document.getElementById('ma-date').disabled=!!a?.collection_start;
+  document.getElementById('ma-slot').textContent=cancelled?'Заявка закрыта. Для следующего сбора откройте SMS → Новая заявка.':Ops.slotLabel(a);
+  document.getElementById('ma-date').disabled=cancelled||!!a?.collection_start;
   document.getElementById('m-addr-bg').classList.add('show');
 }
 async function saveAddrModal(){
-  if(!OPS_PROFILE)return;
+  if(!OPS_PROFILE||ADDR.find(a=>a.id===editAddrId)?.status==='cancelled')return;
   const text=document.getElementById('ma-text').value.trim();
   if(!text){ toast(t('Введите адрес')); return; }
   const btn=document.getElementById('ma-save');

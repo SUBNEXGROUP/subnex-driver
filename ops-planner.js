@@ -271,7 +271,7 @@ async function search(){await run(async current=>{
  if(data.address.length<5)throw new Error('Введите полный адрес.');
  if(data.from_day<$('from').min)throw new Error(errors.DATE_RANGE);
  if(ctx.hasOutbox?.())throw new Error('Сначала синхронизируйте несохранённые изменения адресов.');
- const duplicates=(ctx.addresses?.()||[]).filter(a=>a.id!==addressId&&a.driver_id===ctx.driver.id&&!['done','noanswer','problem'].includes(a.status)&&key(a.text)===key(data.address));
+ const duplicates=(ctx.addresses?.()||[]).filter(a=>a.id!==addressId&&a.driver_id===ctx.driver.id&&!['done','noanswer','problem','cancelled'].includes(a.status)&&key(a.text)===key(data.address));
  if(duplicates.length)throw new Error(errors.DUPLICATE_ADDRESS);
  controller?.abort();controller=new AbortController();const signal=controller.signal;
  for(const name of ['home','depot']){

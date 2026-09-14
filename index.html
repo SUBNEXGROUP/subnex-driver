@@ -235,12 +235,13 @@ button:focus-visible,.card.tap:focus-visible{outline:3px solid var(--hiviz);outl
   font-weight:900;font-family:'Archivo';font-size:15px;letter-spacing:.04em;text-transform:uppercase;
   box-shadow:0 3px 0 var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
 .photo-lb .lb-bar button:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
+#v-addr [hidden]{display:none!important}
 </style>
 <link rel="stylesheet" href="ops-chat.css?v=2">
-<script src="ops-chat.js?v=planner2"></script>
+<script src="ops-chat.js?v=request3"></script>
 <script src="ops-route.js?v=2"></script>
-<link rel="stylesheet" href="ops-planner.css?v=2">
-<script src="ops-planner.js?v=2"></script>
+<link rel="stylesheet" href="ops-planner.css?v=3">
+<script src="ops-planner.js?v=3"></script>
 </head>
 <body>
 <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
@@ -431,6 +432,7 @@ button:focus-visible,.card.tap:focus-visible{outline:3px solid var(--hiviz);outl
     <button id="tab-done" onclick="setArcTab('done')" data-i18n="tabDone">Выполнено</button>
     <button id="tab-noanswer" onclick="setArcTab('noanswer')" data-i18n="tabNoAnswer">Не отвечает</button>
     <button id="tab-problem" onclick="setArcTab('problem')" data-i18n="tabProblem">Проблема</button>
+    <button id="tab-cancelled" onclick="setArcTab('cancelled')">Отменено / Cancelled</button>
   </div>
   <div id="arc-list"></div>
 </section>
@@ -667,6 +669,7 @@ function fromRow(r){
     date:r.date, lat:r.lat, lng:r.lng, geocode_source:r.geocode_source||null, status:r.status||'new',
     collection_start:r.collection_start,collection_end:r.collection_end,collection_version:r.collection_version||0,collection_source:r.collection_source,driver_id:r.driver_id,
     kind:r.kind||'d2d', bankId:r.bank_id||null, fill:(r.fill_level==null?null:r.fill_level),
+    cancelledAt:r.collection_cancelled_at?Date.parse(r.collection_cancelled_at):null,cancelledDate:r.cancelled_date,cancellationReason:r.cancellation_reason,
     resultNote:r.result_note||'', doneAt:r.done_at?Date.parse(r.done_at):null,
     createdAt:r.created_at?Date.parse(r.created_at):Date.now() };
 }
@@ -931,7 +934,8 @@ function clearDriver(){
 async function logout(){clearDriver();await sb.auth.signOut();}
 async function openSMS(addressId,planner){
  if(!OPS_PROFILE)return;
- await Ops.open({sb,profile:OPS_PROFILE,addressId,planner,geocode,addresses:()=>ADDR,drivers:()=>ME?[{...ME,active:true}]:[],plannerPoints:()=>({home:LOCAL.home,depot:LOCAL.depot}),hasOutbox:()=>LOCAL.outbox.length>0,onChanged:async()=>{if(ME){await loadAddresses();refreshDriverView();}}});
+ const old=ADDR.find(a=>a.id===addressId);const phone=old?.status==='cancelled'?old.phone:null;
+ await Ops.open({sb,profile:OPS_PROFILE,addressId:phone?null:addressId,phone,planner,geocode,addresses:()=>ADDR,drivers:()=>ME?[{...ME,active:true}]:[],plannerPoints:()=>({home:LOCAL.home,depot:LOCAL.depot}),hasOutbox:()=>LOCAL.outbox.length>0,onChanged:async(change)=>{if(ME){if(change?.kind==='collection_closed'&&change.date){delete LOCAL.routes[change.date];saveLocal();}await loadAddresses();refreshDriverView();}}});
 }
 async function openPartnerPlanner(){
  if(!ME||!OPS_PROFILE)return;
@@ -1078,14 +1082,14 @@ async function saveAddress(){
 function renderHome(){
   const td=todayStr();
   const todays=ADDR.filter(a=>a.date===td);
-  const doneCnt=todays.filter(a=>['done','noanswer','problem'].includes(a.status)).length;
+  const doneCnt=todays.filter(a=>['done','noanswer','problem','cancelled'].includes(a.status)).length;
   const left=todays.length-doneCnt;
   document.getElementById('cnt-today').textContent=todays.length;
   document.getElementById('cnt-today-left').textContent=left;
   document.getElementById('today-progress').style.width=(todays.length?Math.round(doneCnt/todays.length*100):0)+'%';
   document.getElementById('cnt-new').textContent=ADDR.filter(a=>!a.date&&a.status==='new').length;
   document.getElementById('cnt-planned').textContent=ADDR.filter(a=>a.date&&(a.status==='planned'||a.status==='new')).length;
-  document.getElementById('cnt-arch').textContent=ADDR.filter(a=>['done','noanswer','problem'].includes(a.status)).length;
+  document.getElementById('cnt-arch').textContent=ADDR.filter(a=>['done','noanswer','problem','cancelled'].includes(a.status)).length;
 }
 
 /* ---------- new list ---------- */
@@ -1133,7 +1137,7 @@ function renderCal(){
 /* ---------- day view ---------- */
 let map=null;
 function openDay(ds){ currentDay=ds; showView('v-day'); renderDay(); }
-function dayAddrs(ds){ return ADDR.filter(a=>a.date===ds); }
+function dayAddrs(ds){ return ADDR.filter(a=>a.date===ds&&a.status!=='cancelled'); }
 const hasCoords=a=>a&&Number.isFinite(a.lat)&&Number.isFinite(a.lng)&&Math.abs(a.lat)<=90&&Math.abs(a.lng)<=180;
 const isScheduledRoute=r=>r?.source==='osrm-schedule'||r?.source==='schedule-lines';
 function appointmentOrder(list){
@@ -1325,7 +1329,7 @@ async function showScheduledRoute(ds){
 async function optimizeDay(){
   const ds=currentDay;
   if(dayAddrs(ds).some(a=>a.collection_start)){await showScheduledRoute(ds);return;}
-  const active=dayAddrs(ds).filter(a=>!['done','noanswer','problem'].includes(a.status));
+  const active=dayAddrs(ds).filter(a=>!['done','noanswer','problem','cancelled'].includes(a.status));
   const list=active.filter(a=>a.lat!=null&&a.lng!=null);
   if(!list.length){ toast(t('needTwo')); return; }
   const btn=document.getElementById('btn-opt');
@@ -1395,13 +1399,13 @@ async function setFill(v){
 }
 function renderAddr(){
   const a=ADDR.find(x=>x.id===currentAddrId); if(!a) return goBack();
-  const isBank=a.kind==='bank';
-  let html='';
+  const isBank=a.kind==='bank',cancelled=a.status==='cancelled';
+  let html=cancelled?'<p><b>Заявка закрыта / Cancelled</b></p>':'';
   if(isBank) html+=BANKPLATE+'<br>';
   html+=(a.bags?('<b>'+a.bags+' '+t('bags')+'</b><br>'):'')+esc(a.text);
   if(a.phone) html+='<br>'+ICH('phone')+' '+esc(a.phone);
   if(a.collection_start)html+='<div class="ops-slot-label">Согласовано: '+esc(Ops.slotLabel(a))+'</div>';
-  if(a.phone&&!isBank)html+='<button class="btn btn-primary" style="margin-top:12px" onclick="openSMS(currentAddrId)">SMS · согласовать сбор</button>';
+  if(a.phone&&!isBank)html+='<button class="btn btn-primary" style="margin-top:12px" onclick="openSMS(currentAddrId)">'+(cancelled?'SMS · история и новая заявка':'SMS · согласовать сбор')+'</button>';
   if(a.note) html+='<br>'+ICH('note')+' '+esc(a.note);
   if(a.date) html+='<br>'+ICH('caldot')+' '+a.date;
   document.getElementById('ai-text').innerHTML=html;
@@ -1417,6 +1421,9 @@ function renderAddr(){
   document.getElementById('btn-edit').style.display=isBank?'none':'';
   document.getElementById('btn-del').style.display=isBank?'none':'';
   if(isBank) renderFillSel();
+  document.querySelectorAll('#v-addr > button').forEach(b=>{b.hidden=cancelled;});
+  document.querySelectorAll('#v-addr > .seclbl').forEach(b=>{b.hidden=cancelled;});
+  document.querySelectorAll('#v-addr button[onclick^="takePhoto"]').forEach(b=>{b.hidden=cancelled;});
 }
 function navUrl(app,a){
   const usePin=Number.isFinite(a.lat)&&Number.isFinite(a.lng)&&a.geocode_source!=='postcode';
@@ -1443,7 +1450,7 @@ function navGo(app){
 function navCancel(){ document.getElementById('nav-chooser').classList.remove('show'); }
 function navToCurrent(){ navTo(currentAddrId); }
 async function setResult(status){
-  const a=ADDR.find(x=>x.id===currentAddrId); if(!a) return;
+  const a=ADDR.find(x=>x.id===currentAddrId); if(!a||a.status==='cancelled') return;
   if(a.kind==='bank'&&status==='done'){
     const all=[...CURPHOTOS,...CURPENDING];
     const nOpen=all.filter(p=>(p.kind||'photo')==='open').length;
@@ -1467,7 +1474,7 @@ async function setResult(status){
 }
 function editCurrent(){ openEdit(currentAddrId); }
 async function rescheduleCurrent(){
- const a=ADDR.find(x=>x.id===currentAddrId);if(!a)return;if(a.collection_start){await openSMS(a.id);return;}
+ const a=ADDR.find(x=>x.id===currentAddrId);if(!a||a.status==='cancelled')return;if(a.collection_start){await openSMS(a.id);return;}
  const day=prompt(t('reschedulePrompt'),a.date||todayStr());if(!day)return;
  if(!/^\d{4}-\d{2}-\d{2}$/.test(day)){toast('YYYY-MM-DD');return;}
  if(!confirm('Клиент согласовал перенос на '+day+'?'))return;
@@ -1486,24 +1493,24 @@ async function deleteCurrent(){
 /* ---------- archive ---------- */
 function setArcTab(tab){
   arcTab=tab;
-  ['all','done','noanswer','problem'].forEach(x=>
+  ['all','done','noanswer','problem','cancelled'].forEach(x=>
     document.getElementById('tab-'+x).classList.toggle('on',x===tab));
   renderArchive();
 }
 function renderArchive(){
-  let list=ADDR.filter(a=>['done','noanswer','problem'].includes(a.status));
+  let list=ADDR.filter(a=>['done','noanswer','problem','cancelled'].includes(a.status));
   if(arcTab!=='all') list=list.filter(a=>a.status===arcTab);
-  list.sort((a,b)=>(b.doneAt||0)-(a.doneAt||0));
+  list.sort((a,b)=>(b.cancelledAt||b.doneAt||0)-(a.cancelledAt||a.doneAt||0));
   const el=document.getElementById('arc-list');
   if(!list.length){ el.innerHTML='<div class="empty">'+t('emptyArc')+'</div>'; return; }
-  const badge={done:t('tabDone'),noanswer:t('tabNoAnswer'),problem:t('tabProblem')};
+  const badge={done:t('tabDone'),noanswer:t('tabNoAnswer'),problem:t('tabProblem'),cancelled:LOCAL.lang==='en'?'Cancelled':'Отменено'};
   el.innerHTML=list.map(a=>`
     <div class="card tap arc-card ${a.status}" onclick="openAddr('${a.id}')">
       <div class="addr" style="font-weight:600;font-size:15px">
         ${a.kind==='bank'?BANKPLATE+' ':''}${a.bags?('<b>'+a.bags+' '+t('bags')+'</b> · '):''}${esc(a.text)}</div>
       ${a.resultNote?'<div class="arc-note">'+esc(a.resultNote)+'</div>':''}
       <span class="badge ${a.status}">${badge[a.status]}</span>
-      ${a.date?'<span class="badge new">'+a.date+'</span>':''}
+      ${a.date||a.cancelledDate?'<span class="badge new">'+esc(a.date||a.cancelledDate)+'</span>':''}
       ${(a.kind==='bank'&&a.fill!=null)?'<span class="badge new">'+t('fillWord')+' '+a.fill+' '+t('kgUnit')+'</span>':''}
     </div>`).join('');
 }
