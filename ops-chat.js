@@ -43,7 +43,7 @@ function partnerOffer(day,start,end,name){
  return "Good afternoon,\n\nI'm your We Recycle Clothes driver, here to collect your clothing donation.\n\nI can collect on "+date+", between "+clock(start)+" and "+clock(end)+".\n\nPlease reply YES to confirm, or let me know if you'd prefer a different day or time.\n\nThank you, and see you then!\n"+(name?.trim()?name.trim()+'\n':'')+'We Recycle Clothes';
 }
 function subnexOffer(text){return text.replace("Good afternoon,\n\nI'm your We Recycle Clothes driver, here to collect your clothing donation.","Hi,\n\nI'm getting in touch from SUBNEX to arrange your clothing collection.").replace(/We Recycle Clothes$/,'SUBNEX');}
-const statuses={received:'Получено',dispatching:'Отправка начата — ожидаем статус',unknown:'Результат неизвестен — проверьте Twilio',accepted:'Принято Twilio',queued:'В очереди',sending:'Отправляется',sent:'Отправлено оператору',delivered:'Доставлено',read:'Прочитано',failed:'Ошибка отправки',undelivered:'Не доставлено',canceled:'Отменено'};
+const statuses={pending_auto:'Ожидает автоматической отправки',auto_skipped:'Не отправлено — заявка или условия изменились',received:'Получено',dispatching:'Отправка начата — ожидаем статус',unknown:'Результат неизвестен — проверьте Twilio',accepted:'Принято Twilio',queued:'В очереди',sending:'Отправляется',sent:'Отправлено оператору',delivered:'Доставлено',read:'Прочитано',failed:'Ошибка отправки',undelivered:'Не доставлено',canceled:'Отменено'};
 let current=null;
 function close(){current?.close();current=null;}
 async function open(options){close();current=new Chat(options);await current.start();return current;}
@@ -196,15 +196,16 @@ class Chat{
   if(!a||!t||a.kind==='bank')return;
   if(isClosed(a)){this.notice('Заявка уже закрыта. Для следующего сбора нажмите «Новая заявка».');return;}
   const address={...a},thread={...t},replaceResult=resultStatuses.includes(a.status),name=this.driverName(),brand=a.collection_source==='subnex'?'SUBNEX':'We Recycle Clothes';
-  this.modal('Закрыть текущую заявку',`<p><b>${esc(a.text)}</b></p><p>Текущий статус: <b>${esc(collectionState(a))}</b></p>${a.collection_start?`<p class="oc-help">Дата и время: ${esc(slotLabel(a))}</p>`:''}${replaceResult?`<p class="oc-help">Результат «${esc(collectionState(a))}» будет заменён на «Отменено». ${a.status==='done'?'Этот сбор перестанет учитываться как выполненный. ':''}Предыдущий результат и заметка сохранятся в истории.</p>`:''}<p class="oc-help">Закроется только этот сбор. Адрес уйдёт из маршрута, история сохранится. Позже можно создать новую заявку с тем же адресом и номером.</p><label>Причина<select id="oc-cancel-reason">${Object.entries(cancellationReasons).map(([v,n])=>`<option value="${v}">${esc(n)}</option>`).join('')}</select></label><label>Примечание<input id="oc-cancel-note" maxlength="2000"></label><p class="oc-help">Если клиент просит другую дату, оставьте заявку открытой и используйте подбор времени.</p><label><input id="oc-cancel-agreed" type="checkbox">${replaceResult?'Заменить прежний результат на «Отменено»':'Закрыть именно эту заявку'}</label>${t.opted_out?'<p class="oc-help">SMS отключены клиентом. Закрытие заявки не отменяет этот запрет.</p>':`<label><input id="oc-cancel-draft" type="checkbox" ${replaceResult?'':'checked'}>Подготовить ответ клиенту (отправлю отдельно)</label><p class="oc-help">Снимите галочку, если уже ответили клиенту.</p>`}`,async(w)=>{
+  const text='Your collection booking has been cancelled. If you need a collection in the future, you are welcome to book again.\n\nKind regards,\n'+(name?name+'\n':'')+brand;
+  this.modal('Закрыть текущую заявку',`<p><b>${esc(a.text)}</b></p><p>Текущий статус: <b>${esc(collectionState(a))}</b></p>${a.collection_start?`<p class="oc-help">Дата и время: ${esc(slotLabel(a))}</p>`:''}${replaceResult?`<p class="oc-help">Результат «${esc(collectionState(a))}» будет заменён на «Отменено». ${a.status==='done'?'Этот сбор перестанет учитываться как выполненный. ':''}Предыдущий результат и заметка сохранятся в истории.</p>`:''}<p class="oc-help">Закроется только этот сбор. Адрес уйдёт из маршрута, история сохранится. Позже можно создать новую заявку с тем же адресом и номером.</p><label>Причина<select id="oc-cancel-reason">${Object.entries(cancellationReasons).map(([v,n])=>`<option value="${v}">${n}</option>`).join('')}</select></label><label>Примечание<input id="oc-cancel-note" maxlength="2000"></label><p class="oc-help">Если клиент просит другую дату, оставьте заявку открытой и используйте подбор времени.</p><label><input id="oc-cancel-agreed" type="checkbox">${replaceResult?'Заменить прежний результат на «Отменено»':'Закрыть именно эту заявку'}</label>${t.opted_out?'<p class="oc-help">SMS отключены клиентом. Закрытие заявки не отменяет этот запрет.</p>':`<label><input id="oc-cancel-sms" type="checkbox" checked>Отправить SMS об отмене</label><p class="oc-help">После закрытия сообщение отправится автоматически. Снимите галочку, если уже ответили клиенту.</p><div class="oc-preview" style="white-space:pre-wrap">${esc(text)}</div>`}`,async(w)=>{
    if(this.sendBusy)throw new Error('Дождитесь завершения отправки SMS.');
    if(!w.querySelector('#oc-cancel-agreed').checked)throw new Error(codes.CANCELLATION_REQUIRED);
-   const reason=w.querySelector('#oc-cancel-reason').value,wantDraft=!!w.querySelector('#oc-cancel-draft')?.checked;
+   const reason=w.querySelector('#oc-cancel-reason').value,sendSms=!!w.querySelector('#oc-cancel-sms')?.checked;
    this.sendBusy=true;
    let result;
    try{
-    const {data,error}=await this.sb.rpc('subnex_close_collection',{p_data:{thread_id:thread.id,address_id:address.id,version:address.collection_version,expected_status:address.status,expected_done_at:address.done_at||null,expected_result_note:address.result_note||'',replace_result:replaceResult,reason,note:w.querySelector('#oc-cancel-note').value,agreed:true}});
-    if(error){const code=Object.keys(codes).find(c=>error.message?.includes(c));throw new Error(code?codes[code]:'Не удалось закрыть заявку. Проверьте установку 04_close_any_status.sql и обновите переписку.');}
+    const {data,error}=await this.sb.rpc('subnex_close_collection_notified',{p_data:{thread_id:thread.id,address_id:address.id,version:address.collection_version,expected_status:address.status,expected_done_at:address.done_at||null,expected_result_note:address.result_note||'',replace_result:replaceResult,reason,note:w.querySelector('#oc-cancel-note').value,agreed:true,send_sms:sendSms}});
+    if(error){const code=Object.keys(codes).find(c=>error.message?.includes(c));throw new Error(code?codes[code]:'Не удалось закрыть заявку. Проверьте установку 05_auto_sms.sql и обновите переписку.');}
     result=data;
    }finally{this.sendBusy=false;}
    if(!result?.id)throw new Error('Сервер не подтвердил закрытие. Обновите переписку.');
@@ -212,9 +213,15 @@ class Chat{
    if(!this.closed&&this.threadId===thread.id){
     this.mode='reply';await this.loadDetail(true);await this.loadList();
     if(this.data?.thread.closed_request?.id===result.id&&!this.data.address){
-     const body=reason==='customer_cancelled'?'Thank you for letting us know. Your collection has been cancelled as requested.':'Thank you for letting us know. We have closed this collection request.';
-     if(wantDraft&&!this.data.thread.opted_out){this.compose({body:body+'\n\nKind regards,\n'+(name?name+'\n':'')+brand,closure_id:result.id});this.rememberDraft();}
-     this.notice(wantDraft&&!this.data.thread.opted_out?'Заявка закрыта. Ответ подготовлен — проверьте его перед отправкой.':'Заявка закрыта. История сохранена.');
+     const n=result.notification;
+     let notice='Заявка закрыта. История сохранена.';
+     if(n?.state==='pending')notice='Заявка закрыта. SMS об отмене в очереди на отправку.';
+     else if(n?.state==='accepted')notice='Заявка закрыта. Статус SMS показан в истории.';
+     else if(n?.state==='disabled'&&sendSms)notice='Заявка закрыта. Автоматические SMS ещё не включены.';
+     else if(n?.state==='skipped'&&n.reason==='OPTED_OUT')notice='Заявка закрыта. Клиент отключил SMS.';
+     else if(n?.state==='skipped'&&sendSms)notice='Заявка закрыта. SMS не отправлена — проверьте номер клиента и текущую заявку.';
+     else if(['failed','unknown'].includes(n?.state))notice='Заявка закрыта. Проверьте статус SMS в истории перед повторной отправкой.';
+     this.notice(notice);
     }
    }
    this.o.onChanged?.({kind:'collection_closed',date:address.date,address_id:address.id});
