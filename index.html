@@ -238,13 +238,13 @@ button:focus-visible,.card.tap:focus-visible{outline:3px solid var(--hiviz);outl
 #v-addr [hidden]{display:none!important}
 </style>
 <link rel="stylesheet" href="ops-chat.css?v=2">
-<script src="ops-chat.js?v=20260915-dispatch"></script>
+<script src="ops-chat.js?v=20260915-collection-hours"></script>
 <script src="ops-route.js?v=2"></script>
 <link rel="stylesheet" href="ops-planner.css?v=3">
 <link rel="stylesheet" href="ops-dispatch.css?v=20260915">
-<script src="ops-dispatch-core.js?v=20260915"></script>
-<script src="ops-dispatch.js?v=20260915"></script>
-<script src="ops-planner.js?v=20260915"></script>
+<script src="ops-dispatch-core.js?v=20260915-collection-hours"></script>
+<script src="ops-dispatch.js?v=20260915-collection-hours"></script>
+<script src="ops-planner.js?v=20260915-collection-hours"></script>
 </head>
 <body>
 <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
@@ -1321,7 +1321,7 @@ async function showScheduledRoute(ds){
  try{
   if(ds>=SubnexDispatchCore.ukDay()){
    const r=await OpsDispatch.routeDay(dispatchOptions(),ds);
-   if(r){LOCAL.routes[ds]={...r,dispatch:true,started_at:r.state.started_at,config:r.state.config,source:r.sketch?'schedule-lines':'osrm-schedule'};saveLocal();if(currentDay===ds){renderDay();document.getElementById('dispatch-day-note').textContent=r.warning||'План проверен: дорога, интервалы, сборы и возврат на склад.';}return;}
+   if(r){LOCAL.routes[ds]={...r,dispatch:true,started_at:r.state.started_at,config:r.state.config,source:r.sketch?'schedule-lines':'osrm-schedule'};saveLocal();if(currentDay===ds){renderDay();document.getElementById('dispatch-day-note').textContent=r.warning||(Number.isFinite(r.state.fit?.departure)?'Выезд: '+SubnexDispatchCore.hm(r.state.fit.departure)+' · склад: '+SubnexDispatchCore.hm(r.state.fit.finish)+'. Часы работы относятся к прибытиям к клиентам.':'План проверен: дорога, интервалы, сборы и возврат на склад.');}return;}
   }
   const list=appointmentOrder(dayAddrs(ds));
   if(!list.length){toast(t('emptyDay'));return;}

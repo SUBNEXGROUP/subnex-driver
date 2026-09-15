@@ -27,33 +27,41 @@ function evaluate(nodes,order,config,hours,roads,startMinute){
  if(!validPoint(config.home)||!validPoint(config.depot))return {ok:false,code:'SETTINGS_REQUIRED'};
  const byId=new Map(nodes.map(n=>[n.key,n]));
  if(order.length!==nodes.length||new Set(order).size!==order.length||order.some(id=>!byId.has(id)))return {ok:false,code:'PLAN_CHANGED'};
- let cursor=Math.max(minute(hours.opens),startMinute??0),prev=config.home,previous='Старт',drive=0,service=0,kg=0;
+ // Working hours bound arrivals at collections. Outbound and return travel sit outside them.
+ const opens=minute(hours.opens),closes=minute(hours.closes),departFloor=Math.max(0,startMinute??0),availableFrom=Math.max(opens,departFloor);
+ let cursor=departFloor,prev=config.home,previous='Старт',drive=0,service=0,kg=0,departure=null,collectionWork=0;
  const stops=[];
  function travel(a,b){if(pointKey(a)===pointKey(b))return 0;const seconds=roads[pointKey(a)+'>'+pointKey(b)];return typeof seconds==='number'&&Number.isFinite(seconds)&&seconds>=0?Math.ceil(seconds/60*config.travel_factor)+config.leg_buffer_minutes:Infinity;}
  for(const id of order){const n=byId.get(id);
   if(!validPoint(n))return {ok:false,code:'COORDINATES_REQUIRED',address:n.text};
   if(!Number.isFinite(n.earliest)||!Number.isFinite(n.latest)||n.latest<n.earliest)return {ok:false,code:'TIME_REQUIRED',address:n.text};
   const leg=travel(prev,n);if(!Number.isFinite(leg))return {ok:false,code:'ROADS_REQUIRED',from:previous,to:n.text};
-  const arrival=Math.max(cursor+leg,n.earliest);if(arrival>n.latest)return {ok:false,code:'TIME_CONFLICT',from:previous,to:n.text,arrival,latest:n.latest};
+  if(n.earliest<opens||n.latest>closes)return {ok:false,code:'OUTSIDE_HOURS',address:n.text};
+  const first=stops.length===0;
+  const arrival=Math.max(cursor+leg,n.earliest,opens);if(arrival>n.latest)return {ok:false,code:'TIME_CONFLICT',from:previous,to:n.text,arrival,latest:n.latest};
+  if(first)departure=arrival-leg;else collectionWork+=leg;
   kg+=Number(n.kg);service+=Number(n.service);drive+=leg;
   if(kg>config.capacity_kg)return {ok:false,code:'CAPACITY',kg,limit:config.capacity_kg};
-  if(n.earliest<minute(hours.opens)||n.latest>minute(hours.closes))return {ok:false,code:'OUTSIDE_HOURS',address:n.text};
+  collectionWork+=Math.max(0,Math.min(arrival+Number(n.service),closes)-Math.max(arrival,availableFrom));
   cursor=arrival+Number(n.service);stops.push({key:id,address_id:n.address_id,text:n.text,arrival,departure:cursor,travel:leg,kg,kind:n.kind});prev=n;previous=n.text;
  }
+ if(!stops.length)return {ok:true,order:[],stops:[],departure:null,finish:null,drive:0,service:0,kg:0,collection_work_minutes:0,free_minutes:Math.max(0,closes-availableFrom)};
  const endLeg=travel(prev,config.depot);if(!Number.isFinite(endLeg))return {ok:false,code:'ROADS_REQUIRED',from:previous,to:'Склад'};
- drive+=endLeg;const finish=cursor+endLeg;if(finish>minute(hours.closes))return {ok:false,code:'DEPOT_LATE',finish,latest:minute(hours.closes)};
- return {ok:true,order:[...order],stops,finish,drive,service,kg,free_minutes:minute(hours.closes)-Math.max(minute(hours.opens),startMinute??0)-drive-service};
+ drive+=endLeg;const finish=cursor+endLeg;if(finish>=1440)return {ok:false,code:'DAY_BOUNDARY',finish};
+ return {ok:true,order:[...order],stops,departure,finish,drive,service,kg,collection_work_minutes:collectionWork,free_minutes:Math.max(0,closes-availableFrom-collectionWork)};
 }
 function ordered(nodes,previous=[]){const present=new Set(nodes.map(n=>n.key));const out=previous.filter(k=>present.has(k));for(const n of [...nodes].sort((a,b)=>a.earliest-b.earliest||a.key.localeCompare(b.key)))if(!out.includes(n.key))out.push(n.key);return out;}
 function placements(day,request,config,roads){
  if(day.started_at||day.hours?.closed||request.not_before&&day.day<request.not_before||zone(request.text)==='Outside area')return [];
  const nodes=day.nodes.filter(n=>n.address_id!==request.id),order=ordered(nodes,day.order);
  const base=evaluate(nodes,order,config,day.hours,roads,day.start_minute);if(!base.ok)return [];
- const node={key:'a:'+request.id,address_id:request.id,text:request.text,lat:request.lat,lng:request.lng,earliest:Math.max(minute(day.hours.opens),day.start_minute||0),latest:minute(day.hours.closes)-30,service:request.service_minutes??10,kg:request.estimated_kg??40,kind:'hold'};
+ const node={key:'a:'+request.id,address_id:request.id,text:request.text,lat:request.lat,lng:request.lng,earliest:Math.max(minute(day.hours.opens),day.start_minute||0),latest:minute(day.hours.closes),service:request.service_minutes??10,kg:request.estimated_kg??40,kind:'hold'};
  const result=[];
  for(let i=0;i<=order.length;i++){
   const candidate=[...order.slice(0,i),node.key,...order.slice(i)];let fit=evaluate([...nodes,node],candidate,config,day.hours,roads,day.start_minute);if(!fit.ok)continue;
-  const start=Math.ceil(fit.stops.find(n=>n.key===node.key).arrival/5)*5;
+  // A final arrival at 16:00 belongs to a 15:30–16:00 offer, never 16:00–16:30.
+  const start=Math.min(Math.ceil(fit.stops.find(n=>n.key===node.key).arrival/5)*5,minute(day.hours.closes)-30);
+  if(start<node.earliest)continue;
   const pinned={...node,earliest:start,latest:start+30};if(pinned.latest>minute(day.hours.closes))continue;
   fit=evaluate([...nodes,pinned],candidate,config,day.hours,roads,day.start_minute);if(!fit.ok||fit.kg>config.capacity_kg-config.reserve_kg||fit.free_minutes<config.reserve_minutes)continue;
   const sameZone=nodes.some(n=>zone(n.text)===zone(request.text));
