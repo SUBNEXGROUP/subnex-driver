@@ -175,9 +175,12 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px soli
 .chkline{display:flex;align-items:center;gap:7px;font-weight:700;font-size:14px;align-self:end;padding-bottom:9px;cursor:pointer}
 </style>
 <link rel="stylesheet" href="ops-chat.css?v=2">
-<script src="ops-chat.js?v=request3"></script>
+<script src="ops-chat.js?v=20260915-dispatch"></script>
 <link rel="stylesheet" href="ops-planner.css?v=3">
-<script src="ops-planner.js?v=3"></script>
+<link rel="stylesheet" href="ops-dispatch.css?v=20260915">
+<script src="ops-dispatch-core.js?v=20260915"></script>
+<script src="ops-dispatch.js?v=20260915"></script>
+<script src="ops-planner.js?v=20260915"></script>
 </head>
 <body>
 <div class="hazard"></div>
@@ -265,6 +268,7 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px soli
   <div class="pane" id="p-addr">
     <div class="toolbar">
       <button class="btn btn-primary" onclick="openAddrModal()"><svg class="i" ><use href="#i-plus"/></svg> <span data-t>Добавить адрес</span></button>
+      <button class="btn btn-ghost" onclick="openDispatchAdmin()">Заявки и маршруты</button>
       <button class="btn btn-ghost" onclick="openBulkModal()"><svg class="i" ><use href="#i-dl"/></svg> <span data-t>Массовое добавление</span></button>
     </div>
     <div class="filters">
@@ -650,14 +654,22 @@ async function changePassword(){
  const field=document.getElementById('new-admin-password');if(field.value.length<12){toast('Минимум 12 символов');return;}
  const {error}=await sb.auth.updateUser({password:field.value});toast(error?'Не удалось изменить пароль. Войдите заново.':'Пароль изменён');if(!error)field.value='';
 }
-async function openSMS(addressId){
- if(!OPS_PROFILE)return;const old=ADDR.find(a=>a.id===addressId),phone=old?.status==='cancelled'?old.phone:null;await Ops.open({sb,profile:OPS_PROFILE,addressId:phone?null:addressId,phone,geocode,addresses:()=>ADDR,drivers:()=>DRIVERS,
+async function openSMS(addressId,planner){
+ if(!OPS_PROFILE)return;const old=ADDR.find(a=>a.id===addressId),phone=old?.status==='cancelled'?old.phone:null;await Ops.open({sb,profile:OPS_PROFILE,planner,addressId:phone?null:addressId,phone,geocode,addresses:()=>ADDR,drivers:()=>DRIVERS,
   plannerPoints:driverId=>{
    if(driverId!==OPS_PROFILE.driver_id)return {};
    try{const p=JSON.parse(localStorage.getItem('subnexDriver2_local')||'{}');return p.owner===OPS_PROFILE.user_id?{home:p.home,depot:p.depot}:{};}catch{return {};}
   },
   hasOutbox:()=>{try{const p=JSON.parse(localStorage.getItem('subnexDriver2_local')||'{}');return p.owner===OPS_PROFILE.user_id&&p.outbox?.length>0;}catch{return false;}},
   onChanged:()=>{if(OPS_PROFILE)refreshAll(true);}});
+}
+async function openDispatchAdmin(tab='queue'){
+ if(!OPS_PROFILE)return;
+ const selected=document.getElementById('fl-driver').value||OPS_PROFILE.driver_id;
+ const driver=DRIVERS.find(d=>d.id===selected&&d.active!==false)||DRIVERS.filter(d=>d.active!==false).length===1&&DRIVERS.find(d=>d.active!==false);
+ if(!driver){toast('Выберите водителя в фильтре, затем откройте заявки.');return;}
+ let points={};try{const p=JSON.parse(localStorage.getItem('subnexDriver2_local')||'{}');if(p.owner===OPS_PROFILE.user_id&&driver.id===OPS_PROFILE.driver_id)points={home:p.home,depot:p.depot};}catch{}
+ await OpsPlanner.open({sb,driver,tab,...points,geocode,addresses:()=>ADDR,onSms:async(id,plan)=>{await refreshAll(true);await openSMS(id,plan);},onChanged:()=>refreshAll(true)});
 }
 async function openAddressSMS(){const id=editAddrId;closeModal('m-addr-bg');await openSMS(id);}
 
@@ -896,6 +908,7 @@ async function geocode(text){
 /* ---------- modals ---------- */
 function closeModal(id){ document.getElementById(id).classList.remove('show'); }
 function openAddrModal(id){
+  if(!id)return openDispatchAdmin('one');
   editAddrId=id||null;
   const a=id?ADDR.find(x=>x.id===id):null;
   const cancelled=a?.status==='cancelled';
@@ -963,12 +976,7 @@ async function deleteAddrModal(){
 }
 
 /* ---------- bulk add ---------- */
-function openBulkModal(){
-  document.getElementById('mb-text').value='';
-  document.getElementById('mb-date').value=document.getElementById('fl-date').value||'';
-  document.getElementById('mb-progress').textContent='';
-  document.getElementById('m-bulk-bg').classList.add('show');
-}
+function openBulkModal(){return openDispatchAdmin('batch');}
 async function saveBulk(){
   const lines=document.getElementById('mb-text').value.split('\n').map(s=>s.trim()).filter(Boolean);
   if(!lines.length){ toast(t('Пустой список')); return; }
@@ -1120,24 +1128,34 @@ async function saveAssign(){
   const date=document.getElementById('as-date').value;
   const driver_id=document.getElementById('as-driver').value;
   const ids=[...document.querySelectorAll('#as-list input:checked')].map(i=>i.value);
-  if(!date||!driver_id||!ids.length){ toast(t('Выберите дату, водителя и хотя бы один банк')); return; }
-  const btn=document.getElementById('as-save'); btn.disabled=true;
-  document.getElementById('as-progress').textContent=t('Обрабатываю банки…');
-  let added=0, skipped=0;
-  for(const bid of ids){
-    if(ADDR.some(a=>a.bank_id===bid&&a.date===date)){ skipped++; continue; }
-    const b=BANKS.find(x=>x.id===bid); if(!b) continue;
-    const {error}=await sb.from('addresses').insert({
-      id:uuid(), text:b.name+(b.text?' — '+b.text:''), bags:0, phone:'', note:b.note||'',
-      date, driver_id, status:'planned', kind:'bank', bank_id:b.id,
-      lat:b.lat, lng:b.lng });
-    if(!error) added++;
-  }
-  btn.disabled=false;
-  document.getElementById('as-progress').textContent='';
-  closeModal('m-assign-bg');
-  toast(t('Назначено визитов')+': '+added+(skipped?' · '+skipped+' '+t('уже были на эту дату'):''));
-  refreshAll(true);
+  if(!date||!driver_id||!ids.length){toast(t('Выберите дату, водителя и хотя бы один банк'));return;}
+  const btn=document.getElementById('as-save');btn.disabled=true;
+  const progress=document.getElementById('as-progress');progress.textContent=t('Обрабатываю банки…');
+  let added=0,skipped=0;const failed=[];
+  try{
+    const setup=await OpsDispatch.rpc(sb,'settings',{driver_id});
+    for(const bid of ids){
+      if(ADDR.some(a=>a.bank_id===bid&&a.date===date&&['new','planned'].includes(a.status))){skipped++;continue;}
+      const b=BANKS.find(x=>x.id===bid);if(!b)continue;
+      const id=uuid();let created=false;
+      try{
+        const row={id,text:b.name+(b.text?' — '+b.text:''),bags:0,phone:'',note:b.note||'',date:setup.enabled?null:date,driver_id,status:setup.enabled?'new':'planned',kind:'bank',bank_id:b.id,lat:b.lat,lng:b.lng};
+        const ins=await sb.from('addresses').insert(row);if(ins.error)throw ins.error;created=true;
+        if(setup.enabled){
+          await OpsDispatch.warm({sb,driver:{id:driver_id}},date,[id]);
+          const scheduled=await sb.from('addresses').update({date,status:'planned'}).eq('id',id);if(scheduled.error)throw scheduled.error;
+        }
+        added++;
+      }catch(e){
+        // Delete only this newly-created, undated draft; never a scheduled visit.
+        if(created&&setup.enabled)await sb.from('addresses').delete().eq('id',id).is('date',null);
+        failed.push(b.name+': '+OpsDispatch.error(e));
+      }
+    }
+  }catch(e){failed.push(OpsDispatch.error(e));}
+  finally{btn.disabled=false;await refreshAll(true);}
+  if(failed.length){progress.textContent='Назначено: '+added+'. '+failed.join(' ');return;}
+  progress.textContent='';closeModal('m-assign-bg');toast(t('Назначено визитов')+': '+added+(skipped?' · '+skipped+' '+t('уже были на эту дату'):''));
 }
 
 /* ---------- photos ---------- */

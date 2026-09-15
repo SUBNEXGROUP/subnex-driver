@@ -238,10 +238,13 @@ button:focus-visible,.card.tap:focus-visible{outline:3px solid var(--hiviz);outl
 #v-addr [hidden]{display:none!important}
 </style>
 <link rel="stylesheet" href="ops-chat.css?v=2">
-<script src="ops-chat.js?v=request3"></script>
+<script src="ops-chat.js?v=20260915-dispatch"></script>
 <script src="ops-route.js?v=2"></script>
 <link rel="stylesheet" href="ops-planner.css?v=3">
-<script src="ops-planner.js?v=3"></script>
+<link rel="stylesheet" href="ops-dispatch.css?v=20260915">
+<script src="ops-dispatch-core.js?v=20260915"></script>
+<script src="ops-dispatch.js?v=20260915"></script>
+<script src="ops-planner.js?v=20260915"></script>
 </head>
 <body>
 <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
@@ -374,6 +377,8 @@ button:focus-visible,.card.tap:focus-visible{outline:3px solid var(--hiviz);outl
   </div>
   <div id="map"></div>
   <div style="height:12px"></div>
+  <button class="btn btn-ghost" id="btn-start-route" onclick="startDispatchDay()" hidden>Начать маршрут</button>
+  <p id="dispatch-day-note" role="status" style="white-space:pre-wrap"></p>
   <button class="btn btn-dark" id="btn-opt" onclick="optimizeDay()"><svg class="i" style="fill:currentColor;stroke:none"><use href="#i-bolt"/></svg> <span data-i18n="optimize">Оптимизировать маршрут</span></button>
   <div class="signstrip" id="signstrip">
     <div class="rte" data-i18n="routeLbl">Маршрут · старт: дом → финиш: склад</div>
@@ -669,6 +674,7 @@ function fromRow(r){
     date:r.date, lat:r.lat, lng:r.lng, geocode_source:r.geocode_source||null, status:r.status||'new',
     collection_start:r.collection_start,collection_end:r.collection_end,collection_version:r.collection_version||0,collection_source:r.collection_source,driver_id:r.driver_id,
     kind:r.kind||'d2d', bankId:r.bank_id||null, fill:(r.fill_level==null?null:r.fill_level),
+    estimated_kg:r.estimated_kg,service_minutes:r.service_minutes,arrival_mode:r.arrival_mode,intake_channel:r.intake_channel,bags_text:r.bags_text,not_before:r.not_before,
     cancelledAt:r.collection_cancelled_at?Date.parse(r.collection_cancelled_at):null,cancelledDate:r.cancelled_date,cancellationReason:r.cancellation_reason,
     resultNote:r.result_note||'', doneAt:r.done_at?Date.parse(r.done_at):null,
     createdAt:r.created_at?Date.parse(r.created_at):Date.now() };
@@ -937,10 +943,10 @@ async function openSMS(addressId,planner){
  const old=ADDR.find(a=>a.id===addressId);const phone=old?.status==='cancelled'?old.phone:null;
  await Ops.open({sb,profile:OPS_PROFILE,addressId:phone?null:addressId,phone,planner,geocode,addresses:()=>ADDR,drivers:()=>ME?[{...ME,active:true}]:[],plannerPoints:()=>({home:LOCAL.home,depot:LOCAL.depot}),hasOutbox:()=>LOCAL.outbox.length>0,onChanged:async(change)=>{if(ME){if(change?.kind==='collection_closed'&&change.date){delete LOCAL.routes[change.date];saveLocal();}await loadAddresses();refreshDriverView();}}});
 }
-async function openPartnerPlanner(){
+async function openPartnerPlanner(tab,fromDay){
  if(!ME||!OPS_PROFILE)return;
  if(!window.OpsPlanner){toast('Загрузите ops-planner.js и ops-planner.css из обновления, затем обновите страницу.');return;}
- await OpsPlanner.open({sb,driver:ME,home:LOCAL.home,depot:LOCAL.depot,addresses:()=>ADDR,
+ await OpsPlanner.open({sb,driver:ME,tab:typeof tab==='string'?tab:'queue',fromDay,geocode,home:LOCAL.home,depot:LOCAL.depot,addresses:()=>ADDR,
    hasOutbox:()=>LOCAL.outbox.length>0,
    onSms:async(id,plan)=>{if(ME){await loadAddresses();await openSMS(id,plan);}},
    onChanged:async()=>{if(ME){await loadAddresses();LOCAL.routes={};saveLocal();refreshDriverView();}}});
@@ -1039,14 +1045,7 @@ async function geocode(text){
 }
 
 /* ---------- add / edit ---------- */
-function openAdd(prefillDate){
-  editId=null;
-  document.getElementById('add-title').textContent=t('addAddress');
-  ['f-addr','f-phone','f-note'].forEach(i=>document.getElementById(i).value='');
-  document.getElementById('f-bags').value='';
-  document.getElementById('f-date').value=(typeof prefillDate==='string')?prefillDate:'';
-  showView('v-add');
-}
+function openAdd(prefillDate){return openPartnerPlanner('one',typeof prefillDate==='string'?prefillDate:undefined);}
 function openEdit(id){
   const a=ADDR.find(x=>x.id===id); if(!a) return;
   editId=id;
@@ -1139,7 +1138,7 @@ let map=null;
 function openDay(ds){ currentDay=ds; showView('v-day'); renderDay(); }
 function dayAddrs(ds){ return ADDR.filter(a=>a.date===ds&&a.status!=='cancelled'); }
 const hasCoords=a=>a&&Number.isFinite(a.lat)&&Number.isFinite(a.lng)&&Math.abs(a.lat)<=90&&Math.abs(a.lng)<=180;
-const isScheduledRoute=r=>r?.source==='osrm-schedule'||r?.source==='schedule-lines';
+const isScheduledRoute=r=>r?.dispatch||r?.source==='osrm-schedule'||r?.source==='schedule-lines';
 function appointmentOrder(list){
   const at=a=>{const v=Date.parse(a.collection_start);return Number.isFinite(v)?v:Infinity;};
   // Stable sort keeps the existing order when two appointments have the same time.
@@ -1151,12 +1150,13 @@ function scheduledRouteSignature(ds){
 }
 function renderRouteButton(){
   const btn=document.getElementById('btn-opt');if(btn.disabled)return;
-  const key=dayAddrs(currentDay).some(a=>a.collection_start)?'showRoute':'optimize';
+  const key=currentDay>=SubnexDispatchCore.ukDay()||dayAddrs(currentDay).some(a=>a.collection_start)?'showRoute':'optimize';
   btn.innerHTML='<svg class="i" style="fill:currentColor;stroke:none"><use href="#i-'+(key==='showRoute'?'nav':'bolt')+'"/></svg> <span data-i18n="'+key+'">'+t(key)+'</span>';
 }
 function orderedDayAddrs(ds){
   const list=dayAddrs(ds);
   let r=LOCAL.routes[ds];
+  if(r?.dispatch){const pos=new Map(r.order.map((id,i)=>[id,i]));return list.sort((a,b)=>(pos.get(a.id)??999)-(pos.get(b.id)??999));}
   if(list.some(a=>a.collection_start)){
     if(!isScheduledRoute(r)||r.signature!==scheduledRouteSignature(ds))delete LOCAL.routes[ds];
     return appointmentOrder(list);
@@ -1170,6 +1170,10 @@ function orderedDayAddrs(ds){
 }
 function renderDay(){
   const ds=currentDay;
+  const startButton=document.getElementById('btn-start-route'),route=LOCAL.routes[ds];
+  startButton.hidden=ds!==SubnexDispatchCore.ukDay();
+  startButton.disabled=!!route?.started_at;
+  startButton.textContent=route?.started_at?'Маршрут начат · план зафиксирован':'Начать маршрут';
   renderRouteButton();
   document.getElementById('day-title').textContent=
     (ds===todayStr()?t('todayWord')+' · ':'')+ds+(BH[ds]?' · 🔴 '+t('bh'):'');
@@ -1191,7 +1195,7 @@ function renderDay(){
         iconSize:[30,30],iconAnchor:[15,15]});
       L.marker([a.lat,a.lng],{icon}).addTo(map).on('click',()=>openAddr(a.id));
     });
-    for(const [point,label,symbol] of [[LOCAL.home,t('routeStart'),'S'],[LOCAL.depot,t('routeFinish'),'F']]){
+    for(const [point,label,symbol] of [[LOCAL.routes[ds]?.config?.home||LOCAL.home,t('routeStart'),'S'],[LOCAL.routes[ds]?.config?.depot||LOCAL.depot,t('routeFinish'),'F']]){
       if(!hasCoords(point))continue;
       pts.push([point.lat,point.lng]);
       const icon=L.divIcon({className:'',html:`<div style="width:30px;height:30px;border-radius:8px;background:#FFC400;color:#101B24;border:2px solid #101B24;display:flex;align-items:center;justify-content:center;font-weight:800">${symbol}</div>`,iconSize:[30,30],iconAnchor:[15,15]});
@@ -1305,10 +1309,20 @@ async function scheduledRoad(all){
  }
  return {km,min,geometry};
 }
+function dispatchOptions(){return {sb,driver:ME,home:LOCAL.home,depot:LOCAL.depot,hasOutbox:()=>LOCAL.outbox.length>0};}
+async function startDispatchDay(){
+ const btn=document.getElementById('btn-start-route'),note=document.getElementById('dispatch-day-note');if(btn.disabled)return;btn.disabled=true;note.textContent='Проверяю все сборы перед стартом…';
+ try{await OpsDispatch.startDay(dispatchOptions(),currentDay);await showScheduledRoute(currentDay);note.textContent='Маршрут начат. Новые заявки будут ждать следующего дня.';}
+ catch(e){note.textContent=OpsDispatch.error(e);}finally{btn.disabled=!!LOCAL.routes[currentDay]?.started_at;}
+}
 async function showScheduledRoute(ds){
  const btn=document.getElementById('btn-opt');if(btn.disabled)return;btn.disabled=true;
  btn.innerHTML='<span class="spin"></span> '+t('buildingRoute');
  try{
+  if(ds>=SubnexDispatchCore.ukDay()){
+   const r=await OpsDispatch.routeDay(dispatchOptions(),ds);
+   if(r){LOCAL.routes[ds]={...r,dispatch:true,started_at:r.state.started_at,config:r.state.config,source:r.sketch?'schedule-lines':'osrm-schedule'};saveLocal();if(currentDay===ds){renderDay();document.getElementById('dispatch-day-note').textContent=r.warning||'План проверен: дорога, интервалы, сборы и возврат на склад.';}return;}
+  }
   const list=appointmentOrder(dayAddrs(ds));
   if(!list.length){toast(t('emptyDay'));return;}
   const missing=list.filter(a=>!hasCoords(a));
@@ -1328,7 +1342,7 @@ async function showScheduledRoute(ds){
 
 async function optimizeDay(){
   const ds=currentDay;
-  if(dayAddrs(ds).some(a=>a.collection_start)){await showScheduledRoute(ds);return;}
+  if(ds>=SubnexDispatchCore.ukDay()||dayAddrs(ds).some(a=>a.collection_start)){await showScheduledRoute(ds);return;}
   const active=dayAddrs(ds).filter(a=>!['done','noanswer','problem','cancelled'].includes(a.status));
   const list=active.filter(a=>a.lat!=null&&a.lng!=null);
   if(!list.length){ toast(t('needTwo')); return; }

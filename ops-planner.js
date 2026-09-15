@@ -350,3 +350,17 @@ async function confirmProposal(p){
 }
 root.OpsPlanner={open,close,prepareSms,core:{evaluate,blocksFor,coord,postcode,key,ukDay,at,hm,nextDay,textFor,roadMatrix,locate,errorText}};
 })(typeof window!=='undefined'?window:globalThis);
+
+/* v2 dispatcher uses one joint queue and server-enforced road feasibility. */
+(function(){
+ const previous=window.OpsPlanner;
+ window.OpsPlanner={
+  open:o=>window.OpsDispatch.open(o),close:()=>{window.OpsDispatch?.close();previous.close();},core:previous.core,
+  prepareSms:async(o,plan,payload)=>{
+   const result=await window.OpsDispatch.preflight(o,plan,payload);
+   if(result===null&&!plan.dispatch)return previous.prepareSms(o,plan,payload);
+   if(result===null)throw new Error('DISPATCH_NOT_ENABLED');
+   return {};
+  }
+ };
+})();
