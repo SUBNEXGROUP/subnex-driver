@@ -311,6 +311,13 @@ table.t tr.total td{background:var(--surface-3);font-weight:700}
 .subtabs button[aria-current="true"]{background:var(--ink);border-color:var(--ink);color:var(--surface)}
 .page{display:none;flex-direction:column;gap:14px}
 .page.active{display:flex}
+/* Раздел на всю высоту экрана: переписка. Страница не скроллится, скроллит только список сообщений. */
+body.fullpage{overflow:hidden}
+body.fullpage .console{height:100dvh;padding-bottom:14px}
+body.fullpage .main{min-height:0}
+body.fullpage .page.active{min-height:0;flex:1}
+body.fullpage .inline-host{flex:1;min-height:0;display:flex;flex-direction:column}
+body.fullpage .phead{flex:none}
 .gate{max-width:400px;margin:10dvh auto 0;padding:0 16px}
 .gate .card-b{padding:24px}
 .gate .brand{display:flex;align-items:center;gap:10px;margin-bottom:18px}

@@ -231,7 +231,7 @@
     <section class="page" data-page="settings">
       <div class="phead">
         <div><h1>Настройки</h1><p>Часы прибытия, доступ, старт и склад, водители, данные</p></div>
-        <div class="subtabs" id="set-tabs"><button data-sub="hours" aria-current="true">Часы и доступ</button><button data-sub="dispatch">Старт и параметры</button><button data-sub="drivers">Водители</button><button data-sub="data">Данные и аккаунт</button></div>
+        <div class="subtabs" id="set-tabs"><button data-sub="hours" aria-current="true">Часы и доступ</button><button data-sub="dispatch">Старт и склад</button><button data-sub="drivers">Водители</button><button data-sub="data">Данные и аккаунт</button></div>
       </div>
       <div id="set-hours" class="grid2">
         <div class="stack">
@@ -513,6 +513,7 @@ function go(page,opts={}){
   if(!PAGES.includes(page))page='today';
   PAGE=page;location.hash=page;
   document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.dataset.page===page));
+  document.body.classList.toggle('fullpage',page==='chat');
   document.querySelectorAll('#nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.page===page?'page':'false'));
   if(opts.date){DAY.date=opts.date;}
   renderPage(page,true,opts);

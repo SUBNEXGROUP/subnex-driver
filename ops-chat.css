@@ -29,7 +29,8 @@
 .oc-top nav button:hover{background:#1a3329}
 
 .oc-body{display:grid;grid-template-columns:320px minmax(0,1fr);max-width:1480px;margin:0 auto;width:100%;min-height:0;flex:1;border:1px solid var(--line);background:var(--surface);border-radius:var(--r-l);overflow:hidden}
-.ops-inline .oc-body{max-width:none;height:min(78dvh,900px);min-height:480px}
+.ops-root.ops-inline{flex:1;min-height:0}
+.ops-inline .oc-body{max-width:none;height:auto;flex:1;min-height:420px}
 .ops-root:not(.ops-inline) .oc-body{border-radius:0;border-left:0;border-right:0;border-bottom:0}
 @media(min-width:1400px){.ops-root:not(.ops-inline) .oc-body{margin:16px auto 20px;border-radius:var(--r-l);border:1px solid var(--line)}}
 
@@ -94,9 +95,9 @@
 @media(max-width:720px){
   .oc-top{height:54px;padding:8px 12px}.oc-brand{font-size:16px}.oc-brand small{display:none}.oc-top button{font-size:12px;padding:5px 8px}
   .oc-body{display:block;position:relative;border-radius:0}
-  .ops-inline .oc-body{height:auto;min-height:0}
+  
   .oc-side,.oc-conversation{height:100%}
-  .ops-inline .oc-side,.ops-inline .oc-conversation{height:min(76dvh,800px)}
+  .ops-inline .oc-side,.ops-inline .oc-conversation{height:100%}
   .oc-conversation{display:none}
   .ops-root.oc-selected .oc-side{display:none}
   .ops-root.oc-selected .oc-conversation{display:flex}
