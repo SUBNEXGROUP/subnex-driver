@@ -2,511 +2,351 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#101B24">
-<title>SUBNEX Ops — Админка</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0B1813">
+<title>SUBNEX Пульт</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfmake@0.2.10/build/pdfmake.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfmake@0.2.10/build/vfs_fonts.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>
-:root{
-  --ink:#101B24;--ink2:#243441;--paper:#F4F2EC;--card:#FFF;--line:#D9D5CA;
-  --hiviz:#FFC400;--hiviz2:#E5AF00;--ok:#1F9D55;--no:#D64545;--warn:#F0A400;
-  --muted:#66717C;--sign:#0B3B2E;--r:16px;--shadow:0 3px 0 var(--ink);
-}
-*{box-sizing:border-box}
-html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);
-  font-family:'Inter',system-ui,sans-serif;font-size:15.5px}
-h1,h2,h3{font-family:'Archivo','Inter',sans-serif;font-stretch:88%}
-.hazard{height:10px;background:repeating-linear-gradient(-45deg,var(--hiviz) 0 16px,var(--ink) 16px 32px);
-  border-bottom:2.5px solid var(--ink)}
-header{background:var(--ink);color:#fff;padding:14px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-header .brand{font-family:'Archivo';font-weight:900;font-size:20px;text-transform:uppercase;
-  font-stretch:80%;letter-spacing:.01em}
-header .brand span{color:var(--hiviz)}
-header .tag{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:#8C99A6;font-weight:700}
-.wrap{max-width:1100px;margin:0 auto;padding:20px 16px 60px}
-/* tabs */
-.tabs{display:flex;gap:8px;margin:0 0 20px;overflow-x:auto;padding-bottom:3px}
-.tabs button{border:2.5px solid var(--ink);background:var(--card);border-radius:99px;
-  padding:10px 20px;font-weight:800;font-size:13.5px;color:var(--ink);white-space:nowrap;
-  text-transform:uppercase;letter-spacing:.04em;font-family:'Archivo';cursor:pointer;
-  box-shadow:var(--shadow)}
-.tabs button:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
-.tabs button.on{background:var(--ink);color:var(--hiviz)}
-.pane{display:none}
-.pane.active{display:block}
-/* buttons & cards */
-button{font-family:inherit;font-size:15px;cursor:pointer}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
-  border:2.5px solid var(--ink);border-radius:14px;padding:11px 18px;font-weight:800;
-  font-size:14.5px;box-shadow:var(--shadow);text-transform:uppercase;letter-spacing:.03em;
-  font-family:'Archivo'}
-.btn:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
-.btn-primary{background:var(--hiviz);color:var(--ink)}
-.btn-dark{background:var(--ink);color:#fff}
-.btn-ghost{background:var(--card);color:var(--ink);text-transform:none;letter-spacing:0;font-family:'Inter';font-weight:700}
-.btn-no{background:var(--no);color:#fff}
-.btn.small{padding:7px 12px;font-size:12.5px;border-width:2px;box-shadow:0 2px 0 var(--ink)}
-.card{background:var(--card);border:2px solid var(--ink);border-radius:var(--r);
-  padding:18px;margin-bottom:14px;box-shadow:0 2px 0 rgba(16,27,36,.9)}
-/* stat tiles */
-.statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
-.stat{background:var(--card);border:2px solid var(--ink);border-radius:var(--r);padding:14px 16px;
-  box-shadow:0 2px 0 rgba(16,27,36,.9)}
-.stat .n{font-family:'Archivo';font-weight:900;font-size:32px;line-height:1;font-stretch:85%}
-.stat .l{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;
-  color:var(--muted);margin-top:6px}
-.stat.ok .n{color:var(--ok)}
-.stat.no .n{color:var(--no)}
-.stat.warn .n{color:#8F6400}
-.stat.hi{background:var(--hiviz)}
-/* forms */
-label{display:block;font-weight:700;font-size:12.5px;margin:13px 0 5px;text-transform:uppercase;
-  letter-spacing:.06em;color:var(--ink2)}
-input,textarea,select{width:100%;border:2px solid var(--ink);border-radius:12px;background:var(--card);
-  padding:11px 13px;font-size:15px;font-family:inherit;color:var(--ink)}
-textarea{min-height:80px;resize:vertical}
-input:focus,textarea:focus,select:focus{outline:3px solid var(--hiviz)}
-.filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;
-  align-items:end;margin-bottom:16px}
-.filters label{margin-top:0}
-/* table */
-table{width:100%;border-collapse:collapse;background:var(--card);border:2px solid var(--ink);
-  border-radius:var(--r);overflow:hidden}
-.tablewrap{border:2px solid var(--ink);border-radius:var(--r);overflow:auto;background:var(--card);
-  box-shadow:0 2px 0 rgba(16,27,36,.9)}
-.tablewrap table{border:none}
-th{background:var(--ink);color:#fff;text-align:left;padding:10px 12px;font-size:11.5px;
-  text-transform:uppercase;letter-spacing:.08em;font-family:'Archivo';font-weight:800;white-space:nowrap}
-td{padding:11px 12px;border-top:1.5px solid var(--line);font-size:14px;vertical-align:top}
-tr.rowtap{cursor:pointer}
-tr.rowtap:hover{background:#FBF9F3}
-.badge{display:inline-block;font-size:11px;font-weight:800;border-radius:99px;
-  padding:2px 10px;border:1.5px solid;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
-.badge.done{background:#E3F4EA;color:var(--ok);border-color:var(--ok)}
-.badge.noanswer{background:#FBE7E7;color:var(--no);border-color:var(--no)}
-.badge.problem{background:#FDF2D4;color:#8F6400;border-color:var(--warn)}
-.badge.new{background:var(--paper);color:var(--muted);border-color:var(--line)}
-.badge.planned{background:#E8F0FA;color:#2B5C9E;border-color:#2B5C9E}
-.note-red{color:var(--no);font-weight:700;font-size:12.5px}
-/* login */
-.gate{max-width:420px;margin:8dvh auto 0;padding:0 16px}
-.wordmark{font-family:'Archivo';font-weight:900;font-size:32px;text-transform:uppercase;
-  font-stretch:80%;text-align:center}
-.wordmark span{color:transparent;-webkit-text-stroke:2px var(--ink)}
-.eyebrow{font-family:'Archivo';font-size:11px;font-weight:800;letter-spacing:.22em;
-  text-transform:uppercase;color:var(--muted);text-align:center;margin-top:6px}
-/* modal */
-.modal-bg{position:fixed;inset:0;background:rgba(16,27,36,.55);z-index:1500;display:none;
-  align-items:flex-start;justify-content:center;overflow:auto;padding:30px 14px}
-.modal-bg.show{display:flex}
-.modal{background:var(--paper);border:2.5px solid var(--ink);border-radius:18px;
-  max-width:560px;width:100%;padding:22px;box-shadow:0 4px 0 var(--ink)}
-.modal h2{margin:0 0 4px;font-size:20px;text-transform:uppercase;font-weight:900}
-#a-map{height:56dvh;border-radius:var(--r);border:2.5px solid var(--ink)}
-.maplegend{display:flex;flex-wrap:wrap;gap:10px 18px;margin-top:12px;font-size:13.5px;font-weight:600}
-.maplegend .sw{display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid #fff;
-  box-shadow:0 0 0 1.5px var(--ink);vertical-align:-2px;margin-right:6px}
-.empty{text-align:center;color:var(--muted);padding:34px 20px}
-.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:var(--ink);
-  color:#fff;padding:12px 22px;border-radius:99px;font-size:14.5px;font-weight:700;z-index:2000;
-  opacity:0;transition:opacity .25s;pointer-events:none;border:2px solid var(--hiviz)}
-.toast.show{opacity:1}
-.legendtxt{color:var(--muted);font-size:13px;margin-top:10px}
-.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
-.spin{display:inline-block;width:15px;height:15px;border:3px solid rgba(0,0,0,.25);
-  border-top-color:var(--ink);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
-@keyframes sp{to{transform:rotate(360deg)}}
-@media (max-width:640px){ .stat .n{font-size:26px} }
-.i{width:17px;height:17px;stroke:currentColor;stroke-width:2.1;fill:none;stroke-linecap:round;stroke-linejoin:round;flex:none;vertical-align:-3px}
-button:focus-visible{outline:3px solid var(--hiviz);outline-offset:2px}
-input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid var(--hiviz)}
-.btn,.tabs button{transition:transform .12s,box-shadow .12s}
-@media (hover:hover){ .btn:hover,.tabs button:hover{transform:translateY(-1px)} .btn:active,.tabs button:active{transform:translateY(2px)} }
-.stat .n{font-variant-numeric:tabular-nums}
-.bankplate{display:inline-flex;align-items:center;gap:5px;background:var(--sign);color:#fff;
-  border:1.5px solid var(--ink);border-radius:7px;padding:1.5px 8px;font-family:'Archivo';
-  font-weight:900;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;vertical-align:1px}
-.bankplate .i{width:12px;height:12px;stroke:#fff;stroke-width:2.4}
-.fillpill{display:inline-block;margin-top:3px;font-size:11.5px;font-weight:800;border:1.5px solid var(--ink);
-  border-radius:99px;padding:1.5px 9px;background:var(--hiviz)}
-.phkind{position:absolute;left:7px;top:7px;font-family:'Archivo';font-weight:900;font-size:10.5px;
-  letter-spacing:.06em;text-transform:uppercase;padding:2.5px 8px;border-radius:7px;border:1.5px solid var(--ink);
-  box-shadow:0 1.5px 0 var(--ink)}
-.phkind.open{background:var(--hiviz);color:var(--ink)}
-.phkind.empty{background:var(--ok);color:#fff}
-.phkind.rubbish{background:var(--no);color:#fff}
-.phkind.photo{background:var(--paper);color:var(--ink)}
-.phcard{position:relative}
-.phcmt{color:var(--no);font-weight:700;display:block;margin-top:2px;white-space:normal}
-.langsel{border:2px solid var(--hiviz);background:var(--ink);color:var(--hiviz);border-radius:10px;
-  padding:6px 10px;font-family:'Archivo';font-weight:800;font-size:13px;width:auto;cursor:pointer}
-.chklist{max-height:42vh;overflow:auto;border:2px solid var(--ink);border-radius:12px;background:var(--card);padding:6px}
-.chklist label{display:flex;align-items:center;gap:9px;margin:0;padding:9px 10px;border-radius:9px;
-  font-weight:600;font-size:14px;text-transform:none;letter-spacing:0;color:var(--ink);cursor:pointer}
-.chklist label:hover{background:#FBF9F3}
-.chklist input{width:18px;height:18px;flex:none}
-@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
-
-/* ---------- photos ---------- */
-.photogrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px;margin-top:14px}
-.phcard{border:2px solid var(--ink);border-radius:12px;overflow:hidden;background:var(--card);
-  box-shadow:var(--shadow);cursor:pointer;transition:transform .12s}
-.phcard:hover{transform:translateY(-2px)}
-.phcard img{width:100%;aspect-ratio:1/1;object-fit:cover;display:block;background:#DCD8CD}
-.phmeta{padding:8px 10px;font-size:12.5px;line-height:1.4;border-top:2px solid var(--ink)}
-.phmeta .adr{font-weight:700;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.phbadge{display:inline-block;margin-left:8px;padding:2px 8px;border:2px solid var(--ink);border-radius:999px;
-  background:var(--hiviz);font-weight:800;font-size:12px;box-shadow:0 2px 0 var(--ink);cursor:pointer;white-space:nowrap}
-.photo-lb{position:fixed;inset:0;background:rgba(10,14,18,.94);z-index:400;display:none;flex-direction:column}
-.photo-lb.show{display:flex}
-.photo-lb img{flex:1;min-height:0;width:100%;object-fit:contain}
-.photo-lb .lb-cap{color:#fff;text-align:center;padding:10px 14px 0;font-size:14px}
-.photo-lb .lb-bar{display:flex;gap:10px;padding:12px;
-  background:repeating-linear-gradient(45deg,var(--ink) 0 14px,var(--hiviz) 14px 28px)}
-.photo-lb .lb-bar button{flex:1;min-height:46px;padding:11px;border:2px solid var(--ink);border-radius:10px;
-  font-weight:900;font-family:inherit;font-size:15px;box-shadow:var(--shadow);cursor:pointer}
-.photo-lb .lb-bar button:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
-.chkline{display:flex;align-items:center;gap:7px;font-weight:700;font-size:14px;align-self:end;padding-bottom:9px;cursor:pointer}
-</style>
-<link rel="stylesheet" href="ops-chat.css?v=2">
-<script src="ops-chat.js?v=20260915-collection-hours"></script>
-<link rel="stylesheet" href="ops-planner.css?v=3">
-<link rel="stylesheet" href="ops-dispatch.css?v=20260915">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="subnex-ui.css?v=20260916-console">
+<link rel="stylesheet" href="ops-chat.css?v=20260916-console">
+<link rel="stylesheet" href="ops-dispatch.css?v=20260916-console">
+<script src="ops-chat.js?v=20260916-console"></script>
 <script src="ops-dispatch-core.js?v=20260915-collection-hours"></script>
-<script src="ops-dispatch.js?v=20260915-collection-hours"></script>
+<script src="ops-dispatch.js?v=20260916-console"></script>
 <script src="ops-planner.js?v=20260915-collection-hours"></script>
+<style>
+.leaflet-container{font-family:var(--body)}
+.mk{width:28px;height:28px;border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-family:var(--display);font-size:12px;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.mk.sq{border-radius:7px;background:var(--accent);color:var(--accent-ink);border-color:var(--ink)}
+.mk.truck{width:34px;height:34px;border-radius:10px;background:var(--rail);border:2px solid var(--accent)}
+.hoursgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:8px}
+.hcell{border:1px solid var(--line);border-radius:9px;padding:9px 11px;background:var(--surface);text-align:left;font:inherit;color:inherit;width:100%}
+.hcell:hover{border-color:var(--brand)}
+.hcell .d{font-size:12px;color:var(--muted);font-weight:600}
+.hcell .h{font-family:var(--mono);font-size:13.5px;font-weight:600;margin-top:2px}
+.hcell.off .h{color:var(--crit)}
+</style>
 </head>
 <body>
-<div class="hazard"></div>
 <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
-<symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></symbol>
-<symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s7-6.3 7-11.5A7 7 0 0 0 5 9.5C5 14.7 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.6"/></symbol>
-<symbol id="i-map" viewBox="0 0 24 24"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14"/></symbol>
-<symbol id="i-cam" viewBox="0 0 24 24"><path d="M4 8h3.2L9 5h6l1.8 3H20a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.6"/></symbol>
+<symbol id="i-today" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4M8 14h4"/></symbol>
+<symbol id="i-inbox" viewBox="0 0 24 24"><path d="M3 13l2.5-8h13L21 13v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6z"/><path d="M3 13h5l1.5 3h5L16 13h5"/></symbol>
+<symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+<symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8 7.5c4 0 4 9 8 9"/></symbol>
+<symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4V5z"/></symbol>
 <symbol id="i-bin" viewBox="0 0 24 24"><path d="M4 8h16v12H4zM4 8l2.2-4h11.6L20 8M9 12v4M15 12v4"/></symbol>
-<symbol id="i-truck" viewBox="0 0 24 24"><path d="M2 6h12v10H2zM14 10h4l3 3v3h-7v-6z"/><circle cx="6.5" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/></symbol>
-<symbol id="i-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></symbol>
+<symbol id="i-set" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2.2"/><circle cx="15" cy="12" r="2.2"/><circle cx="7" cy="17" r="2.2"/></symbol>
 <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
 <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.9-6.6M21 3v6h-6"/></symbol>
-<symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5"/></symbol>
 <symbol id="i-pen" viewBox="0 0 24 24"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></symbol>
-<symbol id="i-dl" viewBox="0 0 24 24"><path d="M12 3v12m0 0 5-5m-5 5-5-5M4 19h16"/></symbol>
+<symbol id="i-dl" viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v3h16v-3"/></symbol>
 <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
 <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8V4z"/></symbol>
 <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
-<symbol id="i-caldot" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+<symbol id="i-nav" viewBox="0 0 24 24"><path d="M3 11l18-8-8 18-2.4-7.6L3 11z"/></symbol>
+<symbol id="i-cam" viewBox="0 0 24 24"><path d="M4 8h3.2L9 5h6l1.8 3H20a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.6"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5"/></symbol>
 </svg>
-<header>
-  <div class="brand">SUBNEX <span>OPS</span></div>
-  <div class="tag">Collection control · UK</div>
-  <div style="flex:1"></div>
-  <select class="langsel" id="lang-sel" onchange="setAdminLang(this.value)">
-    <option value="ru">RU</option><option value="en">EN</option>
-  </select>
-  <button class="btn small btn-ghost" id="btn-refresh" onclick="refreshAll()" style="display:none"><svg class="i" ><use href="#i-refresh"/></svg> <span data-t>Обновить</span></button>
-</header>
 
-<!-- Supabase Auth; server membership decides access. -->
+<!-- ===== ВХОД ===== -->
 <div class="gate" id="gate">
-  <div class="wordmark" style="margin-bottom:4px">SUBNEX <span>OPS</span></div>
-  <div class="eyebrow" data-t>Панель управления</div>
-  <div id="gate-config" style="display:none">
-    <label>Supabase URL</label>
-    <input type="text" id="cfg-url" placeholder="https://xxxx.supabase.co">
-    <label>Supabase anon key</label>
-    <input type="text" id="cfg-key" placeholder="eyJhbGciOi...">
-    <div style="height:16px"></div>
-    <button class="btn btn-primary" style="width:100%" onclick="saveConfig()" data-t>Подключить</button>
-    <p class="legendtxt" data-t>URL и anon key — в Supabase: Project Settings → API.</p>
-  </div>
-  <div id="gate-pin" style="display:none">
-    <label>Email администратора</label><input type="email" id="admin-email" autocomplete="username" placeholder="info@subnex.co.uk">
-    <label>Пароль</label><input type="password" id="admin-password" autocomplete="current-password">
-    <div style="height:16px"></div>
-    <button class="btn btn-primary" style="width:100%" onclick="gateEnter()" id="gate-btn" data-t>Войти</button>
-    <p class="legendtxt note-red" id="gate-err"></p>
-  </div>
+  <div class="card"><div class="card-b">
+    <div class="brand"><div class="logo">S</div><div><b>SUBNEX</b><small>Пульт управления</small></div></div>
+    <div id="gate-config" style="display:none" class="stack">
+      <div class="f-group"><label class="f">Supabase URL</label><input class="field" type="text" id="cfg-url" placeholder="https://xxxx.supabase.co"></div>
+      <div class="f-group"><label class="f">Supabase anon key</label><input class="field" type="text" id="cfg-key" placeholder="eyJhbGciOi..."></div>
+      <button class="btn btn-pri btn-lg" onclick="saveConfig()">Подключить</button>
+      <p class="small muted">URL и anon key — в Supabase: Project Settings → API. Обычно они уже в config.js.</p>
+    </div>
+    <div id="gate-pin" style="display:none" class="stack">
+      <div class="f-group"><label class="f">Email администратора</label><input class="field" type="email" id="admin-email" autocomplete="username" placeholder="info@subnex.co.uk"></div>
+      <div class="f-group"><label class="f">Пароль</label><input class="field" type="password" id="admin-password" autocomplete="current-password"></div>
+      <button class="btn btn-pri btn-lg" onclick="gateEnter()" id="gate-btn">Войти</button>
+      <p class="err" id="gate-err"></p>
+    </div>
+  </div></div>
 </div>
 
-<!-- ===== MAIN ===== -->
-<div class="wrap" id="main" style="display:none">
-  <div class="toolbar"><button class="btn btn-primary" onclick="openSMS()">SMS · Переписки и сборы</button><button class="btn btn-ghost" onclick="adminLogout()">Выйти</button></div>
-  <div class="tabs">
-    <button id="tb-dash" class="on" onclick="setTab('dash')"><svg class="i" ><use href="#i-grid"/></svg> <span data-t>Сводка</span></button>
-    <button id="tb-addr" onclick="setTab('addr')"><svg class="i" ><use href="#i-pin"/></svg> <span data-t>Адреса</span></button>
-    <button id="tb-bank" onclick="setTab('bank')"><svg class="i" ><use href="#i-bin"/></svg> <span data-t>Банки</span></button>
-    <button id="tb-rep" onclick="setTab('rep')"><svg class="i" ><use href="#i-save"/></svg> <span data-t>Отчёты</span></button>
-    <button id="tb-map" onclick="setTab('map')"><svg class="i" ><use href="#i-map"/></svg> <span data-t>Карта</span></button>
-    <button id="tb-photo" onclick="setTab('photo')"><svg class="i" ><use href="#i-cam"/></svg> <span data-t>Фото</span></button>
-    <button id="tb-drv" onclick="setTab('drv')"><svg class="i" ><use href="#i-truck"/></svg> <span data-t>Водители</span></button>
-    <button id="tb-data" onclick="setTab('data')"><svg class="i" ><use href="#i-save"/></svg> <span data-t>Данные</span></button>
-  </div>
-
-  <!-- DASHBOARD -->
-  <div class="pane active" id="p-dash">
-    <div class="filters">
-      <div><label data-t>Дата</label><input type="date" id="dash-date" onchange="renderDash()"></div>
+<!-- ===== ПУЛЬТ ===== -->
+<div class="console" id="main" style="display:none">
+  <aside class="rail">
+    <div class="rail-brand"><div class="logo">S</div><div><b>SUBNEX</b><small>Пульт</small></div></div>
+    <div class="rail-user"><b id="rail-user"></b><small>Водитель: <select id="drv-select" style="background:transparent;border:0;color:var(--rail-ink);font:inherit;font-size:12px;font-weight:600;padding:0;cursor:pointer"></select></small></div>
+    <nav id="nav">
+      <button data-page="today"><svg class="ic"><use href="#i-today"/></svg>Сегодня</button>
+      <button data-page="requests"><svg class="ic"><use href="#i-inbox"/></svg>Заявки<span class="badge" id="nb-requests" hidden></span></button>
+      <button data-page="cal"><svg class="ic"><use href="#i-cal"/></svg>Календарь</button>
+      <button data-page="day"><svg class="ic"><use href="#i-route"/></svg>День маршрута</button>
+      <button data-page="chat"><svg class="ic"><use href="#i-chat"/></svg>Переписка<span class="badge" id="nb-chat" hidden></span></button>
+      <button data-page="banks"><svg class="ic"><use href="#i-bin"/></svg>Контейнеры</button>
+      <button data-page="settings"><svg class="ic"><use href="#i-set"/></svg>Настройки</button>
+    </nav>
+    <div class="rail-foot">
+      <span id="rail-points">Старт и склад не заданы</span>
+      <button onclick="refreshAll()"><svg class="ic" style="width:13px;height:13px"><use href="#i-refresh"/></svg> Обновить данные</button>
+      <button onclick="adminLogout()">Выйти</button>
     </div>
-    <div class="statgrid" id="dash-stats"></div>
-    <div class="card">
-      <h3 style="margin:0 0 12px;text-transform:uppercase;font-size:15px" data-t>По водителям</h3>
-      <div class="tablewrap" style="box-shadow:none;border-width:1.5px">
-        <table><thead><tr>
-          <th data-t>Водитель</th><th data-t>Всего</th><th>✓</th><th>✕</th><th>⚠</th><th data-t>Осталось</th><th data-t>Пакетов собрано</th>
-        </tr></thead><tbody id="dash-drivers"></tbody></table>
+  </aside>
+
+  <main class="main">
+
+    <!-- ---------- СЕГОДНЯ ---------- -->
+    <section class="page" data-page="today">
+      <div class="phead">
+        <div><h1 id="today-title">Сегодня</h1><p id="today-sub"></p></div>
+        <div class="pactions">
+          <input type="date" class="field" id="dash-date" style="width:auto;min-height:38px" onchange="renderToday()">
+          <button class="btn" onclick="openDispatchAdmin('batch')">Вставить список из письма</button>
+          <button class="btn btn-pri" onclick="openDispatchAdmin('queue')">Заявки и распределение</button>
+        </div>
       </div>
-    </div>
-  </div>
-
-  <!-- ADDRESSES -->
-  <div class="pane" id="p-addr">
-    <div class="toolbar">
-      <button class="btn btn-primary" onclick="openAddrModal()"><svg class="i" ><use href="#i-plus"/></svg> <span data-t>Добавить адрес</span></button>
-      <button class="btn btn-ghost" onclick="openDispatchAdmin()">Заявки и маршруты</button>
-      <button class="btn btn-ghost" onclick="openBulkModal()"><svg class="i" ><use href="#i-dl"/></svg> <span data-t>Массовое добавление</span></button>
-    </div>
-    <div class="filters">
-      <div><label data-t>Дата</label><input type="date" id="fl-date" onchange="renderAddrTable()"></div>
-      <div><label data-t>Водитель</label><select id="fl-driver" onchange="renderAddrTable()"></select></div>
-      <div><label data-t>Статус</label><select id="fl-status" onchange="renderAddrTable()">
-        <option value="" data-t>Все</option><option value="open" data-t>В работе</option>
-        <option value="new" data-t>Новый</option><option value="planned" data-t>Запланирован</option>
-        <option value="done" data-t>Выполнено</option><option value="noanswer" data-t>Не отвечает</option>
-        <option value="problem" data-t>Проблема</option><option value="cancelled" data-t>Отменено</option></select></div>
-      <div><label data-t>Поиск</label><input type="text" id="fl-q" oninput="renderAddrTable()" placeholder="улица, индекс…" data-t-ph></div>
-    </div>
-    <div class="tablewrap"><table>
-      <thead><tr><th data-t>Дата</th><th data-t>Адрес</th><th data-t>Пак.</th><th data-t>Водитель</th><th data-t>Статус</th></tr></thead>
-      <tbody id="addr-tbody"></tbody>
-    </table></div>
-    <p class="legendtxt" id="addr-count"></p>
-  </div>
-
-  <!-- BANKS -->
-  <div class="pane" id="p-bank">
-    <div class="toolbar">
-      <button class="btn btn-primary" onclick="openBankModal()"><svg class="i" ><use href="#i-plus"/></svg> <span data-t>Добавить банк</span></button>
-      <button class="btn btn-dark" onclick="openAssignModal()"><svg class="i" ><use href="#i-caldot"/></svg> <span data-t>Назначить на день</span></button>
-    </div>
-    <div class="tablewrap"><table>
-      <thead><tr><th data-t>Название</th><th data-t>Адрес</th><th data-t>Статус</th><th data-t>Визитов</th><th data-t>Последний визит</th><th></th></tr></thead>
-      <tbody id="bank-tbody"></tbody>
-    </table></div>
-    <p class="legendtxt" data-t>Банк — постоянная точка. Кнопкой «Назначить на день» вы создаёте визиты выбранным банкам: они появятся у водителя в списке на дату.</p>
-  </div>
-
-  <!-- REPORTS -->
-  <div class="pane" id="p-rep">
-    <div id="rep-warn" style="display:none;background:#FFF4D6;border:2px solid var(--ink);
-      border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:13px"></div>
-    <div class="filters">
-      <div><label data-t>Месяц</label><input type="month" id="rep-month" onchange="renderReports()"></div>
-    </div>
-    <div class="toolbar">
-      <button class="btn btn-dark" onclick="internalPdf()"><svg class="i" ><use href="#i-dl"/></svg> <span data-t>Сводка для себя (PDF)</span></button>
-      <button class="btn btn-dark" onclick="allHostPdf()"><svg class="i" ><use href="#i-dl"/></svg> <span data-t>Все отчёты хостам (PDF)</span></button>
-    </div>
-    <div class="tablewrap"><table>
-      <thead><tr><th data-t>Площадка</th><th data-t>Условия</th><th data-t>Вывозов</th>
-        <th data-t>Собрано</th><th data-t>К выплате</th><th></th></tr></thead>
-      <tbody id="rep-tbody"></tbody>
-    </table></div>
-    <p class="legendtxt" data-t>Учитываются только выполненные вывозы за выбранный месяц. Ставка и контакт задаются в карточке площадки на вкладке «Банки».</p>
-  </div>
-
-  <!-- MAP -->
-  <div class="pane" id="p-map">
-    <div class="filters">
-      <div><label data-t>Дата</label><input type="date" id="map-date" onchange="renderMap()"></div>
-    </div>
-    <div id="a-map"></div>
-    <div class="maplegend" id="map-legend"></div>
-  </div>
-
-  <!-- PHOTOS -->
-  <div class="pane" id="p-photo">
-    <div class="filters">
-      <div><label data-t>Дата</label><input type="date" id="ph-date" onchange="renderPhotos()"></div>
-      <div><label data-t>Водитель</label><select id="ph-driver" onchange="renderPhotos()"></select></div>
-      <div><label data-t>Тип фото</label><select id="ph-kind" onchange="renderPhotos()">
-        <option value="" data-t>Все</option><option value="open" data-t>Бин открыт</option>
-        <option value="empty" data-t>Бин пуст</option><option value="rubbish" data-t>Мусор</option>
-        <option value="photo" data-t>Прочее</option></select></div>
-      <label class="chkline"><input type="checkbox" id="ph-all" onchange="renderPhotos()"> <span data-t>Все даты</span></label>
-    </div>
-    <div class="photogrid" id="ph-grid"></div>
-    <p class="legendtxt" id="ph-count"></p>
-  </div>
-
-  <!-- DRIVERS -->
-  <div class="pane" id="p-drv">
-    <div class="toolbar">
-      <button class="btn btn-primary" onclick="openDrvModal()"><svg class="i" ><use href="#i-plus"/></svg> <span data-t>Добавить водителя</span></button>
-    </div>
-    <div class="tablewrap"><table>
-      <thead><tr><th data-t>Имя</th><th>Вход</th><th data-t>Статус</th><th data-t>Адресов всего</th><th></th></tr></thead>
-      <tbody id="drv-tbody"></tbody>
-    </table></div>
-  </div>
-
-  <!-- DATA -->
-  <div class="pane" id="p-data">
-    <div class="card">
-      <h3 style="margin:0 0 10px;text-transform:uppercase;font-size:15px" data-t>Экспорт</h3>
-      <div class="filters">
-        <div><label data-t>С даты</label><input type="date" id="ex-from"></div>
-        <div><label data-t>По дату</label><input type="date" id="ex-to"></div>
+      <div class="tiles" id="dash-stats"></div>
+      <div class="grid2">
+        <div class="stack">
+          <div class="card">
+            <div class="card-h"><div><h3>Требует внимания</h3><div class="sub">То, что мешает планированию</div></div></div>
+            <div id="attention"></div>
+          </div>
+          <div class="card">
+            <div class="card-h"><div><h3>По водителям</h3><div class="sub" id="dash-drivers-sub"></div></div></div>
+            <div class="tscroll"><table class="t"><thead><tr><th>Водитель</th><th>Всего</th><th>Выполнено</th><th>Не отвечает</th><th>Проблема</th><th>Осталось</th></tr></thead><tbody id="dash-drivers"></tbody></table></div>
+          </div>
+        </div>
+        <div class="stack">
+          <div class="card">
+            <div class="card-h"><div><h3>Ближайшие дни</h3><div class="sub">Сборов на день · нажмите, чтобы открыть</div></div></div>
+            <div class="card-b"><div class="days" id="days-strip"></div></div>
+          </div>
+        </div>
       </div>
-      <div class="toolbar" style="margin-bottom:0">
-        <button class="btn btn-dark" onclick="exportCSV()"><svg class="i" ><use href="#i-dl"/></svg> CSV (Excel)</button>
-        <button class="btn btn-ghost" onclick="exportJSON()"><svg class="i" ><use href="#i-dl"/></svg> <span data-t>JSON (всё)</span></button>
+    </section>
+
+    <!-- ---------- ЗАЯВКИ ---------- -->
+    <section class="page" data-page="requests">
+      <div class="phead">
+        <div><h1>Заявки</h1><p>Очередь на распределение и все адреса базы</p></div>
+        <div class="subtabs" id="req-tabs">
+          <button data-sub="queue" aria-current="true">Очередь</button>
+          <button data-sub="all">Все адреса</button>
+        </div>
       </div>
-    </div>
-    <div class="card">
-      <h3 style="margin:0 0 10px;text-transform:uppercase;font-size:15px" data-t>Безопасность</h3>
-      <label>Новый пароль</label>
-      <input type="password" id="new-admin-password" autocomplete="new-password" placeholder="Минимум 12 символов">
-      <div style="height:12px"></div>
-      <button class="btn btn-ghost" onclick="changePassword()">Сменить пароль</button>
-    </div>
-    <div class="card">
-      <h3 style="margin:0 0 10px;text-transform:uppercase;font-size:15px" data-t>Хранение фото</h3>
-      <p class="legendtxt" style="margin:0" data-t>Фотографии старше 180 дней удаляются автоматически при каждом открытии этой панели.</p>
-    </div>
-  </div>
+      <div id="req-queue" class="inline-host"></div>
+      <div id="req-all" hidden class="stack">
+        <div class="card">
+          <div class="filters">
+            <input type="date" class="field" id="fl-date" onchange="renderAddrTable()">
+            <select class="field" id="fl-driver" onchange="renderAddrTable()"></select>
+            <select class="field" id="fl-status" onchange="renderAddrTable()">
+              <option value="">Все статусы</option><option value="open">В работе</option>
+              <option value="new">Новый</option><option value="planned">Запланирован</option>
+              <option value="done">Выполнено</option><option value="noanswer">Не отвечает</option>
+              <option value="problem">Проблема</option><option value="cancelled">Отменено</option></select>
+            <label class="searchbox"><span class="muted">⌕</span><input type="text" id="fl-q" oninput="renderAddrTable()" placeholder="улица, индекс, телефон…"></label>
+            <button class="btn btn-sm" onclick="document.getElementById('fl-date').value='';renderAddrTable()">Все даты</button>
+            <button class="btn btn-sm btn-pri" onclick="openDispatchAdmin('one')" style="margin-left:auto">+ Адрес</button>
+          </div>
+          <div class="tscroll"><table class="t"><thead><tr><th>Дата</th><th>Адрес</th><th>Мешки</th><th>Водитель</th><th>Статус</th></tr></thead><tbody id="addr-tbody"></tbody></table></div>
+          <div class="tfoot"><span id="addr-count" class="muted"></span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- КАЛЕНДАРЬ ---------- -->
+    <section class="page" data-page="cal">
+      <div class="phead">
+        <div><h1 id="cal-title">Календарь</h1><p>Сборы по дням выбранного водителя. Красный — bank holiday.</p></div>
+        <div class="pactions"><button class="btn btn-sm" onclick="calShift(-1)">‹ Пред.</button><button class="btn btn-sm" onclick="calToday()">Сегодня</button><button class="btn btn-sm" onclick="calShift(1)">След. ›</button></div>
+      </div>
+      <div class="card"><div class="card-b">
+        <div class="cal" id="cal-grid"></div>
+        <div class="legend"><span><i style="background:var(--brand)"></i>запланировано</span><span><i style="background:var(--ok)"></i>выполнено</span><span><i style="background:var(--crit-soft);border:1px solid var(--crit)"></i>bank holiday</span><span><i style="background:var(--surface-3);border:1px solid var(--line-2)"></i>воскресенье</span></div>
+      </div></div>
+    </section>
+
+    <!-- ---------- ДЕНЬ ---------- -->
+    <section class="page" data-page="day">
+      <div class="phead">
+        <div><h1 id="day-title">День маршрута</h1><p id="day-sub"></p></div>
+        <div class="pactions">
+          <button class="btn btn-sm" onclick="dayShift(-1)">‹</button>
+          <input type="date" class="field" id="day-date" style="width:auto;min-height:32px;padding:4px 9px" onchange="dayPick(this.value)">
+          <button class="btn btn-sm" onclick="dayShift(1)">›</button>
+          <a class="btn btn-sm" id="day-gmaps" target="_blank" rel="noopener" hidden>Google Maps</a>
+          <button class="btn btn-sm" onclick="renderDayPage(true)">Пересчитать</button>
+          <button class="btn btn-sm btn-pri" onclick="openDispatchAdmin('queue')">+ Заявки на этот день</button>
+        </div>
+      </div>
+      <div class="daystats" id="day-stats"></div>
+      <div class="note warn" id="day-note" hidden></div>
+      <div class="grid2">
+        <div class="card"><div class="card-h"><div><h3>Маршрут</h3><div class="sub" id="day-route-sub">По согласованному времени</div></div></div><div class="card-b flush"><div class="tl" id="day-tl"></div></div></div>
+        <div class="card"><div class="card-b"><div id="day-map" class="mapbox"></div><div class="maplegend" id="day-legend"></div></div></div>
+      </div>
+    </section>
+
+    <!-- ---------- ПЕРЕПИСКА ---------- -->
+    <section class="page" data-page="chat">
+      <div class="phead"><div><h1>Переписка</h1><p>SMS-согласование сборов · ответ YES подтверждает время</p></div></div>
+      <div id="chat-host" class="inline-host"></div>
+    </section>
+
+    <!-- ---------- КОНТЕЙНЕРЫ ---------- -->
+    <section class="page" data-page="banks">
+      <div class="phead">
+        <div><h1>Контейнеры</h1><p>Постоянные точки сбора, визиты, фото и отчёты хостам</p></div>
+        <div class="subtabs" id="bank-tabs"><button data-sub="list" aria-current="true">Список</button><button data-sub="photos">Фото</button><button data-sub="reports">Отчёты хостам</button></div>
+      </div>
+      <div id="bank-list" class="stack">
+        <div class="row"><button class="btn btn-pri" onclick="openBankModal()"><svg class="ic"><use href="#i-plus"/></svg> Добавить контейнер</button><button class="btn" onclick="openAssignModal()">Назначить визиты на день</button></div>
+        <div class="card"><div class="tscroll"><table class="t"><thead><tr><th>Название</th><th>Адрес</th><th>Статус</th><th>Визитов</th><th>Последний визит</th><th></th></tr></thead><tbody id="bank-tbody"></tbody></table></div></div>
+      </div>
+      <div id="bank-photos" hidden class="stack">
+        <div class="card">
+          <div class="filters">
+            <input type="date" class="field" id="ph-date" onchange="renderPhotos()">
+            <select class="field" id="ph-driver" onchange="renderPhotos()"></select>
+            <select class="field" id="ph-kind" onchange="renderPhotos()"><option value="">Все типы</option><option value="open">Бин открыт</option><option value="empty">Бин пуст</option><option value="rubbish">Мусор</option><option value="photo">Прочее</option></select>
+            <label class="check"><input type="checkbox" id="ph-all" onchange="renderPhotos()"> Все даты</label>
+            <span class="muted small" id="ph-count" style="margin-left:auto"></span>
+          </div>
+          <div class="card-b"><div class="photogrid" id="ph-grid"></div></div>
+        </div>
+      </div>
+      <div id="bank-reports" hidden class="stack">
+        <div class="note warn" id="rep-warn" hidden></div>
+        <div class="row"><input type="month" class="field" id="rep-month" style="width:auto" onchange="renderReports()"><button class="btn" onclick="internalPdf()"><svg class="ic"><use href="#i-dl"/></svg> Сводка для себя (PDF)</button><button class="btn" onclick="allHostPdf()"><svg class="ic"><use href="#i-dl"/></svg> Все отчёты хостам (PDF)</button></div>
+        <div class="card"><div class="tscroll"><table class="t"><thead><tr><th>Площадка</th><th>Условия</th><th>Вывозов</th><th>Собрано</th><th>К выплате</th><th></th></tr></thead><tbody id="rep-tbody"></tbody></table></div>
+        <div class="tfoot"><span class="muted">Учитываются только выполненные вывозы за месяц. Ставка и контакт — в карточке контейнера.</span></div></div>
+      </div>
+    </section>
+
+    <!-- ---------- НАСТРОЙКИ ---------- -->
+    <section class="page" data-page="settings">
+      <div class="phead">
+        <div><h1>Настройки</h1><p>Часы прибытия, доступ, старт и склад, водители, данные</p></div>
+        <div class="subtabs" id="set-tabs"><button data-sub="hours" aria-current="true">Часы и доступ</button><button data-sub="dispatch">Старт и параметры</button><button data-sub="drivers">Водители</button><button data-sub="data">Данные и аккаунт</button></div>
+      </div>
+      <div id="set-hours" class="grid2">
+        <div class="stack">
+          <div class="card">
+            <div class="card-h"><div><h3>Часы прибытия к клиентам</h3><div class="sub">Время Великобритании. Выезд из дома может быть раньше, склад — позже. Изменения не переносят договорённости.</div></div><button class="btn btn-sm" onclick="hoursForm({day:todayStr(),opens:'08:00',closes:'16:00',closed:false},'Исключение на дату')">Исключение на дату</button></div>
+            <div class="card-b"><div class="hoursgrid" id="hours-week"></div><div class="row" id="hours-days" style="margin-top:12px"></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-h"><div><h3>Аккаунты</h3><div class="sub">Кто может входить в пульт и приложение водителя</div></div><button class="btn btn-sm" onclick="memberForm()">Назначить доступ</button></div>
+          <div id="members"></div>
+        </div>
+      </div>
+      <div id="set-dispatch" hidden class="inline-host"></div>
+      <div id="set-drivers" hidden class="stack">
+        <div class="row"><button class="btn btn-pri" onclick="openDrvModal()"><svg class="ic"><use href="#i-plus"/></svg> Добавить водителя</button><span class="muted small">После создания назначьте аккаунт: Настройки → Часы и доступ → Назначить доступ.</span></div>
+        <div class="card"><div class="tscroll"><table class="t"><thead><tr><th>Имя</th><th>Статус</th><th>Адресов всего</th><th></th></tr></thead><tbody id="drv-tbody"></tbody></table></div></div>
+      </div>
+      <div id="set-data" hidden class="grid2">
+        <div class="stack">
+          <div class="card"><div class="card-h"><div><h3>Экспорт</h3><div class="sub">Адреса за период</div></div></div>
+            <div class="card-b stack"><div class="fgrid"><div class="f-group"><label class="f">С даты</label><input class="field" type="date" id="ex-from"></div><div class="f-group"><label class="f">По дату</label><input class="field" type="date" id="ex-to"></div></div>
+            <div class="row"><button class="btn" onclick="exportCSV()"><svg class="ic"><use href="#i-dl"/></svg> CSV (Excel)</button><button class="btn" onclick="exportJSON()"><svg class="ic"><use href="#i-dl"/></svg> JSON (всё)</button></div></div></div>
+          <div class="card"><div class="card-h"><div><h3>Хранение фото</h3></div></div><div class="card-b muted small">Фотографии старше 180 дней удаляются автоматически при каждом открытии пульта.</div></div>
+        </div>
+        <div class="card"><div class="card-h"><div><h3>Аккаунт</h3></div></div>
+          <div class="card-b stack">
+            <div class="f-group"><label class="f">Новый пароль</label><input class="field" type="password" id="new-admin-password" autocomplete="new-password" placeholder="Минимум 12 символов"></div>
+            <div class="row"><button class="btn" onclick="changePassword()">Сменить пароль</button><button class="btn btn-crit" onclick="adminLogout()">Выйти</button></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
 </div>
 
-<!-- ===== MODALS ===== -->
-<div class="modal-bg" id="m-addr-bg">
-  <div class="modal">
-    <button class="btn btn-primary" id="ma-chat" onclick="openAddressSMS()">SMS · согласовать сбор</button><p class="ops-slot-label" id="ma-slot"></p>
-    <h2 id="m-addr-title">Добавить адрес</h2>
-    <div id="ma-bankinfo" style="display:none;margin-top:6px"></div>
-    <label data-t>Адрес</label>
-    <textarea id="ma-text" placeholder="4 bags — 56 Corporation Rd, Cardiff CF11 7AW"></textarea>
-    <label data-t>Пакетов</label>
-    <input type="number" id="ma-bags" min="0">
-    <label data-t>Телефон</label>
-    <input type="text" id="ma-phone">
-    <label data-t>Заметка</label>
-    <input type="text" id="ma-note">
-    <label data-t>Дата</label>
-    <input type="date" id="ma-date">
-    <label data-t>Водитель</label>
-    <select id="ma-driver"></select>
-    <label data-t>Статус</label>
-    <select id="ma-status">
-      <option value="new" data-t>Новый</option><option value="planned" data-t>Запланирован</option>
-      <option value="done" data-t>Выполнено</option><option value="noanswer" data-t>Не отвечает</option>
-      <option value="problem" data-t>Проблема</option><option value="cancelled" data-t>Отменено</option>
-    </select>
-    <label data-t>Заметка о результате</label>
-    <input type="text" id="ma-resnote">
-    <div style="height:16px"></div>
-    <div class="toolbar" style="margin:0">
-      <button class="btn btn-primary" id="ma-save" onclick="saveAddrModal()"><svg class="i" ><use href="#i-save"/></svg> <span data-t>Сохранить</span></button>
-      <button class="btn btn-ghost" onclick="closeModal('m-addr-bg')" data-t>Отмена</button>
-      <span style="flex:1"></span>
-      <button class="btn btn-no" id="ma-del" onclick="deleteAddrModal()" style="display:none"><svg class="i" ><use href="#i-trash"/></svg> <span data-t>Удалить</span></button>
+<!-- ===== МОДАЛЬНЫЕ ОКНА (старые сценарии, новый вид) ===== -->
+<div class="modal-bg" id="m-addr-bg"><div class="modal">
+  <h2 id="m-addr-title">Адрес</h2>
+  <div class="row" style="margin-bottom:10px"><button class="btn btn-acc btn-sm" id="ma-chat" onclick="openAddressSMS()">SMS · согласовать сбор</button><span class="ops-slot-label" id="ma-slot" style="margin:0"></span></div>
+  <div class="stack">
+    <div class="f-group"><label class="f">Адрес</label><textarea class="field" id="ma-text" placeholder="56 Corporation Rd, Cardiff CF11 7AW"></textarea></div>
+    <div class="fgrid">
+      <div class="f-group"><label class="f">Мешков</label><input class="field" type="number" id="ma-bags" min="0"></div>
+      <div class="f-group"><label class="f">Телефон</label><input class="field" type="text" id="ma-phone"></div>
+      <div class="f-group"><label class="f">Дата</label><input class="field" type="date" id="ma-date"></div>
+      <div class="f-group"><label class="f">Водитель</label><select class="field" id="ma-driver"></select></div>
+      <div class="f-group"><label class="f">Статус</label><select class="field" id="ma-status"><option value="new">Новый</option><option value="planned">Запланирован</option><option value="done">Выполнено</option><option value="noanswer">Не отвечает</option><option value="problem">Проблема</option><option value="cancelled">Отменено</option></select></div>
     </div>
+    <div class="f-group"><label class="f">Заметка</label><input class="field" type="text" id="ma-note"></div>
+    <div class="f-group"><label class="f">Заметка о результате</label><input class="field" type="text" id="ma-resnote"></div>
   </div>
-</div>
+  <div class="modal-actions"><button class="btn btn-crit" id="ma-del" onclick="deleteAddrModal()" style="display:none">Удалить</button><span class="spacer"></span><button class="btn" onclick="closeModal('m-addr-bg')">Отмена</button><button class="btn btn-pri" id="ma-save" onclick="saveAddrModal()">Сохранить</button></div>
+</div></div>
 
-<div class="modal-bg" id="m-bulk-bg">
-  <div class="modal">
-    <h2 data-t>Массовое добавление</h2>
-    <p class="legendtxt" style="margin-top:2px" data-t>Один адрес — одна строка. Если строка начинается с числа и «bags» — количество пакетов распознается автоматически.</p>
-    <label data-t>Адреса</label>
-    <textarea id="mb-text" style="min-height:150px" placeholder="4 bags - 56 Corporation Rd, Cardiff CF11 7AW
-2 bags - 12 Commercial St, Newport NP20 1LP
-10 Portland Villas, Swansea SA1 5SB"></textarea>
-    <label data-t>Дата (для всех)</label>
-    <input type="date" id="mb-date">
-    <label data-t>Водитель (для всех)</label>
-    <select id="mb-driver"></select>
-    <div style="height:16px"></div>
-    <div class="toolbar" style="margin:0">
-      <button class="btn btn-primary" id="mb-save" onclick="saveBulk()"><svg class="i" ><use href="#i-plus"/></svg> <span data-t>Добавить все</span></button>
-      <button class="btn btn-ghost" onclick="closeModal('m-bulk-bg')" data-t>Отмена</button>
-    </div>
-    <p class="legendtxt" id="mb-progress"></p>
+<div class="modal-bg" id="m-drv-bg"><div class="modal">
+  <h2 id="m-drv-title">Водитель</h2>
+  <div class="stack">
+    <div class="f-group"><label class="f">Имя</label><input class="field" type="text" id="md-name" placeholder="Jonas"></div>
+    <div class="f-group"><label class="f">Активен</label><select class="field" id="md-active"><option value="true">Да</option><option value="false">Нет (не может войти)</option></select></div>
   </div>
-</div>
+  <div class="modal-actions"><button class="btn" onclick="closeModal('m-drv-bg')">Отмена</button><button class="btn btn-pri" onclick="saveDrvModal()">Сохранить</button></div>
+</div></div>
 
-<div class="modal-bg" id="m-drv-bg">
-  <div class="modal">
-    <h2 id="m-drv-title">Добавить водителя</h2>
-    <label data-t>Имя</label>
-    <input type="text" id="md-name" placeholder="Jonas">
-    <p class="legendtxt">После создания водителя назначьте ему аккаунт: SMS → График и доступ.</p>
-    <label data-t>Активен</label>
-    <select id="md-active"><option value="true" data-t>Да</option><option value="false" data-t>Нет (не может войти)</option></select>
-    <div style="height:16px"></div>
-    <div class="toolbar" style="margin:0">
-      <button class="btn btn-primary" onclick="saveDrvModal()"><svg class="i" ><use href="#i-save"/></svg> <span data-t>Сохранить</span></button>
-      <button class="btn btn-ghost" onclick="closeModal('m-drv-bg')" data-t>Отмена</button>
+<div class="modal-bg" id="m-bank-bg"><div class="modal">
+  <h2 id="m-bank-title">Контейнер</h2>
+  <div class="stack">
+    <div class="f-group"><label class="f">Название</label><input class="field" type="text" id="mk-name" placeholder="Glyncoch Community Centre"></div>
+    <div class="f-group"><label class="f">Адрес</label><textarea class="field" id="mk-text" placeholder="Pontypridd CF37 3DA"></textarea></div>
+    <div class="f-group"><label class="f">Заметка</label><input class="field" type="text" id="mk-note"></div>
+    <div class="fgrid">
+      <div class="f-group"><label class="f">Активен</label><select class="field" id="mk-active"><option value="true">Да</option><option value="false">Нет</option></select></div>
+      <div class="f-group"><label class="f">Условия оплаты</label><select class="field" id="mk-ratetype" onchange="onRateTypeChange()"><option value="per_kg">За килограмм</option><option value="fixed">Фикс в месяц</option><option value="none">Не платим</option></select></div>
+      <div class="f-group"><label class="f" id="mk-ratelbl">Ставка, £ за кг</label><input class="field" type="number" id="mk-ratevalue" step="0.01" min="0" placeholder="0.20"></div>
+      <div class="f-group"><label class="f">Показывать вес в отчёте</label><select class="field" id="mk-showw"><option value="true">Да</option><option value="false">Нет</option></select></div>
+      <div class="f-group"><label class="f">Контактное лицо</label><input class="field" type="text" id="mk-contact"></div>
+      <div class="f-group"><label class="f">Email для отчёта</label><input class="field" type="email" id="mk-email"></div>
     </div>
   </div>
-</div>
+  <div class="modal-actions"><button class="btn btn-crit" id="mk-del" onclick="deleteBankModal()" style="display:none">Удалить</button><span class="spacer"></span><button class="btn" onclick="closeModal('m-bank-bg')">Отмена</button><button class="btn btn-pri" id="mk-save" onclick="saveBankModal()">Сохранить</button></div>
+</div></div>
 
-<div class="modal-bg" id="m-bank-bg">
-  <div class="modal">
-    <h2 id="m-bank-title">Добавить банк</h2>
-    <label data-t>Название</label>
-    <input type="text" id="mk-name" placeholder="Tesco Extra — Cardiff Bay">
-    <label data-t>Адрес</label>
-    <textarea id="mk-text" placeholder="Ferry Rd, Cardiff CF11 0JR"></textarea>
-    <label data-t>Заметка</label>
-    <input type="text" id="mk-note">
-    <label data-t>Активен</label>
-    <select id="mk-active"><option value="true" data-t>Да</option><option value="false" data-t>Нет</option></select>
-    <label data-t>Условия оплаты</label>
-    <select id="mk-ratetype" onchange="onRateTypeChange()">
-      <option value="per_kg" data-t>За килограмм</option>
-      <option value="fixed" data-t>Фикс в месяц</option>
-      <option value="none" data-t>Не платим</option>
-    </select>
-    <label id="mk-ratelbl" data-t>Ставка, £ за кг</label>
-    <input type="number" id="mk-ratevalue" step="0.01" min="0" placeholder="0.20">
-    <label data-t>Контактное лицо</label>
-    <input type="text" id="mk-contact" placeholder="Emma Nelmes">
-    <label data-t>Email для отчёта</label>
-    <input type="email" id="mk-email" placeholder="office@example.org">
-    <label data-t>Показывать вес в отчёте хосту</label>
-    <select id="mk-showw"><option value="true" data-t>Да</option><option value="false" data-t>Нет</option></select>
-    <div style="height:16px"></div>
-    <div class="toolbar" style="margin:0">
-      <button class="btn btn-primary" id="mk-save" onclick="saveBankModal()"><svg class="i" ><use href="#i-save"/></svg> <span data-t>Сохранить</span></button>
-      <button class="btn btn-ghost" onclick="closeModal('m-bank-bg')" data-t>Отмена</button>
-      <span style="flex:1"></span>
-      <button class="btn btn-no" id="mk-del" onclick="deleteBankModal()" style="display:none"><svg class="i" ><use href="#i-trash"/></svg> <span data-t>Удалить</span></button>
-    </div>
+<div class="modal-bg" id="m-assign-bg"><div class="modal">
+  <h2>Назначить визиты на день</h2>
+  <div class="stack">
+    <div class="fgrid"><div class="f-group"><label class="f">Дата</label><input class="field" type="date" id="as-date"></div><div class="f-group"><label class="f">Водитель</label><select class="field" id="as-driver"></select></div></div>
+    <div class="f-group"><label class="f">Контейнеры</label><div class="chklist" id="as-list"></div></div>
+    <p class="muted small" id="as-progress"></p>
   </div>
-</div>
+  <div class="modal-actions"><button class="btn" onclick="closeModal('m-assign-bg')">Отмена</button><button class="btn btn-pri" id="as-save" onclick="saveAssign()">Назначить</button></div>
+</div></div>
 
-<div class="modal-bg" id="m-assign-bg">
-  <div class="modal">
-    <h2 data-t>Назначить банки на день</h2>
-    <label data-t>Дата</label>
-    <input type="date" id="as-date">
-    <label data-t>Водитель</label>
-    <select id="as-driver"></select>
-    <label data-t>Банки</label>
-    <div class="chklist" id="as-list"></div>
-    <div style="height:16px"></div>
-    <div class="toolbar" style="margin:0">
-      <button class="btn btn-primary" id="as-save" onclick="saveAssign()"><svg class="i" ><use href="#i-caldot"/></svg> <span data-t>Назначить</span></button>
-      <button class="btn btn-ghost" onclick="closeModal('m-assign-bg')" data-t>Отмена</button>
-    </div>
-    <p class="legendtxt" id="as-progress"></p>
+<div class="modal-bg" id="m-hours-bg"><div class="modal">
+  <h2 id="m-hours-title">Часы</h2>
+  <div class="stack">
+    <div class="f-group" id="mh-day-wrap"><label class="f">Дата</label><input class="field" type="date" id="mh-day"></div>
+    <div class="fgrid"><div class="f-group"><label class="f">Первое прибытие с</label><input class="field" type="time" id="mh-open"></div><div class="f-group"><label class="f">Последнее прибытие до</label><input class="field" type="time" id="mh-close"></div></div>
+    <label class="check"><input type="checkbox" id="mh-closed"> Выходной</label>
+    <p class="err" id="mh-err"></p>
   </div>
-</div>
+  <div class="modal-actions"><button class="btn btn-crit" id="mh-remove" onclick="hoursRemove()" style="display:none">Сбросить исключение</button><span class="spacer"></span><button class="btn" onclick="closeModal('m-hours-bg')">Отмена</button><button class="btn btn-pri" id="mh-save" onclick="hoursSave()">Сохранить</button></div>
+</div></div>
+
+<div class="modal-bg" id="m-member-bg"><div class="modal">
+  <h2>Доступ пользователя</h2>
+  <div class="stack">
+    <p class="muted small">Сначала создайте пользователя с подтверждённым email в Supabase → Authentication → Users. Пароль передайте ему лично.</p>
+    <div class="f-group"><label class="f">Email</label><input class="field" type="email" id="mm-email"></div>
+    <div class="fgrid"><div class="f-group"><label class="f">Роль</label><select class="field" id="mm-role"><option value="driver">Водитель</option><option value="admin">Администратор</option></select></div><div class="f-group"><label class="f">Водитель</label><select class="field" id="mm-driver"></select></div></div>
+    <label class="check"><input type="checkbox" id="mm-active" checked> Доступ включён</label>
+    <p class="err" id="mm-err"></p>
+  </div>
+  <div class="modal-actions"><button class="btn" onclick="closeModal('m-member-bg')">Отмена</button><button class="btn btn-pri" id="mm-save" onclick="memberSave()">Сохранить</button></div>
+</div></div>
 
 <div class="toast" id="toast"></div>
 
@@ -514,122 +354,50 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px soli
   <div class="lb-cap" id="lb-cap"></div>
   <img id="lb-img" alt="photo">
   <div class="lb-bar">
-    <button style="background:var(--paper);color:var(--ink)" onclick="lbNav(-1)">‹ <span data-t>Пред.</span></button>
-    <button style="background:var(--paper);color:var(--ink)" onclick="lbNav(1)"><span data-t>След.</span> ›</button>
-    <button style="background:var(--no);color:#fff" onclick="lbDelete()"><svg class="i" style="stroke:#fff"><use href="#i-trash"/></svg> <span data-t>Удалить</span></button>
-    <button style="background:var(--hiviz);color:var(--ink)" onclick="lbClose()"><svg class="i" ><use href="#i-x"/></svg> <span data-t>Закрыть</span></button>
+    <button onclick="lbNav(-1)">‹ Пред.</button>
+    <button onclick="lbNav(1)">След. ›</button>
+    <button class="crit" onclick="lbDelete()">Удалить</button>
+    <button class="acc" onclick="lbClose()">Закрыть</button>
   </div>
 </div>
+
 <script>
-/* ============ SUBNEX Ops — админка ============ */
+/* ============ SUBNEX Пульт — админка. Логика базы сохранена, оболочка новая. ============ */
 'use strict';
-
-/* Supabase credentials: впишите сюда, либо оставьте пустыми — спросит при первом запуске */
-const CFG = (typeof window!=='undefined' && window.SUBNEX_CONFIG) ? window.SUBNEX_CONFIG : {};
-const CFG_URL = CFG.url || '';
-const CFG_KEY = CFG.key || '';
-
-let sb=null, DRIVERS=[], ADDR=[], BANKS=[], LOCS=[], editAddrId=null, editDrvId=null, editBankId=null;
-const LANG=localStorage.getItem('admin_lang')||'ru';
-function setAdminLang(v){ localStorage.setItem('admin_lang',v); location.reload(); }
-const EN={
-'Обновить':'Refresh','Панель управления':'Control panel','Подключить':'Connect',
-'URL и anon key — в Supabase: Project Settings → API.':'URL and anon key: Supabase → Project Settings → API.',
-'Админ-PIN':'Admin PIN','Придумайте админ-PIN (первый запуск)':'Create an admin PIN (first run)',
-'Войти':'Log in','Создать и войти':'Create & log in',
-'Сводка':'Overview','Адреса':'Addresses','Банки':'Banks','Карта':'Map','Фото':'Photos','Водители':'Drivers','Данные':'Data',
-'Дата':'Date','Водитель':'Driver','Статус':'Status','Поиск':'Search','Все':'All','В работе':'Open',
-'Новый':'New','Запланирован':'Planned','Выполнено':'Done','Не отвечает':'No answer','Проблема':'Problem','Отменено':'Cancelled',
-'По водителям':'By driver','Всего':'Total','Осталось':'Left','Пакетов собрано':'Bags collected',
-'Добавить адрес':'Add address','Массовое добавление':'Bulk add','Адрес':'Address','Пак.':'Bags',
-'Добавить банк':'Add bank','Назначить на день':'Assign to a day','Название':'Name','Визитов':'Visits','Последний визит':'Last visit',
-'Банк — постоянная точка. Кнопкой «Назначить на день» вы создаёте визиты выбранным банкам: они появятся у водителя в списке на дату.':'A bank is a permanent location. Use "Assign to a day" to create visits for selected banks: they will appear on the driver\'s list for that date.',
-'Тип фото':'Photo type','Бин открыт':'Bin open','Бин пуст':'Bin empty','Мусор':'Rubbish','Прочее':'Other','Все даты':'All dates',
-'Добавить водителя':'Add driver','Имя':'Name','Адресов всего':'Total addresses',
-'Отчёты':'Reports','Месяц':'Month','кг':'kg','месяц':'month','Площадка':'Site','Условия':'Terms','Вывозов':'Collections',
-'Собрано':'Collected','К выплате':'Payable','Сводка для себя (PDF)':'Internal summary (PDF)',
-'Все отчёты хостам (PDF)':'All host reports (PDF)','Условия оплаты':'Payment terms',
-'За килограмм':'Per kilogram','Фикс в месяц':'Fixed monthly','Не платим':'No payment',
-'Ставка, £ за кг':'Rate, £ per kg','Сумма в месяц, £':'Monthly amount, £',
-'Контактное лицо':'Contact person','Email для отчёта':'Report email',
-'Показывать вес в отчёте хосту':'Show weight in host report',
-'Учитываются только выполненные вывозы за выбранный месяц. Ставка и контакт задаются в карточке площадки на вкладке «Банки».':'Only completed collections in the selected month are counted. Rate and contact are set in the site card on the Banks tab.',
-'Нет данных за этот месяц':'No data for this month','Готовлю PDF…':'Building PDF…',
-'Столбцы ставок не найдены в базе — выполните SQL-миграцию, иначе суммы считаются по умолчанию 20p/кг.':'Rate columns not found in the database — run the SQL migration, otherwise amounts default to 20p/kg.',
-'Экспорт':'Export','С даты':'From','По дату':'To','JSON (всё)':'JSON (all)','Безопасность':'Security','Новый админ-PIN':'New admin PIN',
-'минимум 4 цифры':'minimum 4 digits','Сменить PIN':'Change PIN',
-'Хранение фото':'Photo storage','Фотографии старше 180 дней удаляются автоматически при каждом открытии этой панели.':'Photos older than 180 days are deleted automatically each time this panel is opened.',
-'Пакетов':'Bags','Телефон':'Phone','Заметка':'Note','Заметка о результате':'Result note',
-'Сохранить':'Save','Отмена':'Cancel','Удалить':'Delete',
-'Один адрес — одна строка. Если строка начинается с числа и «bags» — количество пакетов распознается автоматически.':'One address per line. If a line starts with a number and "bags", the bag count is parsed automatically.',
-'Дата (для всех)':'Date (for all)','Водитель (для всех)':'Driver (for all)','Добавить все':'Add all',
-'PIN (4 цифры, уникальный)':'PIN (4 digits, unique)','Активен':'Active','Да':'Yes','Нет (не может войти)':'No (cannot log in)','Нет':'No',
-'Назначить банки на день':'Assign banks to a day','Назначить':'Assign',
-'Пред.':'Prev','След.':'Next','Закрыть':'Close',
-'улица, индекс…':'street, postcode…',
-'— не назначен —':'— unassigned —','Не назначен':'Unassigned','(выкл)':'(off)',
-'Адресов на день':'Addresses today','Банков посещено':'Banks visited','Средняя заполненность':'Avg fill level','Фото за день':'Photos today',
-'Нет данных на эту дату':'No data for this date','Не назначено водителю':'Not assigned to a driver',
-'Ничего не найдено':'Nothing found','Показано':'Shown','нет координат':'no coordinates',
-'Водителей пока нет':'No drivers yet','Активен2':'Active','Выключен':'Disabled',
-'Банков пока нет':'No banks yet','Выкл':'Off','Банк':'Bank',
-'Фото не найдены':'No photos found','(адрес удалён)':'(address deleted)',
-'Введите адрес':'Enter an address','Координаты…':'Geocoding…','Ошибка сохранения':'Save error',
-'Сохранено':'Saved','Сохранено · ⚠ координаты не найдены':'Saved · ⚠ coordinates not found',
-'Удалить этот адрес?':'Delete this address?','Пустой список':'Empty list',
-'Обрабатываю':'Processing','Добавлено':'Added','с координатами':'with coordinates',
-'Имя и PIN из 4 цифр обязательны':'Name and a 4-digit PIN are required','Такой PIN уже занят':'This PIN is already taken',
-'Ошибка (PIN должен быть уникальным)':'Error (PIN must be unique)',
-'Данные обновлены':'Data refreshed','Ошибка загрузки данных':'Failed to load data',
-'Минимум 4 цифры':'Minimum 4 digits','Неверный PIN':'Wrong PIN','Ошибка соединения с базой':'Database connection error',
-'Нет связи с базой. Проверьте URL/key и что SQL-схема выполнена.':'No database connection. Check URL/key and that the SQL schema has been run.',
-'Ошибка':'Error','PIN изменён':'PIN changed',
-'Удалить это фото навсегда?':'Delete this photo permanently?','Фото удалено':'Photo deleted',
-'Введите название':'Enter a name','Удалить этот банк? Прошлые визиты останутся.':'Delete this bank? Past visits will remain.',
-'Выберите дату, водителя и хотя бы один банк':'Pick a date, a driver and at least one bank',
-'Назначено визитов':'Visits assigned','уже были на эту дату':'already existed for this date',
-'Заполнен':'Fill','строк':'rows','Обрабатываю банки…':'Processing banks…',
-'Ободок: белый — в работе, зелёный — выполнено, красный — не отвечает, жёлтый — проблема':'Ring: white — open, green — done, red — no answer, yellow — problem',
-'онлайн':'online','только что':'just now','мин назад':'min ago',
-'грузовик — водитель онлайн (приложение открыто)':'truck — driver online (app open)',
-'пак.':'bags'
-};
-function t(k){ return LANG==='en'?(EN[k]??k):k; }
-function applyLang(){
-  const ls=document.getElementById('lang-sel'); if(ls) ls.value=LANG;
-  if(LANG!=='en') return;
-  document.documentElement.lang='en';
-  document.title='SUBNEX Ops';
-  document.querySelectorAll('[data-t]').forEach(el=>{ el.textContent=t(el.textContent.trim()); });
-  document.querySelectorAll('[data-t-ph]').forEach(el=>{ el.placeholder=t(el.placeholder); });
-}
+const CFG=(typeof window!=='undefined'&&window.SUBNEX_CONFIG)?window.SUBNEX_CONFIG:{};
+const CFG_URL=CFG.url||'', CFG_KEY=CFG.key||'';
+let sb=null, DRIVERS=[], ADDR=[], BANKS=[], LOCS=[], PHOTOS=[], LBLIST=[], LBIDX=0;
+let editAddrId=null, editDrvId=null, editBankId=null;
 const STATUS_RU={new:'Новый',planned:'Запланирован',done:'Выполнено',noanswer:'Не отвечает',problem:'Проблема',cancelled:'Отменено'};
-function ST(x){ return t(STATUS_RU[x]||x); }
-const DRIVER_COLORS=['#2B5C9E','#C2461F','#0B8457','#8E44AD','#B7950B','#148F9E','#A93254','#5D6D2E'];
-
-function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function uuid(){ return crypto.randomUUID?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return (c==='x'?r:(r&0x3|0x8)).toString(16);}); }
+const ST=x=>STATUS_RU[x]||x;
+const DRIVER_COLORS=['#0F6B4F','#C2461F','#2B5C9E','#8E44AD','#B7950B','#148F9E','#A93254','#5D6D2E'];
+const BANKPL='<span class="chip bank">Контейнер</span>';
+const C=window.SubnexDispatchCore;
+const todayStr=()=>C.ukDay();
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uuid=()=>crypto.randomUUID?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return (c==='x'?r:(r&0x3|0x8)).toString(16);});
 let toastTimer=null;
-function toast(m){ const el=document.getElementById('toast'); el.textContent=m; el.classList.add('show');
-  clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),2600); }
-function getCreds(){ return {url:CFG_URL||localStorage.getItem('sb_url')||'', key:CFG_KEY||localStorage.getItem('sb_key')||''}; }
-function saveConfig(){
-  const url=document.getElementById('cfg-url').value.trim().replace(/\/$/,'');
-  const key=document.getElementById('cfg-key').value.trim();
-  if(!url||!key) return;
-  localStorage.setItem('sb_url',url); localStorage.setItem('sb_key',key);
-  init();
-}
+function toast(m){const el=document.getElementById('toast');el.textContent=m;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2800);}
+const getCreds=()=>({url:CFG_URL||localStorage.getItem('sb_url')||'',key:CFG_KEY||localStorage.getItem('sb_key')||''});
+function saveConfig(){const url=document.getElementById('cfg-url').value.trim().replace(/\/$/,''),key=document.getElementById('cfg-key').value.trim();if(!url||!key)return;localStorage.setItem('sb_url',url);localStorage.setItem('sb_key',key);init();}
+const dayLabel=d=>new Intl.DateTimeFormat('ru-RU',{weekday:'long',day:'numeric',month:'long',timeZone:'UTC'}).format(new Date(d+'T12:00:00Z'));
+const dayShort=d=>new Intl.DateTimeFormat('ru-RU',{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'}).format(new Date(d+'T12:00:00Z'));
+const addDays=(d,n)=>new Date(Date.parse(d+'T12:00:00Z')+n*86400000).toISOString().slice(0,10);
+const cap=s=>s.charAt(0).toUpperCase()+s.slice(1);
+function bagsLabel(a){const raw=a.bags_text?String(a.bags_text).trim():(a.bags?String(a.bags):'');if(!raw)return '';return raw.replace(/\s*(?:to|-|–)\s*/i,'–')+' мешк.';}
 
-/* ---------- Supabase Auth + server-checked membership ---------- */
-let OPS_PROFILE=null, authListener=null, entering=false;
+/* ---------- bank holidays ---------- */
+const BH={'2026-01-01':1,'2026-04-03':1,'2026-04-06':1,'2026-05-04':1,'2026-05-25':1,'2026-08-31':1,'2026-12-25':1,'2026-12-28':1,'2027-01-01':1,'2027-03-26':1,'2027-03-29':1,'2027-05-03':1,'2027-05-31':1,'2027-08-30':1,'2027-12-27':1,'2027-12-28':1};
+fetch('https://www.gov.uk/bank-holidays.json').then(r=>r.json()).then(j=>{(j['england-and-wales'].events||[]).forEach(e=>BH[e.date]=1);}).catch(()=>{});
+
+/* ---------- auth ---------- */
+let OPS_PROFILE=null, entering=false;
 async function init(){
   const {url,key}=getCreds();
   if(!url||!key){document.getElementById('gate-config').style.display='';document.getElementById('gate-pin').style.display='none';return;}
   document.getElementById('gate-config').style.display='none';document.getElementById('gate-pin').style.display='';
   sb=window.supabase.createClient(url,key);sessionStorage.removeItem('admin_ok');
-  authListener=sb.auth.onAuthStateChange(event=>{if(event==='SIGNED_OUT')setTimeout(clearAdmin,0);});
+  sb.auth.onAuthStateChange(event=>{if(event==='SIGNED_OUT')setTimeout(clearAdmin,0);});
   try{const {data}=await sb.auth.getSession();if(data.session)await acceptAdmin();}catch(e){document.getElementById('gate-err').textContent=Ops.error(e);}
 }
 async function acceptAdmin(){
@@ -644,80 +412,78 @@ async function gateEnter(){
   catch(e){err.textContent=Ops.error(e);}finally{btn.disabled=false;}
 }
 function clearAdmin(){
-  OPS_PROFILE=null;Ops.clear();sb?.removeAllChannels();DRIVERS=[];ADDR=[];BANKS=[];LOCS=[];PHOTOS=[];LBLIST=[];
-  document.getElementById('main').style.display='none';document.getElementById('gate').style.display='';document.getElementById('btn-refresh').style.display='none';
+  OPS_PROFILE=null;Ops.clear();try{QUEUE?.close();SETD?.close();}catch{}QUEUE=null;SETD=null;sb?.removeAllChannels();DRIVERS=[];ADDR=[];BANKS=[];LOCS=[];PHOTOS=[];LBLIST=[];
+  document.getElementById('main').style.display='none';document.getElementById('gate').style.display='';
   document.querySelectorAll('.modal-bg,.photo-lb').forEach(x=>x.classList.remove('show'));
   document.getElementById('lb-img').removeAttribute('src');
 }
 async function adminLogout(){clearAdmin();await sb.auth.signOut();}
 async function changePassword(){
- const field=document.getElementById('new-admin-password');if(field.value.length<12){toast('Минимум 12 символов');return;}
- const {error}=await sb.auth.updateUser({password:field.value});toast(error?'Не удалось изменить пароль. Войдите заново.':'Пароль изменён');if(!error)field.value='';
+  const field=document.getElementById('new-admin-password');if(field.value.length<12){toast('Минимум 12 символов');return;}
+  const {error}=await sb.auth.updateUser({password:field.value});toast(error?'Не удалось изменить пароль. Войдите заново.':'Пароль изменён');if(!error)field.value='';
 }
-async function openSMS(addressId,planner){
- if(!OPS_PROFILE)return;const old=ADDR.find(a=>a.id===addressId),phone=old?.status==='cancelled'?old.phone:null;await Ops.open({sb,profile:OPS_PROFILE,planner,addressId:phone?null:addressId,phone,geocode,addresses:()=>ADDR,drivers:()=>DRIVERS,
-  plannerPoints:driverId=>{
-   if(driverId!==OPS_PROFILE.driver_id)return {};
-   try{const p=JSON.parse(localStorage.getItem('subnexDriver2_local')||'{}');return p.owner===OPS_PROFILE.user_id?{home:p.home,depot:p.depot}:{};}catch{return {};}
-  },
-  hasOutbox:()=>{try{const p=JSON.parse(localStorage.getItem('subnexDriver2_local')||'{}');return p.owner===OPS_PROFILE.user_id&&p.outbox?.length>0;}catch{return false;}},
-  onChanged:()=>{if(OPS_PROFILE)refreshAll(true);}});
-}
-async function openDispatchAdmin(tab='queue'){
- if(!OPS_PROFILE)return;
- const selected=document.getElementById('fl-driver').value||OPS_PROFILE.driver_id;
- const driver=DRIVERS.find(d=>d.id===selected&&d.active!==false)||DRIVERS.filter(d=>d.active!==false).length===1&&DRIVERS.find(d=>d.active!==false);
- if(!driver){toast('Выберите водителя в фильтре, затем откройте заявки.');return;}
- let points={};try{const p=JSON.parse(localStorage.getItem('subnexDriver2_local')||'{}');if(p.owner===OPS_PROFILE.user_id&&driver.id===OPS_PROFILE.driver_id)points={home:p.home,depot:p.depot};}catch{}
- await OpsPlanner.open({sb,driver,tab,...points,geocode,addresses:()=>ADDR,onSms:async(id,plan)=>{await refreshAll(true);await openSMS(id,plan);},onChanged:()=>refreshAll(true)});
-}
-async function openAddressSMS(){const id=editAddrId;closeModal('m-addr-bg');await openSMS(id);}
 
+/* ---------- водитель пульта ---------- */
+function currentDriver(){const id=document.getElementById('drv-select').value;return DRIVERS.find(d=>d.id===id)||null;}
+function fillDriverSelects(){
+  const active=DRIVERS.filter(d=>d.active!==false);
+  const sel=document.getElementById('drv-select');const prev=sel.value||localStorage.getItem('console_driver')||OPS_PROFILE?.driver_id||active[0]?.id||'';
+  sel.innerHTML=active.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('')||'<option value="">— нет водителей —</option>';
+  sel.value=active.some(d=>d.id===prev)?prev:(active[0]?.id||'');
+  const opts='<option value="">— не назначен —</option>'+DRIVERS.map(d=>`<option value="${d.id}">${esc(d.name)}${d.active?'':' (выкл)'}</option>`).join('');
+  document.getElementById('ma-driver').innerHTML=opts;
+  document.getElementById('fl-driver').innerHTML='<option value="">Все водители</option><option value="none">Не назначен</option>'+DRIVERS.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');
+  document.getElementById('ph-driver').innerHTML='<option value="">Все водители</option>'+DRIVERS.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');
+  document.getElementById('as-driver').innerHTML=active.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');
+  document.getElementById('mm-driver').innerHTML='<option value="">Не назначен</option>'+active.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');
+}
+document.getElementById('drv-select').addEventListener('change',()=>{localStorage.setItem('console_driver',document.getElementById('drv-select').value);QUEUE?.close();QUEUE=null;SETD?.close();SETD=null;POINTS={};renderPage(PAGE,true);});
+const drvName=id=>{const d=DRIVERS.find(x=>x.id===id);return d?d.name:'—';};
+const drvColor=id=>{const i=DRIVERS.findIndex(x=>x.id===id);return i<0?'#6A7A71':DRIVER_COLORS[i%DRIVER_COLORS.length];};
+
+/* ---------- старт/склад водителя из Dispatch ---------- */
+let POINTS={};
+async function driverPoints(driverId){
+  if(POINTS[driverId])return POINTS[driverId];
+  try{const r=await OpsDispatch.rpc(sb,'settings',{driver_id:driverId});POINTS[driverId]={home:r.config?.home||{},depot:r.config?.depot||{},enabled:!!r.enabled};}
+  catch(e){POINTS[driverId]={home:{},depot:{},enabled:false,error:e};}
+  return POINTS[driverId];
+}
+async function renderRailPoints(){
+  const d=currentDriver();if(!d)return;const p=await driverPoints(d.id);
+  const pc=t=>(C.postcode(t||'')||t||'').trim();
+  document.getElementById('rail-points').innerHTML=(C.validPoint(p.home)?'Старт '+esc(pc(p.home.text)||'задан'):'<span style="color:#E8A0A0">Старт не задан</span>')+'<br>'+(C.validPoint(p.depot)?'Склад '+esc(pc(p.depot.text)||'задан'):'<span style="color:#E8A0A0">Склад не задан</span>')+'<br>'+(p.enabled?'<span style="color:var(--rail-ink)">Планировщик включён</span>':'Планировщик подготовлен, не включён');
+}
+
+/* ---------- вход в пульт ---------- */
 async function enterMain(){
-  applyLang();
-  document.getElementById('gate').style.display='none';
-  document.getElementById('main').style.display='';
-  document.getElementById('btn-refresh').style.display='';
-  document.getElementById('dash-date').value=todayStr();
-  document.getElementById('fl-date').value=todayStr();
-  document.getElementById('map-date').value=todayStr();
-  document.getElementById('ph-date').value=todayStr();
-  const first=new Date(); first.setDate(1);
-  document.getElementById('ex-from').value=first.toISOString().slice(0,10);
-  document.getElementById('ex-to').value=todayStr();
-  await refreshAll();
+  document.getElementById('gate').style.display='none';document.getElementById('main').style.display='';
+  document.getElementById('rail-user').textContent=OPS_PROFILE.email||'Администратор';
+  document.getElementById('dash-date').value=todayStr();document.getElementById('fl-date').value='';document.getElementById('ph-date').value=todayStr();
+  const first=new Date();first.setDate(1);document.getElementById('ex-from').value=first.toISOString().slice(0,10);document.getElementById('ex-to').value=todayStr();
+  DAY.date=todayStr();
+  await refreshAll(true);
+  go(location.hash.replace('#','')||'today');
   cleanupOldPhotos();
   try{
     sb.channel('admin-addr')
       .on('postgres_changes',{event:'*',schema:'public',table:'addresses'},()=>refreshAll(true))
       .on('postgres_changes',{event:'*',schema:'public',table:'photos'},()=>refreshAll(true))
       .on('postgres_changes',{event:'*',schema:'public',table:'banks'},()=>refreshAll(true))
-      .on('postgres_changes',{event:'*',schema:'public',table:'driver_locations'},async()=>{
-        try{
-          const {data}=await sb.from('driver_locations').select('*');
-          if(data) LOCS=data;
-          if(document.getElementById('p-map').classList.contains('active')) renderMap();
-        }catch(e){}
-      })
+      .on('postgres_changes',{event:'*',schema:'public',table:'driver_locations'},async()=>{try{const {data}=await sb.from('driver_locations').select('*');if(data)LOCS=data;if(PAGE==='day')renderDayMap();}catch(e){}})
       .subscribe();
   }catch(e){}
 }
-
-/* автоочистка фото старше 180 дней */
 async function cleanupOldPhotos(){
-  try{
-    const cutoff=new Date(Date.now()-180*86400000).toISOString();
-    for(let pass=0;pass<20;pass++){
-      const {data,error}=await sb.from('photos').select('id,path').lt('created_at',cutoff).limit(100);
-      if(error||!data||!data.length) break;
-      try{ await sb.storage.from('photos').remove(data.map(x=>x.path)); }catch(e){}
-      for(const x of data){ await sb.from('photos').delete().eq('id',x.id); }
-    }
+  try{const cutoff=new Date(Date.now()-180*86400000).toISOString();
+    for(let pass=0;pass<20;pass++){const {data,error}=await sb.from('photos').select('id,path').lt('created_at',cutoff).limit(100);if(error||!data||!data.length)break;
+      try{await sb.storage.from('photos').remove(data.map(x=>x.path));}catch(e){}
+      for(const x of data){await sb.from('photos').delete().eq('id',x.id);}}
   }catch(e){}
 }
-
+let refreshing=false;
 async function refreshAll(silent){
-  if(!OPS_PROFILE)return;
+  if(!OPS_PROFILE||refreshing)return;refreshing=true;
   try{
     const [d,a,p,b,l]=await Promise.all([
       sb.from('drivers').select('*').order('created_at'),
@@ -727,870 +493,528 @@ async function refreshAll(silent){
       sb.from('driver_locations').select('*')
     ]);
     if(!OPS_PROFILE)return;
-    if(d.error||a.error) throw (d.error||a.error);
-    DRIVERS=d.data; ADDR=a.data; PHOTOS=p.error?[]:p.data; BANKS=b.error?[]:b.data; LOCS=l.error?[]:l.data;
+    if(d.error||a.error)throw (d.error||a.error);
+    DRIVERS=d.data;ADDR=a.data;PHOTOS=p.error?[]:p.data;BANKS=b.error?[]:b.data;LOCS=l.error?[]:l.data;
     await Ops.signPhotos(sb,PHOTOS.map(p=>p.path));
-    fillDriverSelects();
-    renderDash(); renderAddrTable(); renderDrivers(); renderBanks();
-    if(document.getElementById('p-map').classList.contains('active')) renderMap();
-    if(document.getElementById('p-photo').classList.contains('active')) renderPhotos();
-    if(!silent) toast(t('Данные обновлены'));
-  }catch(e){ toast(t('Ошибка загрузки данных')); }
+    fillDriverSelects();renderBadges();renderPage(PAGE,false);renderRailPoints();
+    if(!silent)toast('Данные обновлены');
+  }catch(e){toast('Ошибка загрузки данных');}
+  finally{refreshing=false;}
+}
+function renderBadges(){
+  const q=ADDR.filter(a=>a.status==='new'&&!a.date&&a.kind!=='bank').length;
+  const b=document.getElementById('nb-requests');b.textContent=q;b.hidden=!q;
 }
 
-/* ---------- tabs ---------- */
-function setTab(tab){
-  ['dash','addr','bank','rep','map','photo','drv','data'].forEach(x=>{
-    document.getElementById('p-'+x).classList.toggle('active',x===tab);
-    document.getElementById('tb-'+x).classList.toggle('on',x===tab);
-  });
-  if(tab==='rep') renderReports();
-  if(tab==='map') renderMap();
-  if(tab==='photo') renderPhotos();
+/* ---------- навигация ---------- */
+let PAGE='today';
+const PAGES=['today','requests','cal','day','chat','banks','settings'];
+function go(page,opts={}){
+  if(!PAGES.includes(page))page='today';
+  PAGE=page;location.hash=page;
+  document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.dataset.page===page));
+  document.querySelectorAll('#nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.page===page?'page':'false'));
+  if(opts.date){DAY.date=opts.date;}
+  renderPage(page,true,opts);
+  window.scrollTo(0,0);
+}
+document.getElementById('nav').addEventListener('click',e=>{const b=e.target.closest('button[data-page]');if(b)go(b.dataset.page);});
+function subtab(group,sub){
+  document.querySelectorAll('#'+group+'-tabs button').forEach(b=>b.setAttribute('aria-current',b.dataset.sub===sub?'true':'false'));
+  const map={req:['queue','all'],bank:['list','photos','reports'],set:['hours','dispatch','drivers','data']};
+  for(const s of map[group])document.getElementById(group+'-'+s).hidden=s!==sub;
+  SUB[group]=sub;
+  if(group==='req'&&sub==='queue')ensureQueue();
+  if(group==='req'&&sub==='all')renderAddrTable();
+  if(group==='bank'&&sub==='photos')renderPhotos();
+  if(group==='bank'&&sub==='reports')renderReports();
+  if(group==='set'&&sub==='hours')renderHours();
+  if(group==='set'&&sub==='dispatch')ensureSettingsDispatch();
+  if(group==='set'&&sub==='drivers')renderDrivers();
+}
+const SUB={req:'queue',bank:'list',set:'hours'};
+for(const g of ['req','bank','set'])document.getElementById(g+'-tabs').addEventListener('click',e=>{const b=e.target.closest('button[data-sub]');if(b)subtab(g,b.dataset.sub);});
+function renderPage(page,fresh,opts={}){
+  if(page==='today')renderToday();
+  else if(page==='requests'){if(opts.sub)subtab('req',opts.sub);else subtab('req',SUB.req);if(fresh&&opts.tab&&QUEUE)QUEUE.action(opts.tab);if(!fresh&&QUEUE&&!QUEUE.busy&&!QUEUE.closed&&QUEUE.mode==='queue')QUEUE.reload().then(()=>{if(!QUEUE.busy&&QUEUE.mode==='queue')QUEUE.render();}).catch(()=>{});}
+  else if(page==='cal')renderCal();
+  else if(page==='day')renderDayPage(fresh);
+  else if(page==='chat'){if(!opts.skipChat)ensureChat();}
+  else if(page==='banks'){renderBanks();subtab('bank',SUB.bank);}
+  else if(page==='settings')subtab('set',opts.sub||SUB.set);
 }
 
-/* ---------- helpers ---------- */
-function drvName(id){ const d=DRIVERS.find(x=>x.id===id); return d?d.name:'—'; }
-function drvColor(id){
-  const i=DRIVERS.findIndex(x=>x.id===id);
-  return i<0?'#66717C':DRIVER_COLORS[i%DRIVER_COLORS.length];
-}
-function fillDriverSelects(){
-  const opts='<option value="">'+t('— не назначен —')+'</option>'+
-    DRIVERS.map(d=>`<option value="${d.id}">${esc(d.name)}${d.active?'':' '+t('(выкл)')}</option>`).join('');
-  ['ma-driver','mb-driver'].forEach(id=>document.getElementById(id).innerHTML=opts);
-  document.getElementById('fl-driver').innerHTML=
-    '<option value="">'+t('Все')+'</option><option value="none">'+t('Не назначен')+'</option>'+
-    DRIVERS.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');
-  const phSel=document.getElementById('ph-driver');
-  if(phSel) phSel.innerHTML='<option value="">'+t('Все')+'</option>'+
-    DRIVERS.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');
-  const asSel=document.getElementById('as-driver');
-  if(asSel) asSel.innerHTML=DRIVERS.filter(d=>d.active)
-    .map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');
-}
-
-/* ---------- dashboard ---------- */
-function renderDash(){
-  const ds=document.getElementById('dash-date').value||todayStr();
-  const list=ADDR.filter(a=>a.date===ds);
-  const done=list.filter(a=>a.status==='done');
-  const noans=list.filter(a=>a.status==='noanswer');
-  const prob=list.filter(a=>a.status==='problem');
+/* ---------- СЕГОДНЯ ---------- */
+function activeAddr(a){return ['new','planned'].includes(a.status);}
+function renderToday(){
+  const ds=document.getElementById('dash-date').value||todayStr(),isToday=ds===todayStr();
+  document.getElementById('today-title').textContent=isToday?'Сегодня, '+dayLabel(ds).replace(/^\S+,\s*/,''):cap(dayLabel(ds));
+  const list=ADDR.filter(a=>a.date===ds&&a.status!=='cancelled');
+  const done=list.filter(a=>a.status==='done'),noans=list.filter(a=>a.status==='noanswer'),prob=list.filter(a=>a.status==='problem');
   const left=list.length-done.length-noans.length-prob.length;
-  const bags=done.reduce((s,a)=>s+(a.bags||0),0);
-  const bankDone=list.filter(a=>a.kind==='bank'&&a.status==='done');
-  const withFill=bankDone.filter(a=>a.fill_level!=null);
-  const avgFill=withFill.length?Math.round(withFill.reduce((q,a)=>q+a.fill_level,0)/withFill.length):null;
+  const banks=list.filter(a=>a.kind==='bank');
+  document.getElementById('today-sub').textContent=list.length?`${list.length} ${plural(list.length,'сбор','сбора','сборов')} · ${banks.length} ${plural(banks.length,'контейнер','контейнера','контейнеров')} · осталось ${left}`:'На этот день сборов нет';
   document.getElementById('dash-stats').innerHTML=
-    `<div class="stat hi"><div class="n">${list.length}</div><div class="l" style="color:var(--ink2)">${t('Адресов на день')}</div></div>`+
-    `<div class="stat ok"><div class="n">${done.length}</div><div class="l">${t('Выполнено')}</div></div>`+
-    `<div class="stat no"><div class="n">${noans.length}</div><div class="l">${t('Не отвечает')}</div></div>`+
-    `<div class="stat warn"><div class="n">${prob.length}</div><div class="l">${t('Проблема')}</div></div>`+
-    `<div class="stat"><div class="n">${left}</div><div class="l">${t('Осталось')}</div></div>`+
-    `<div class="stat"><div class="n">${bags}</div><div class="l">${t('Пакетов собрано')}</div></div>`+
-    `<div class="stat"><div class="n">${bankDone.length}</div><div class="l">${t('Банков посещено')}</div></div>`+
-    `<div class="stat"><div class="n">${avgFill==null?'—':avgFill+'%'}</div><div class="l">${t('Средняя заполненность')}</div></div>`+
-    `<div class="stat"><div class="n">${dayPhotoCount(ds)}</div><div class="l">${t('Фото за день')}</div></div>`;
-  const rows=DRIVERS.map(d=>{
-    const dl=list.filter(a=>a.driver_id===d.id);
-    if(!dl.length) return '';
-    const dn=dl.filter(a=>a.status==='done'), na=dl.filter(a=>a.status==='noanswer'),
-          pr=dl.filter(a=>a.status==='problem');
-    const lf=dl.length-dn.length-na.length-pr.length;
-    const bg=dn.reduce((s,a)=>s+(a.bags||0),0);
-    return `<tr><td><span class="sw" style="display:inline-block;width:11px;height:11px;border-radius:50%;
-      background:${drvColor(d.id)};margin-right:7px"></span><b>${esc(d.name)}</b></td>
-      <td>${dl.length}</td><td style="color:var(--ok);font-weight:800">${dn.length}</td>
-      <td style="color:var(--no);font-weight:800">${na.length}</td>
-      <td style="color:#8F6400;font-weight:800">${pr.length}</td>
-      <td>${lf}</td><td><b>${bg}</b></td></tr>`;
-  }).join('');
+    `<div class="tile brand"><div class="lab">Сборов на день</div><div class="val">${list.length}</div><div class="foot">${banks.length?banks.length+' — контейнеры':'все адреса'}</div></div>`+
+    `<div class="tile ok"><div class="lab">Выполнено</div><div class="val">${done.length}</div><div class="foot">${list.length?Math.round(done.length/list.length*100)+'%':'—'}</div></div>`+
+    `<div class="tile"><div class="lab">Осталось</div><div class="val">${left}</div><div class="foot">в работе</div></div>`+
+    `<div class="tile crit"><div class="lab">Не отвечает</div><div class="val">${noans.length}</div><div class="foot">повторно предложить</div></div>`+
+    `<div class="tile warn"><div class="lab">Проблема</div><div class="val">${prob.length}</div><div class="foot">${prob.length?'см. заметки':'—'}</div></div>`+
+    `<div class="tile"><div class="lab">Фото за день</div><div class="val">${dayPhotoCount(ds)}</div><div class="foot">контейнеры и адреса</div></div>`;
+  /* внимание */
+  const items=[];
+  const queue=ADDR.filter(a=>a.status==='new'&&!a.date&&a.kind!=='bank');
+  const old=queue.filter(a=>a.created_at&&Date.now()-Date.parse(a.created_at)>7*86400000);
+  if(old.length)items.push({cls:'crit',t:`${old.length} ${plural(old.length,'заявка ждёт','заявки ждут','заявок ждут')} дольше 7 дней`,p:'Срок сбора после заявки — неделя. Распределите их в первую очередь.',go:()=>go('requests',{sub:'queue'})});
+  const noCoords=ADDR.filter(a=>activeAddr(a)&&a.lat==null);
+  if(noCoords.length)items.push({cls:'crit',t:`${noCoords.length} ${plural(noCoords.length,'адрес без координат','адреса без координат','адресов без координат')}`,p:'Без точки на карте адрес не попадёт в расчёт маршрута. Откройте и уточните.',go:()=>{document.getElementById('fl-status').value='open';document.getElementById('fl-q').value='';go('requests',{sub:'all'});}});
+  const noDriver=ADDR.filter(a=>activeAddr(a)&&!a.driver_id);
+  if(noDriver.length)items.push({cls:'warn',t:`${noDriver.length} ${plural(noDriver.length,'адрес без водителя','адреса без водителя','адресов без водителя')}`,p:'Назначьте водителя, иначе адрес никто не увидит.',go:()=>{document.getElementById('fl-driver').value='none';go('requests',{sub:'all'});}});
+  const noPhone=queue.filter(a=>!a.phone);
+  if(noPhone.length)items.push({cls:'warn',t:`${noPhone.length} ${plural(noPhone.length,'заявка без телефона','заявки без телефона','заявок без телефона')}`,p:'SMS-согласование невозможно. Нужен мобильный номер или ручное подтверждение.',go:()=>go('requests',{sub:'queue'})});
+  if(isToday&&left>0&&new Date().getHours()>=15)items.push({cls:'warn',t:`Сегодня ещё ${left} ${plural(left,'сбор','сбора','сборов')} без результата`,p:'Проверьте, что водитель отмечает результат на месте.',go:()=>go('day',{date:ds})});
+  const staleBanks=BANKS.filter(b=>b.active).map(b=>{const v=ADDR.filter(a=>a.bank_id===b.id&&a.status==='done').map(a=>a.date).sort().pop();return {b,last:v};}).filter(x=>!x.last||addDays(x.last,8)<todayStr());
+  if(staleBanks.length)items.push({cls:'far',t:`${staleBanks.length} ${plural(staleBanks.length,'контейнер','контейнера','контейнеров')} без визита больше недели`,p:staleBanks.slice(0,3).map(x=>x.b.name).join(', ')+(staleBanks.length>3?'…':''),go:()=>go('banks')});
+  document.getElementById('attention').innerHTML=items.length?items.map((x,i)=>`<div class="att-item"><i class="att-dot ${x.cls}"></i><div><b>${esc(x.t)}</b><p>${esc(x.p)}</p></div><button class="btn btn-sm go" data-att="${i}">Открыть</button></div>`).join(''):'<div class="empty">Всё под контролем. Ничего не требует внимания.</div>';
+  document.querySelectorAll('[data-att]').forEach(b=>b.onclick=()=>items[+b.dataset.att].go());
+  /* по водителям */
+  const rows=DRIVERS.map(d=>{const dl=list.filter(a=>a.driver_id===d.id);if(!dl.length)return '';const dn=dl.filter(a=>a.status==='done').length,na=dl.filter(a=>a.status==='noanswer').length,pr=dl.filter(a=>a.status==='problem').length;
+    return `<tr><td><span class="dot" style="background:${drvColor(d.id)}"></span><b>${esc(d.name)}</b></td><td class="num">${dl.length}</td><td class="num" style="color:var(--ok);font-weight:600">${dn}</td><td class="num" style="color:var(--crit);font-weight:600">${na}</td><td class="num" style="color:var(--warn);font-weight:600">${pr}</td><td class="num">${dl.length-dn-na-pr}</td></tr>`;}).join('');
   const un=list.filter(a=>!a.driver_id);
-  document.getElementById('dash-drivers').innerHTML=
-    (rows||'')+(un.length?`<tr><td colspan="7" class="note-red">⚠ ${t('Не назначено водителю')}: ${un.length}</td></tr>`:'')
-    ||'<tr><td colspan="7" class="empty">'+t('Нет данных на эту дату')+'</td></tr>';
+  document.getElementById('dash-drivers').innerHTML=(rows||'')+(un.length?`<tr><td colspan="6" style="color:var(--crit)">Не назначено водителю: ${un.length}</td></tr>`:'')||'<tr><td colspan="6" class="empty">Нет данных на эту дату</td></tr>';
+  document.getElementById('dash-drivers-sub').textContent=dayShort(ds);
+  /* ближайшие дни */
+  const drv=currentDriver();const strip=[];
+  for(let i=0;i<8;i++){const d=addDays(todayStr(),i);const dl=ADDR.filter(a=>a.date===d&&a.status!=='cancelled'&&(!drv||a.driver_id===drv.id));const dn=dl.filter(a=>a.status==='done').length;const sun=new Date(d+'T12:00:00Z').getUTCDay()===0;
+    strip.push(`<button class="dayc ${i===0?'today':''} ${sun||BH[d]?'closed':''}" onclick="go('day',{date:'${d}'})"><div class="d">${i===0?'сегодня':i===1?'завтра':dayShort(d).split(',')[0]}</div><div class="dd">${dayShort(d).replace(/^\S+,\s*/,'')}</div><div class="bar"><i style="width:${Math.min(100,dl.length*5)}%"></i></div><div class="meta">${BH[d]?'bank holiday':sun?'воскресенье':dl.length?dl.length+' '+plural(dl.length,'сбор','сбора','сборов')+(dn?' · '+dn+' ✓':''):'свободен'}</div></button>`);}
+  document.getElementById('days-strip').innerHTML=strip.join('');
 }
+function plural(n,a,b,c){const m=n%10,h=n%100;return h>=11&&h<=14?c:m===1?a:m>=2&&m<=4?b:c;}
 
-/* ---------- addresses table ---------- */
+/* ---------- ЗАЯВКИ: очередь (встроенный Dispatch) ---------- */
+let QUEUE=null, SETD=null;
+async function ensureQueue(){
+  const host=document.getElementById('req-queue');const d=currentDriver();
+  if(!d){host.innerHTML='<div class="card"><div class="empty">Сначала добавьте водителя: Настройки → Водители.</div></div>';return;}
+  if(QUEUE&&!QUEUE.closed)return;
+  host.innerHTML='<div class="card"><div class="empty"><span class="spin"></span> Загружаю очередь…</div></div>';
+  try{QUEUE=await OpsDispatch.open({sb,driver:d,mount:host,tabs:['queue','one','batch'],tab:'queue',geocode,addresses:()=>ADDR,
+    onSms:async(id,plan)=>{await refreshAll(true);await openSMS(id,plan);},
+    onChanged:()=>refreshAll(true)});}
+  catch(e){host.innerHTML='<div class="card"><div class="empty">'+esc(OpsDispatch.error(e))+'</div></div>';}
+}
+async function ensureSettingsDispatch(){
+  const host=document.getElementById('set-dispatch');const d=currentDriver();
+  if(!d){host.innerHTML='<div class="card"><div class="empty">Сначала добавьте водителя.</div></div>';return;}
+  if(SETD&&!SETD.closed)return;
+  host.innerHTML='<div class="card"><div class="empty"><span class="spin"></span> Загружаю параметры…</div></div>';
+  try{SETD=await OpsDispatch.open({sb,driver:d,mount:host,tabs:['settings'],tab:'settings',geocode,addresses:()=>ADDR,onChanged:()=>{POINTS={};renderRailPoints();refreshAll(true);}});}
+  catch(e){host.innerHTML='<div class="card"><div class="empty">'+esc(OpsDispatch.error(e))+'</div></div>';}
+}
+async function openDispatchAdmin(tab='queue'){go('requests',{sub:'queue',tab});await ensureQueue();if(QUEUE&&tab!=='queue')QUEUE.action(tab);}
+
+/* ---------- ЗАЯВКИ: все адреса ---------- */
 function renderAddrTable(){
-  const fd=document.getElementById('fl-date').value;
-  const fdr=document.getElementById('fl-driver').value;
-  const fs=document.getElementById('fl-status').value;
-  const q=document.getElementById('fl-q').value.trim().toLowerCase();
+  const fd=document.getElementById('fl-date').value,fdr=document.getElementById('fl-driver').value,fs=document.getElementById('fl-status').value,q=document.getElementById('fl-q').value.trim().toLowerCase();
   let list=[...ADDR];
-  if(fd) list=list.filter(a=>(fs==='cancelled'?a.cancelled_date:a.date)===fd);
-  if(fdr==='none') list=list.filter(a=>!a.driver_id);
-  else if(fdr) list=list.filter(a=>a.driver_id===fdr);
-  if(fs==='open') list=list.filter(a=>['new','planned'].includes(a.status));
-  else if(fs) list=list.filter(a=>a.status===fs);
-  if(q) list=list.filter(a=>(a.text+' '+(a.note||'')+' '+(a.phone||'')).toLowerCase().includes(q));
-  document.getElementById('addr-tbody').innerHTML=list.map(a=>`
-    <tr class="rowtap" onclick="openAddrModal('${a.id}')">
-      <td style="white-space:nowrap">${a.date||a.cancelled_date||'—'}<small class="ops-slot-label">${esc(Ops.slotLabel(a))}</small></td>
-      <td>${a.kind==='bank'?BANKPL+' ':''}${esc(a.text)}${photoCount(a.id)?`<span class="phbadge" onclick="event.stopPropagation();openAddrGallery('${a.id}')">📷 ${photoCount(a.id)}</span>`:''}${a.result_note?'<div class="note-red">'+esc(a.result_note)+'</div>':''}</td>
-      <td><b>${a.bags||0}</b></td>
-      <td style="white-space:nowrap">${a.driver_id?('<span style="color:'+drvColor(a.driver_id)+';font-weight:700">●</span> '+esc(drvName(a.driver_id))):'<span class="note-red">—</span>'}</td>
-      <td><span class="badge ${a.status}">${ST(a.status)}</span>
-        ${(a.kind==='bank'&&a.fill_level!=null)?' <span class="fillcell">'+a.fill_level+'%</span>':''}
-        ${a.lat==null?'<div class="note-red" style="margin-top:3px">'+t('нет координат')+'</div>':''}</td>
-    </tr>`).join('')||'<tr><td colspan="5" class="empty">'+t('Ничего не найдено')+'</td></tr>';
-  document.getElementById('addr-count').textContent=t('Показано')+': '+list.length;
+  if(fd)list=list.filter(a=>(fs==='cancelled'?a.cancelled_date:a.date)===fd);
+  if(fdr==='none')list=list.filter(a=>!a.driver_id);else if(fdr)list=list.filter(a=>a.driver_id===fdr);
+  if(fs==='open')list=list.filter(a=>['new','planned'].includes(a.status));else if(fs)list=list.filter(a=>a.status===fs);
+  if(q)list=list.filter(a=>(a.text+' '+(a.note||'')+' '+(a.phone||'')).toLowerCase().includes(q));
+  list.sort((a,b)=>(b.date||'9999').localeCompare(a.date||'9999')||String(b.created_at).localeCompare(String(a.created_at)));
+  document.getElementById('addr-tbody').innerHTML=list.slice(0,600).map(a=>`
+    <tr class="tap" onclick="openAddrModal('${a.id}')">
+      <td style="white-space:nowrap"><span class="mono">${a.date||a.cancelled_date||'—'}</span>${a.collection_start?'<small class="ops-slot-label">'+esc(Ops.ukTime(a.collection_start)+'–'+Ops.ukTime(a.collection_end))+'</small>':''}</td>
+      <td class="addr"><b>${a.kind==='bank'?BANKPL+' ':''}${esc(a.text)}</b>${a.phone?'<small>'+esc(a.phone)+'</small>':''}${photoCount(a.id)?` <span class="chip ghost" onclick="event.stopPropagation();openAddrGallery('${a.id}')">📷 ${photoCount(a.id)}</span>`:''}${a.result_note?'<span class="warnrow">'+esc(a.result_note)+'</span>':''}${a.lat==null&&activeAddr(a)?'<span class="warnrow">нет координат</span>':''}</td>
+      <td class="num" style="white-space:nowrap">${esc(bagsLabel(a))||'—'}</td>
+      <td style="white-space:nowrap">${a.driver_id?('<span class="dot" style="background:'+drvColor(a.driver_id)+'"></span>'+esc(drvName(a.driver_id))):'<span style="color:var(--crit)">не назначен</span>'}</td>
+      <td><span class="chip st-${a.status}">${ST(a.status)}</span>${(a.kind==='bank'&&a.fill_level!=null)?' <span class="chip ghost">'+a.fill_level+' кг</span>':''}</td>
+    </tr>`).join('')||'<tr><td colspan="5" class="empty">Ничего не найдено</td></tr>';
+  document.getElementById('addr-count').textContent='Показано: '+Math.min(list.length,600)+(list.length>600?' из '+list.length:'');
 }
 
-/* ---------- map ---------- */
-let amap=null;
-function renderMap(){
-  const ds=document.getElementById('map-date').value||todayStr();
-  const list=ADDR.filter(a=>a.date===ds&&a.lat!=null);
-  if(typeof L==='undefined') return;
-  if(amap){ amap.remove(); amap=null; }
-  amap=L.map('a-map');
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(amap);
+/* ---------- КАЛЕНДАРЬ ---------- */
+let calCursor=new Date();
+function calShift(n){calCursor.setMonth(calCursor.getMonth()+n);renderCal();}
+function calToday(){calCursor=new Date();renderCal();}
+function renderCal(){
+  const y=calCursor.getFullYear(),m=calCursor.getMonth();const drv=currentDriver();
+  const months=['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+  document.getElementById('cal-title').textContent=months[m]+' '+y;
+  const startDow=(new Date(y,m,1).getDay()+6)%7,days=new Date(y,m+1,0).getDate(),td=todayStr();
+  const by={};ADDR.forEach(a=>{if(!a.date||a.status==='cancelled'||(drv&&a.driver_id!==drv.id))return;const x=by[a.date]||(by[a.date]={n:0,done:0});x.n++;if(a.status==='done')x.done++;});
+  let html=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(d=>'<div class="dow">'+d+'</div>').join('');
+  for(let i=0;i<startDow;i++)html+='<div class="cell out"></div>';
+  for(let d=1;d<=days;d++){const ds=y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');const x=by[ds];const sun=(startDow+d-1)%7===6;
+    const cls=['cell'];if(ds===td)cls.push('today');if(BH[ds])cls.push('bh');else if(sun)cls.push('rest');
+    html+=`<button class="${cls.join(' ')}" onclick="go('day',{date:'${ds}'})"><div class="n">${d}${ds===td?' <small>сегодня</small>':''}</div>${BH[ds]?'<div class="tag">bank holiday</div>':x?`<div class="cnt">${x.n} ${plural(x.n,'сбор','сбора','сборов')}${x.done?' · '+x.done+' ✓':''}</div>`:''}<div class="mini">${x?`<i style="width:${Math.min(100,x.n*5)}%" class="${x.done===x.n?'done':''}"></i>`:''}</div></button>`;}
+  document.getElementById('cal-grid').innerHTML=html;
+}
+
+/* ---------- ДЕНЬ МАРШРУТА ---------- */
+const DAY={date:null,map:null,route:null};
+const hasCoords=a=>a&&Number.isFinite(a.lat)&&Number.isFinite(a.lng);
+function dayShift(n){DAY.date=addDays(DAY.date||todayStr(),n);renderDayPage(true);}
+function dayPick(v){if(v){DAY.date=v;renderDayPage(true);}}
+function dayList(){const drv=currentDriver();return ADDR.filter(a=>a.date===DAY.date&&a.status!=='cancelled'&&(!drv||a.driver_id===drv.id)).sort((a,b)=>{const x=a.collection_start?Date.parse(a.collection_start):Infinity,y=b.collection_start?Date.parse(b.collection_start):Infinity;return x===y?String(a.created_at).localeCompare(String(b.created_at)):x-y;});}
+async function renderDayPage(fresh){
+  const ds=DAY.date||todayStr();DAY.date=ds;const drv=currentDriver();
+  document.getElementById('day-date').value=ds;
+  document.getElementById('day-title').textContent=cap(dayLabel(ds))+(ds===todayStr()?' · сегодня':'');
+  const list=dayList();const done=list.filter(a=>a.status==='done').length,withTime=list.filter(a=>a.collection_start).length;
+  document.getElementById('day-sub').textContent=(drv?drv.name+' · ':'')+(list.length?`${list.length} ${plural(list.length,'сбор','сбора','сборов')}, ${withTime} с согласованным окном`:'сборов нет')+(BH[ds]?' · bank holiday':'');
+  if(fresh)DAY.route=null;
+  const note=document.getElementById('day-note');note.hidden=true;
+  let fit=null,geometry=null;
+  if(drv&&list.length&&ds>=todayStr()&&!DAY.route){
+    const p=await driverPoints(drv.id);
+    if(p.enabled){try{const r=await OpsDispatch.routeDay({sb,driver:drv,hasOutbox:()=>false},ds);if(r){DAY.route=r;}}catch(e){note.textContent=OpsDispatch.error(e);note.hidden=false;}}
+  }
+  if(DAY.route){fit=DAY.route.state?.fit;geometry=DAY.route.geometry;if(DAY.route.warning){note.textContent=DAY.route.warning;note.hidden=false;}}
+  /* статистика */
+  const stats=[['Сборов',list.length,''],['Выполнено',done,''],['С окном',withTime,'из '+list.length]];
+  if(fit?.ok){stats.push(['Выезд',C.hm(fit.departure),'из дома'],['Склад',C.hm(fit.finish),'прибытие'],['Дорога',Math.floor(fit.drive/60)+':'+String(fit.drive%60).padStart(2,'0'),'с запасом']);}
+  document.getElementById('day-stats').innerHTML=stats.map(s=>`<div><div class="k">${s[0]}</div><div class="v">${s[1]}${s[2]?' <small>'+s[2]+'</small>':''}</div></div>`).join('');
+  document.getElementById('day-route-sub').textContent=fit?.ok?'Расчёт по дорогам: прибытия, переезды и склад':'По согласованному времени · дорога не рассчитана';
+  /* таймлайн */
+  const tl=document.getElementById('day-tl');
+  if(!list.length){tl.innerHTML='<div class="empty">На этот день сборов нет.<br><button class="btn btn-sm" style="margin-top:10px" onclick="openDispatchAdmin(\'queue\')">Открыть очередь заявок</button></div>';renderDayMap([],null);updateGmaps([],null);return;}
+  const arrivals=new Map();if(fit?.ok)fit.stops.forEach(s=>arrivals.set(s.address_id,s));
+  const p=drv?await driverPoints(drv.id):{home:{},depot:{}};
+  const rows=[];
+  if(fit?.ok)rows.push(`<div class="tl-row term"><div class="tl-time">${C.hm(fit.departure)}</div><div class="tl-axis"><i class="tl-node"></i></div><div class="tl-body"><div class="term-line">Выезд · ${esc(p.home.text||'старт')}<small>Дорога до первого клиента ${fit.stops[0]?.travel??'—'} мин с запасом.</small></div></div></div>`);
+  const SERVICE=10;let prevEnd=null,prevZone=null;
+  list.forEach((a,i)=>{
+    const st=a.collection_start?C.ukMinute(a.collection_start):null,en=a.collection_end?C.ukMinute(a.collection_end):null;
+    const ar=arrivals.get(a.id);
+    if(st!=null&&prevEnd!=null&&!ar){const gap=st-prevEnd;if(gap>=20)rows.push(`<div class="tl-row"><div class="tl-time">${C.hm(prevEnd)}</div><div class="tl-axis"></div><div class="tl-body"><div class="gap"><b>Не заполнено ${gap>=60?Math.floor(gap/60)+' ч '+(gap%60?gap%60+' мин':''):gap+' мин'}</b><span>между окнами · дорога не учтена · ${esc(C.zone(a.text))}</span></div></div></div>`);}
+    if(ar&&i>0)rows.push(`<div class="tl-row"><div class="tl-time"></div><div class="tl-axis"></div><div class="tl-body" style="padding-top:0;padding-bottom:0"><div class="leg"><span class="dash"></span>переезд ${ar.travel} мин с запасом</div></div></div>`);
+    const cls=a.status==='done'?'done':['noanswer','problem'].includes(a.status)?'bad':a.collection_start?'':'hold';
+    const win=st!=null?(st===en?C.hm(st):C.hm(st)+'–'+C.hm(en)):'время не согласовано';
+    rows.push(`<div class="tl-row ${cls}"><div class="tl-time">${ar?'≈ '+C.hm(ar.arrival):st!=null?C.hm(st):''}</div><div class="tl-axis"><i class="tl-node"></i></div><div class="tl-body"><button class="stop tap ${a.status==='done'?'done':''} ${st==null?'held':''}" onclick="openAddrModal('${a.id}')"><div class="stop-top"><b>${i+1}. ${a.kind==='bank'?BANKPL+' ':''}${esc(a.text)}</b><span class="win">${win}</span></div><div class="det">${bagsLabel(a)?'<span>'+esc(bagsLabel(a))+'</span>':''}${a.phone?'<span class="mono">'+esc(a.phone)+'</span>':''}<span class="chip st-${a.status}">${ST(a.status)}</span>${a.intake_channel||a.collection_source?'<span class="chip src-'+({subnex_website:'site',partner_email:'mail',partner_whatsapp:'wapart',missing:'wamiss'}[C.sourceOf(a)]||'wamiss')+'">'+esc(C.sourceNames[C.sourceOf(a)])+'</span>':''}${!hasCoords(a)?'<span class="chip st-bad">нет координат</span>':a.geocode_source==='postcode'?'<span class="chip ghost">точка по индексу</span>':''}${a.note?'<span>'+esc(a.note)+'</span>':''}</div></button></div></div>`);
+    prevEnd=en!=null?en+SERVICE:null;
+  });
+  if(fit?.ok)rows.push(`<div class="tl-row term"><div class="tl-time">${C.hm(fit.finish)}</div><div class="tl-axis"><i class="tl-node"></i></div><div class="tl-body"><div class="term-line">Склад · ${esc(p.depot.text||'')}<small>После последнего сбора; за пределы часов прибытия это не выводит.</small></div></div></div>`);
+  tl.innerHTML=rows.join('');
+  renderDayMap(list,geometry,p);updateGmaps(list,p);
+}
+function renderDayMap(list,geometry,p){
+  if(typeof L==='undefined')return;list=list||dayList();
+  if(DAY.map){DAY.map.remove();DAY.map=null;}
+  const el=document.getElementById('day-map');if(!el.offsetParent&&PAGE!=='day')return;
+  DAY.map=L.map('day-map',{zoomControl:true});
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(DAY.map);
   const pts=[];
-  list.forEach(a=>{
-    pts.push([a.lat,a.lng]);
-    const col=drvColor(a.driver_id);
-    const ring=a.status==='done'?'#1F9D55':a.status==='noanswer'?'#D64545':a.status==='problem'?'#F0A400':'#fff';
-    const icon=L.divIcon({className:'',html:
-      `<div style="width:26px;height:26px;border-radius:50%;background:${col};
-       border:3.5px solid ${ring};box-shadow:0 0 0 1.5px #101B24,0 1px 4px rgba(0,0,0,.4)"></div>`,
-      iconSize:[26,26],iconAnchor:[13,13]});
-    L.marker([a.lat,a.lng],{icon}).addTo(amap)
-      .bindPopup(`<b>${a.kind==='bank'?t('Банк')+': ':''}${esc(a.text)}</b><br>${a.bags||0} ${t('пак.')} · ${esc(drvName(a.driver_id))}<br>${ST(a.status)}${(a.kind==='bank'&&a.fill_level!=null)?' · '+a.fill_level+'%':''}`);
-  });
-  const cutoff=Date.now()-30*60000;
-  let liveCnt=0;
-  LOCS.forEach(l=>{
-    if(!l.updated_at||Date.parse(l.updated_at)<cutoff) return;
-    const d=DRIVERS.find(x=>x.id===l.driver_id); if(!d) return;
-    liveCnt++;
-    pts.push([l.lat,l.lng]);
-    const mins=Math.max(0,Math.round((Date.now()-Date.parse(l.updated_at))/60000));
-    const icon=L.divIcon({className:'',html:
-      `<div style="width:36px;height:36px;border-radius:11px;background:#101B24;border:3px solid ${drvColor(l.driver_id)};
-       box-shadow:0 2px 6px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center">
-       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#FFC400" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 5h14v11H1zM15 9h4l4 4v3h-8"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg></div>`,
-      iconSize:[36,36],iconAnchor:[18,18]});
-    L.marker([l.lat,l.lng],{icon,zIndexOffset:1000}).addTo(amap)
-      .bindPopup(`<b>${esc(d.name)}</b><br>${t('онлайн')} · ${mins===0?t('только что'):mins+' '+t('мин назад')}`);
-  });
-  if(pts.length) amap.fitBounds(L.latLngBounds(pts).pad(0.2));
-  else amap.setView([51.6,-3.4],9);
-  const used=[...new Set(list.map(a=>a.driver_id))];
-  document.getElementById('map-legend').innerHTML=
-    used.map(id=>`<span><span class="sw" style="background:${drvColor(id)}"></span>${esc(drvName(id))}</span>`).join('')+
-    '<span style="color:var(--muted)">'+t('Ободок: белый — в работе, зелёный — выполнено, красный — не отвечает, жёлтый — проблема')+'</span>'+
-    (liveCnt?'<span><span style="display:inline-block;width:15px;height:15px;border-radius:5px;background:#101B24;border:2px solid var(--hiviz);vertical-align:-3px;margin-right:6px"></span>'+t('грузовик — водитель онлайн (приложение открыто)')+'</span>':'');
+  list.forEach((a,i)=>{if(!hasCoords(a))return;pts.push([a.lat,a.lng]);const col=a.status==='done'?'#17764F':a.status==='noanswer'?'#A22B22':a.status==='problem'?'#D9A300':'#0E1A15';
+    L.marker([a.lat,a.lng],{icon:L.divIcon({className:'',html:`<div class="mk" style="background:${col}">${i+1}</div>`,iconSize:[28,28],iconAnchor:[14,14]})}).addTo(DAY.map).bindPopup(`<b>${esc(a.text)}</b><br>${esc(Ops.slotLabel(a)||'время не согласовано')}<br>${ST(a.status)}`).on('click',()=>{});});
+  p=p||{};for(const [pt,lab,sym] of [[p.home,'Старт','S'],[p.depot,'Склад','F']]){if(!hasCoords(pt))continue;pts.push([pt.lat,pt.lng]);L.marker([pt.lat,pt.lng],{icon:L.divIcon({className:'',html:`<div class="mk sq">${sym}</div>`,iconSize:[28,28],iconAnchor:[14,14]})}).addTo(DAY.map).bindTooltip(lab+(pt.text?' · '+esc(pt.text):''));}
+  if(geometry&&geometry.length){L.polyline(geometry,{color:'#0F6B4F',weight:4,opacity:.85,dashArray:DAY.route?.sketch?'8 8':null}).addTo(DAY.map);}
+  const cutoff=Date.now()-30*60000;let live=0;
+  LOCS.forEach(l=>{if(!l.updated_at||Date.parse(l.updated_at)<cutoff)return;const d=DRIVERS.find(x=>x.id===l.driver_id);if(!d)return;live++;pts.push([l.lat,l.lng]);const mins=Math.max(0,Math.round((Date.now()-Date.parse(l.updated_at))/60000));
+    L.marker([l.lat,l.lng],{icon:L.divIcon({className:'',html:`<div class="mk truck"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F2B807" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 5h14v11H1zM15 9h4l4 4v3h-8"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg></div>`,iconSize:[34,34],iconAnchor:[17,17]}),zIndexOffset:1000}).addTo(DAY.map).bindPopup(`<b>${esc(d.name)}</b><br>онлайн · ${mins===0?'только что':mins+' мин назад'}`);});
+  if(pts.length)DAY.map.fitBounds(L.latLngBounds(pts).pad(0.2));else DAY.map.setView([51.6,-3.4],9);
+  document.getElementById('day-legend').innerHTML='<span><span class="sw" style="background:#0E1A15"></span>в работе</span><span><span class="sw" style="background:#17764F"></span>выполнено</span><span><span class="sw" style="background:#A22B22"></span>не отвечает</span><span><span class="sw" style="background:#D9A300"></span>проблема</span>'+(live?'<span><span class="sw" style="background:#0B1813;box-shadow:0 0 0 2px #F2B807"></span>водитель онлайн</span>':'')+(DAY.route?.sketch?'<span style="color:var(--warn)">Пунктир: дорога не рассчитана, точки соединены по порядку</span>':'');
+}
+function updateGmaps(list,p){
+  const a=document.getElementById('day-gmaps');const pts=list.filter(hasCoords).map(x=>x.lat+','+x.lng);
+  if(!pts.length){a.hidden=true;return;}
+  const origin=hasCoords(p?.home)?p.home.lat+','+p.home.lng:pts[0],dest=hasCoords(p?.depot)?p.depot.lat+','+p.depot.lng:pts[pts.length-1];
+  const way=pts.slice(0,20).join('|');
+  a.href='https://www.google.com/maps/dir/?api=1&travelmode=driving&origin='+encodeURIComponent(origin)+'&destination='+encodeURIComponent(dest)+'&waypoints='+encodeURIComponent(way);a.hidden=false;
 }
 
-/* ---------- geocode ---------- */
+/* ---------- ПЕРЕПИСКА ---------- */
+function chatOptions(extra={}){
+  return {sb,profile:OPS_PROFILE,mount:document.getElementById('chat-host'),geocode,addresses:()=>ADDR,drivers:()=>DRIVERS,
+    plannerPoints:driverId=>{const p=POINTS[driverId];return p?{home:p.home,depot:p.depot}:{};},
+    hasOutbox:()=>{try{const p=JSON.parse(localStorage.getItem('subnexDriver2_local')||'{}');return p.owner===OPS_PROFILE.user_id&&p.outbox?.length>0;}catch{return false;}},
+    onChanged:()=>{if(OPS_PROFILE)refreshAll(true);},...extra};
+}
+async function ensureChat(){const c=Ops.current();if(c&&!c.closed)return;await Ops.open(chatOptions());}
+async function openSMS(addressId,planner){
+  if(!OPS_PROFILE)return;const old=ADDR.find(a=>a.id===addressId),phone=old?.status==='cancelled'?old.phone:null;
+  if(old?.driver_id)await driverPoints(old.driver_id);
+  go('chat',{skipChat:true});await Ops.open(chatOptions({planner,addressId:phone?null:addressId,phone}));
+}
+async function openAddressSMS(){const id=editAddrId;closeModal('m-addr-bg');await openSMS(id);}
+
+/* ---------- ЧАСЫ И ДОСТУП (нативно, тот же API subnex-sms) ---------- */
+let HOURS=null,HOURS_EDIT=null;
+async function renderHours(){
+  const week=document.getElementById('hours-week'),daysEl=document.getElementById('hours-days'),mem=document.getElementById('members');
+  week.innerHTML='<div class="muted small">Загружаю…</div>';
+  try{HOURS=await Ops.api(sb,'hours');const members=await Ops.api(sb,'members');
+    const names=['Воскресенье','Понедельник','Вторник','Среда','Четверг','Пятница','Суббота'],order=[1,2,3,4,5,6,0];
+    week.innerHTML=order.map(wd=>{const x=HOURS.week.find(h=>h.weekday===wd)||{weekday:wd,opens:'08:00',closes:'16:00',closed:true};return `<button class="hcell ${x.closed?'off':''}" onclick='hoursForm(${JSON.stringify(x)},"${names[wd]}")'><div class="d">${names[wd]}</div><div class="h">${x.closed?'выходной':x.opens.slice(0,5)+'–'+x.closes.slice(0,5)}</div></button>`;}).join('');
+    daysEl.innerHTML=HOURS.days.length?HOURS.days.map(x=>`<button class="chip ghost" style="cursor:pointer;min-height:28px" onclick='hoursForm(${JSON.stringify(x)},"Исключение на дату")'>${esc(dayShort(x.day))} · ${x.closed?'выходной':esc(x.opens.slice(0,5)+'–'+x.closes.slice(0,5))}</button>`).join(''):'<span class="muted small">Исключений на даты нет.</span>';
+    mem.innerHTML=members.members.map(m=>`<div class="setrow"><div><b>${esc(m.email)}</b><p>${m.role==='admin'?'Администратор':'Водитель'}${m.driver_id?' · '+esc(drvName(m.driver_id)):''}</p></div><span class="chip ${m.active?'st-ok':'st-bad'}">${m.active?'активен':'отключён'}</span></div>`).join('')||'<div class="empty">Аккаунтов пока нет.</div>';
+  }catch(e){week.innerHTML='<div class="note crit">'+esc(Ops.error(e))+'</div>';}
+}
+function hoursForm(h,title){
+  HOURS_EDIT=h;document.getElementById('m-hours-title').textContent=title;
+  document.getElementById('mh-day-wrap').hidden=!h.day;document.getElementById('mh-day').value=h.day||'';
+  document.getElementById('mh-open').value=(h.opens||'08:00').slice(0,5);document.getElementById('mh-close').value=(h.closes||'16:00').slice(0,5);
+  document.getElementById('mh-closed').checked=!!h.closed;document.getElementById('mh-err').textContent='';
+  document.getElementById('mh-remove').style.display=h.day&&HOURS?.days.some(x=>x.day===h.day)?'':'none';
+  document.getElementById('m-hours-bg').classList.add('show');
+}
+async function hoursSave(){
+  const btn=document.getElementById('mh-save');btn.disabled=true;
+  try{const h=HOURS_EDIT;await Ops.api(sb,'save_hours',{...(h.day?{day:document.getElementById('mh-day').value}:{weekday:h.weekday}),opens:document.getElementById('mh-open').value,closes:document.getElementById('mh-close').value,closed:document.getElementById('mh-closed').checked});
+    closeModal('m-hours-bg');toast('График сохранён');renderHours();}
+  catch(e){document.getElementById('mh-err').textContent=Ops.error(e);}finally{btn.disabled=false;}
+}
+async function hoursRemove(){try{await Ops.api(sb,'save_hours',{day:HOURS_EDIT.day,remove:true});closeModal('m-hours-bg');toast('Исключение снято');renderHours();}catch(e){document.getElementById('mh-err').textContent=Ops.error(e);}}
+function memberForm(){document.getElementById('mm-email').value='';document.getElementById('mm-role').value='driver';document.getElementById('mm-active').checked=true;document.getElementById('mm-err').textContent='';document.getElementById('m-member-bg').classList.add('show');}
+async function memberSave(){
+  const btn=document.getElementById('mm-save');btn.disabled=true;
+  try{await Ops.api(sb,'save_member',{email:document.getElementById('mm-email').value.trim(),role:document.getElementById('mm-role').value,driver_id:document.getElementById('mm-driver').value,active:document.getElementById('mm-active').checked});closeModal('m-member-bg');toast('Доступ сохранён');renderHours();}
+  catch(e){document.getElementById('mm-err').textContent=Ops.error(e);}finally{btn.disabled=false;}
+}
+
+/* ---------- геокодирование ---------- */
 const SW_VIEWBOX='-5.6,52.2,-2.4,51.2';
 async function geocode(text){
-  const q=text.replace(/\s+/g,' ').trim();
-  if(!q) return null;
-  try{
-    const u='https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=gb&viewbox='+SW_VIEWBOX+'&q='+encodeURIComponent(q);
-    const r=await fetch(u); const j=await r.json();
-    if(j&&j[0]) return {lat:+j[0].lat,lng:+j[0].lon};
-  }catch(e){}
+  const q=text.replace(/\s+/g,' ').trim();if(!q)return null;
+  try{const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=gb&viewbox='+SW_VIEWBOX+'&q='+encodeURIComponent(q));const j=await r.json();if(j&&j[0])return {lat:+j[0].lat,lng:+j[0].lon,source:'osm'};}catch(e){}
   const m=q.toUpperCase().match(/\b([A-Z]{1,2}\d[A-Z\d]?)\s*(\d[A-Z]{2})\b/);
-  if(m){
-    try{
-      const r=await fetch('https://api.postcodes.io/postcodes/'+encodeURIComponent(m[1]+m[2]));
-      const j=await r.json();
-      if(j&&j.result) return {lat:j.result.latitude,lng:j.result.longitude};
-    }catch(e){}
-  }
+  if(m){try{const r=await fetch('https://api.postcodes.io/postcodes/'+encodeURIComponent(m[1]+m[2]));const j=await r.json();if(j&&j.result)return {lat:j.result.latitude,lng:j.result.longitude,source:'postcode'};}catch(e){}}
   return null;
 }
 
-/* ---------- modals ---------- */
-function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+/* ---------- модалка адреса (старый сценарий) ---------- */
+function closeModal(id){document.getElementById(id).classList.remove('show');}
 function openAddrModal(id){
   if(!id)return openDispatchAdmin('one');
-  editAddrId=id||null;
-  const a=id?ADDR.find(x=>x.id===id):null;
-  const cancelled=a?.status==='cancelled';
+  editAddrId=id;const a=ADDR.find(x=>x.id===id);if(!a)return;const cancelled=a.status==='cancelled';
   document.querySelectorAll('#m-addr-bg input,#m-addr-bg textarea,#m-addr-bg select').forEach(el=>{el.disabled=cancelled;});
-  document.getElementById('ma-save').disabled=cancelled;
-  document.querySelector('#ma-status option[value=cancelled]').disabled=true;
-  document.getElementById('m-addr-title').textContent=t(a?'Адрес':'Добавить адрес');
-  document.getElementById('ma-text').value=a?a.text:'';
-  document.getElementById('ma-bags').value=a?(a.bags||''):'';
-  document.getElementById('ma-phone').value=a?(a.phone||''):'';
-  document.getElementById('ma-note').value=a?(a.note||''):'';
-  document.getElementById('ma-date').value=a?(a.date||''):document.getElementById('fl-date').value||'';
-  document.getElementById('ma-driver').value=a?(a.driver_id||''):'';
-  document.getElementById('ma-status').value=a?a.status:'new';
-  document.getElementById('ma-resnote').value=a?(a.result_note||''):'';
-  document.getElementById('ma-del').style.display=a&&!cancelled?'':'none';
-  document.getElementById('ma-chat').style.display=a&&a.phone&&a.kind!=='bank'?'':'none';
-  document.getElementById('ma-slot').textContent=cancelled?'Заявка закрыта. Для следующего сбора откройте SMS → Новая заявка.':Ops.slotLabel(a);
-  document.getElementById('ma-date').disabled=cancelled||!!a?.collection_start;
+  document.getElementById('ma-save').disabled=cancelled;document.querySelector('#ma-status option[value=cancelled]').disabled=true;
+  document.getElementById('m-addr-title').textContent=a.kind==='bank'?'Визит к контейнеру':'Адрес';
+  document.getElementById('ma-text').value=a.text;document.getElementById('ma-bags').value=a.bags||'';document.getElementById('ma-phone').value=a.phone||'';document.getElementById('ma-note').value=a.note||'';
+  document.getElementById('ma-date').value=a.date||'';document.getElementById('ma-driver').value=a.driver_id||'';document.getElementById('ma-status').value=a.status;document.getElementById('ma-resnote').value=a.result_note||'';
+  document.getElementById('ma-del').style.display=!cancelled?'':'none';
+  document.getElementById('ma-chat').style.display=a.phone&&a.kind!=='bank'?'':'none';
+  document.getElementById('ma-slot').textContent=cancelled?'Заявка закрыта. Для следующего сбора: Переписка → Новая заявка.':(a.collection_start?'Согласовано: '+Ops.slotLabel(a):'Время не согласовано');
+  document.getElementById('ma-date').disabled=cancelled||!!a.collection_start;
   document.getElementById('m-addr-bg').classList.add('show');
 }
 async function saveAddrModal(){
   if(!OPS_PROFILE||ADDR.find(a=>a.id===editAddrId)?.status==='cancelled')return;
-  const text=document.getElementById('ma-text').value.trim();
-  if(!text){ toast(t('Введите адрес')); return; }
-  const btn=document.getElementById('ma-save');
-  btn.disabled=true; btn.innerHTML='<span class="spin"></span> '+t('Координаты…');
-  const old=editAddrId?ADDR.find(x=>x.id===editAddrId):null;
-  const date=document.getElementById('ma-date').value||null;
+  const text=document.getElementById('ma-text').value.trim();if(!text){toast('Введите адрес');return;}
+  const btn=document.getElementById('ma-save');btn.disabled=true;btn.innerHTML='<span class="spin"></span> Координаты…';
+  const restore=()=>{btn.disabled=false;btn.textContent='Сохранить';};
+  const old=editAddrId?ADDR.find(x=>x.id===editAddrId):null;const date=document.getElementById('ma-date').value||null;
   if(old&&old.date!==date&&old.date){
-    if(!confirm('Клиент согласовал изменение даты на '+(date||'не назначена')+'?')){btn.disabled=false;btn.textContent=t('Сохранить');return;}
-    try{await Ops.api(sb,'legacy_date',{address_id:old.id,day:date||'',version:old.collection_version,agreed:true});}
-    catch(e){toast(Ops.error(e));btn.disabled=false;btn.textContent=t('Сохранить');return;}
+    if(!confirm('Клиент согласовал изменение даты на '+(date||'не назначена')+'?')){restore();return;}
+    try{await Ops.api(sb,'legacy_date',{address_id:old.id,day:date||'',version:old.collection_version,agreed:true});}catch(e){toast(Ops.error(e));restore();return;}
   }
-  let status=document.getElementById('ma-status').value;
-  if(status==='new'&&date) status='planned';
-  if(status==='planned'&&!date) status='new';
-  const row={
-    id: editAddrId||uuid(),
-    text, bags:parseInt(document.getElementById('ma-bags').value)||0,
-    phone:document.getElementById('ma-phone').value.trim(),
-    note:document.getElementById('ma-note').value.trim(),
-    date, driver_id:document.getElementById('ma-driver').value||null,
-    status, result_note:document.getElementById('ma-resnote').value.trim(),
-    kind: old?(old.kind||'d2d'):'d2d', bank_id: old?(old.bank_id||null):null,
-    fill_level: old?(old.fill_level??null):null,
-    lat: old?old.lat:null, lng: old?old.lng:null
-  };
-  if(!old||old.text!==text||row.lat==null){
-    const g=await geocode(text);
-    row.lat=g?g.lat:null; row.lng=g?g.lng:null;
-  }
-  const {error}=await sb.from('addresses').upsert(row);
-  btn.disabled=false; btn.innerHTML='<svg class="i"><use href="#i-save"/></svg> '+t('Сохранить');
+  let status=document.getElementById('ma-status').value;if(status==='new'&&date)status='planned';if(status==='planned'&&!date)status='new';
+  const row={id:editAddrId||uuid(),text,bags:parseInt(document.getElementById('ma-bags').value)||0,phone:document.getElementById('ma-phone').value.trim(),note:document.getElementById('ma-note').value.trim(),date,driver_id:document.getElementById('ma-driver').value||null,status,result_note:document.getElementById('ma-resnote').value.trim(),kind:old?(old.kind||'d2d'):'d2d',bank_id:old?(old.bank_id||null):null,fill_level:old?(old.fill_level??null):null,lat:old?old.lat:null,lng:old?old.lng:null,geocode_source:old?old.geocode_source||null:null};
+  if(!old||old.text!==text||row.lat==null){const g=await geocode(text);row.lat=g?g.lat:null;row.lng=g?g.lng:null;row.geocode_source=g?g.source:null;}
+  const {error}=await sb.from('addresses').upsert(row);restore();
   if(error){toast(Ops.error(error));return;}
-  closeModal('m-addr-bg');
-  toast(t(row.lat!=null?'Сохранено':'Сохранено · ⚠ координаты не найдены'));
-  refreshAll(true);
+  closeModal('m-addr-bg');toast(row.lat!=null?'Сохранено':'Сохранено · координаты не найдены');refreshAll(true);
 }
 async function deleteAddrModal(){
-  if(!editAddrId||!confirm(t('Удалить этот адрес?'))) return;
-  const {error}=await sb.from('addresses').delete().eq('id',editAddrId);if(error){toast('Адрес связан с перепиской. Сохраните историю: закройте заявку через статус.');return;}
-  closeModal('m-addr-bg');
-  refreshAll(true);
+  if(!editAddrId||!confirm('Удалить этот адрес?'))return;
+  const {error}=await sb.from('addresses').delete().eq('id',editAddrId);if(error){toast('Адрес связан с перепиской. Закройте заявку через статус — история сохранится.');return;}
+  closeModal('m-addr-bg');refreshAll(true);
 }
 
-/* ---------- bulk add ---------- */
-function openBulkModal(){return openDispatchAdmin('batch');}
-async function saveBulk(){
-  const lines=document.getElementById('mb-text').value.split('\n').map(s=>s.trim()).filter(Boolean);
-  if(!lines.length){ toast(t('Пустой список')); return; }
-  const date=document.getElementById('mb-date').value||null;
-  const driver_id=document.getElementById('mb-driver').value||null;
-  const btn=document.getElementById('mb-save');
-  const prog=document.getElementById('mb-progress');
-  btn.disabled=true;
-  let okGeo=0;
-  for(let i=0;i<lines.length;i++){
-    prog.textContent=`${t('Обрабатываю')} ${i+1} / ${lines.length}…`;
-    let text=lines[i], bags=0;
-    const m=text.match(/^(\d+)\s*(?:bags?|пак\.?|пакет\w*)\s*[-–—:.]?\s*(.+)$/i);
-    if(m){ bags=parseInt(m[1]); text=m[2].trim(); }
-    const g=await geocode(text);
-    if(g) okGeo++;
-    await sb.from('addresses').insert({
-      id:uuid(), text, bags, date, driver_id,
-      status: date?'planned':'new',
-      lat:g?g.lat:null, lng:g?g.lng:null
-    });
-    await new Promise(r=>setTimeout(r,1100)); // Nominatim: не чаще 1 запроса/сек
-  }
-  btn.disabled=false;
-  prog.textContent='';
-  closeModal('m-bulk-bg');
-  toast(`${t('Добавлено')}: ${lines.length} · ${t('с координатами')}: ${okGeo}`);
-  refreshAll(true);
-}
-
-/* ---------- drivers ---------- */
+/* ---------- водители ---------- */
 function renderDrivers(){
-  document.getElementById('drv-tbody').innerHTML=DRIVERS.map(d=>{
-    const total=ADDR.filter(a=>a.driver_id===d.id).length;
-    return `<tr>
-      <td><span style="color:${drvColor(d.id)};font-weight:900">●</span> <b>${esc(d.name)}</b></td>
-      <td style="font-family:Archivo;font-weight:800;letter-spacing:.15em">Email</td>
-      <td>${d.active?'<span class="badge done">'+t('Активен2')+'</span>':'<span class="badge noanswer">'+t('Выключен')+'</span>'}</td>
-      <td>${total}</td>
-      <td style="white-space:nowrap">
-        <button class="btn small btn-ghost" onclick="openDrvModal('${d.id}')" aria-label="edit"><svg class="i"><use href="#i-pen"/></svg></button>
-        <button class="btn small btn-ghost" onclick="toggleDriver('${d.id}',${!d.active})" aria-label="toggle"><svg class="i"><use href="#i-${d.active?'pause':'play'}"/></svg></button>
-      </td></tr>`;
-  }).join('')||'<tr><td colspan="5" class="empty">'+t('Водителей пока нет')+'</td></tr>';
+  document.getElementById('drv-tbody').innerHTML=DRIVERS.map(d=>`<tr><td><span class="dot" style="background:${drvColor(d.id)}"></span><b>${esc(d.name)}</b></td><td>${d.active?'<span class="chip st-ok">активен</span>':'<span class="chip st-bad">выключен</span>'}</td><td class="num">${ADDR.filter(a=>a.driver_id===d.id).length}</td><td style="white-space:nowrap"><button class="btn btn-sm" onclick="openDrvModal('${d.id}')">Изменить</button> <button class="btn btn-sm" onclick="toggleDriver('${d.id}',${!d.active})">${d.active?'Выключить':'Включить'}</button></td></tr>`).join('')||'<tr><td colspan="4" class="empty">Водителей пока нет</td></tr>';
 }
-function openDrvModal(id){
-  editDrvId=id||null;
-  const d=id?DRIVERS.find(x=>x.id===id):null;
-  document.getElementById('m-drv-title').textContent=t(d?'Водитель':'Добавить водителя');
-  document.getElementById('md-name').value=d?d.name:'';
-  document.getElementById('md-active').value=d?String(d.active):'true';
-  document.getElementById('m-drv-bg').classList.add('show');
-}
+function openDrvModal(id){editDrvId=id||null;const d=id?DRIVERS.find(x=>x.id===id):null;document.getElementById('m-drv-title').textContent=d?'Водитель':'Добавить водителя';document.getElementById('md-name').value=d?d.name:'';document.getElementById('md-active').value=d?String(d.active):'true';document.getElementById('m-drv-bg').classList.add('show');}
 async function saveDrvModal(){
-  const name=document.getElementById('md-name').value.trim();
-  if(!name){toast(t('Введите имя'));return;}
-  const row={name,active:document.getElementById('md-active').value==='true'};
-  if(!editDrvId)row.pin=crypto.randomUUID(); // Legacy required column; never used for authentication.
-  let error;
-  if(editDrvId) ({error}=await sb.from('drivers').update(row).eq('id',editDrvId));
-  else ({error}=await sb.from('drivers').insert(row));
-  if(error){ toast(t('Ошибка сохранения водителя')); return; }
-  closeModal('m-drv-bg');
-  toast(t('Сохранено'));
-  refreshAll(true);
+  const name=document.getElementById('md-name').value.trim();if(!name){toast('Введите имя');return;}
+  const row={name,active:document.getElementById('md-active').value==='true'};if(!editDrvId)row.pin=crypto.randomUUID();
+  let error;if(editDrvId)({error}=await sb.from('drivers').update(row).eq('id',editDrvId));else({error}=await sb.from('drivers').insert(row));
+  if(error){toast('Ошибка сохранения водителя');return;}
+  closeModal('m-drv-bg');toast('Сохранено');refreshAll(true);
 }
-async function toggleDriver(id,active){
-  await sb.from('drivers').update({active}).eq('id',id);
-  refreshAll(true);
-}
+async function toggleDriver(id,active){await sb.from('drivers').update({active}).eq('id',id);refreshAll(true);}
 
-/* ---------- banks ---------- */
-const BANKPL='<span class="bankplate"><svg class="i"><use href="#i-bin"/></svg>BANK</span>';
+/* ---------- контейнеры ---------- */
 function renderBanks(){
-  const tb=document.getElementById('bank-tbody'); if(!tb) return;
-  tb.innerHTML=BANKS.map(b=>{
-    const visits=ADDR.filter(a=>a.bank_id===b.id);
-    const doneV=visits.filter(a=>a.status==='done').sort((x,y)=>(y.date||'').localeCompare(x.date||''));
-    const last=doneV[0];
-    return `<tr class="rowtap" onclick="openBankModal('${b.id}')">
-      <td><b>${esc(b.name)}</b>${b.note?'<div class="note-red" style="color:var(--muted)">'+esc(b.note)+'</div>':''}</td>
-      <td>${esc(b.text)}${b.lat==null?'<div class="note-red">'+t('нет координат')+'</div>':''}</td>
-      <td>${b.active?'<span class="badge done">'+t('Активен2')+'</span>':'<span class="badge noanswer">'+t('Выкл')+'</span>'}</td>
-      <td>${visits.length}</td>
-      <td style="white-space:nowrap">${last?last.date+(last.fill_level!=null?' · <span class="fillcell">'+last.fill_level+'%</span>':''):'—'}</td>
-      <td><button class="btn small btn-ghost" onclick="event.stopPropagation();openBankModal('${b.id}')" aria-label="edit"><svg class="i"><use href="#i-pen"/></svg></button></td>
-    </tr>`;
-  }).join('')||'<tr><td colspan="6" class="empty">'+t('Банков пока нет')+'</td></tr>';
+  document.getElementById('bank-tbody').innerHTML=BANKS.map(b=>{const visits=ADDR.filter(a=>a.bank_id===b.id);const last=visits.filter(a=>a.status==='done').sort((x,y)=>(y.date||'').localeCompare(x.date||''))[0];
+    return `<tr class="tap" onclick="openBankModal('${b.id}')"><td><b>${esc(b.name)}</b>${b.note?'<div class="muted small">'+esc(b.note)+'</div>':''}</td><td>${esc(b.text)}${b.lat==null?'<span class="warnrow">нет координат</span>':''}</td><td>${b.active?'<span class="chip st-ok">активен</span>':'<span class="chip st-bad">выкл</span>'}</td><td class="num">${visits.length}</td><td style="white-space:nowrap" class="mono">${last?last.date+(last.fill_level!=null?' · '+last.fill_level+' кг':''):'—'}</td><td><button class="btn btn-sm" onclick="event.stopPropagation();openBankModal('${b.id}')">Изменить</button></td></tr>`;}).join('')||'<tr><td colspan="6" class="empty">Контейнеров пока нет</td></tr>';
 }
 function openBankModal(id){
-  editBankId=id||null;
-  const b=id?BANKS.find(x=>x.id===id):null;
-  document.getElementById('m-bank-title').textContent=t(b?'Банк':'Добавить банк');
-  document.getElementById('mk-name').value=b?b.name:'';
-  document.getElementById('mk-text').value=b?b.text:'';
-  document.getElementById('mk-note').value=b?(b.note||''):'';
-  document.getElementById('mk-active').value=b?String(b.active):'true';
-  document.getElementById('mk-ratetype').value=b?(b.rate_type||'per_kg'):'per_kg';
-  document.getElementById('mk-ratevalue').value=b?(b.rate_value==null?'':b.rate_value):'0.20';
-  document.getElementById('mk-contact').value=b?(b.contact_name||''):'';
-  document.getElementById('mk-email').value=b?(b.contact_email||''):'';
-  document.getElementById('mk-showw').value=b?String(b.show_weights!==false):'true';
-  onRateTypeChange();
-  document.getElementById('mk-del').style.display=b?'':'none';
-  document.getElementById('m-bank-bg').classList.add('show');
+  editBankId=id||null;const b=id?BANKS.find(x=>x.id===id):null;
+  document.getElementById('m-bank-title').textContent=b?'Контейнер':'Добавить контейнер';
+  document.getElementById('mk-name').value=b?b.name:'';document.getElementById('mk-text').value=b?b.text:'';document.getElementById('mk-note').value=b?(b.note||''):'';document.getElementById('mk-active').value=b?String(b.active):'true';
+  document.getElementById('mk-ratetype').value=b?(b.rate_type||'per_kg'):'per_kg';document.getElementById('mk-ratevalue').value=b?(b.rate_value==null?'':b.rate_value):'0.20';
+  document.getElementById('mk-contact').value=b?(b.contact_name||''):'';document.getElementById('mk-email').value=b?(b.contact_email||''):'';document.getElementById('mk-showw').value=b?String(b.show_weights!==false):'true';
+  onRateTypeChange();document.getElementById('mk-del').style.display=b?'':'none';document.getElementById('m-bank-bg').classList.add('show');
 }
 async function saveBankModal(){
-  const name=document.getElementById('mk-name').value.trim();
-  const text=document.getElementById('mk-text').value.trim();
-  if(!name){ toast(t('Введите название')); return; }
-  const btn=document.getElementById('mk-save');
-  btn.disabled=true; btn.innerHTML='<span class="spin"></span> '+t('Координаты…');
+  const name=document.getElementById('mk-name').value.trim(),text=document.getElementById('mk-text').value.trim();if(!name){toast('Введите название');return;}
+  const btn=document.getElementById('mk-save');btn.disabled=true;btn.innerHTML='<span class="spin"></span> Координаты…';
   const old=editBankId?BANKS.find(x=>x.id===editBankId):null;
-  const row={ id:editBankId||uuid(), name, text,
-    note:document.getElementById('mk-note').value.trim(),
-    active:document.getElementById('mk-active').value==='true',
-    rate_type:document.getElementById('mk-ratetype').value,
-    rate_value:Number(document.getElementById('mk-ratevalue').value||0),
-    contact_name:document.getElementById('mk-contact').value.trim(),
-    contact_email:document.getElementById('mk-email').value.trim(),
-    show_weights:document.getElementById('mk-showw').value==='true',
-    lat:old?old.lat:null, lng:old?old.lng:null };
-  if(text&&(!old||old.text!==text||row.lat==null)){
-    const g=await geocode(text);
-    row.lat=g?g.lat:null; row.lng=g?g.lng:null;
-  }
-  const {error}=await sb.from('banks').upsert(row);
-  btn.disabled=false; btn.innerHTML='<svg class="i"><use href="#i-save"/></svg> '+t('Сохранить');
+  const row={id:editBankId||uuid(),name,text,note:document.getElementById('mk-note').value.trim(),active:document.getElementById('mk-active').value==='true',rate_type:document.getElementById('mk-ratetype').value,rate_value:Number(document.getElementById('mk-ratevalue').value||0),contact_name:document.getElementById('mk-contact').value.trim(),contact_email:document.getElementById('mk-email').value.trim(),show_weights:document.getElementById('mk-showw').value==='true',lat:old?old.lat:null,lng:old?old.lng:null};
+  if(text&&(!old||old.text!==text||row.lat==null)){const g=await geocode(text);row.lat=g?g.lat:null;row.lng=g?g.lng:null;}
+  const {error}=await sb.from('banks').upsert(row);btn.disabled=false;btn.textContent='Сохранить';
   if(error){toast(Ops.error(error));return;}
-  closeModal('m-bank-bg');
-  toast(t(row.lat!=null?'Сохранено':'Сохранено · ⚠ координаты не найдены'));
-  refreshAll(true);
+  closeModal('m-bank-bg');toast(row.lat!=null?'Сохранено':'Сохранено · координаты не найдены');refreshAll(true);
 }
-async function deleteBankModal(){
-  if(!editBankId||!confirm(t('Удалить этот банк? Прошлые визиты останутся.'))) return;
-  await sb.from('banks').delete().eq('id',editBankId);
-  closeModal('m-bank-bg');
-  refreshAll(true);
-}
+async function deleteBankModal(){if(!editBankId||!confirm('Удалить этот контейнер? Прошлые визиты останутся.'))return;await sb.from('banks').delete().eq('id',editBankId);closeModal('m-bank-bg');refreshAll(true);}
+function onRateTypeChange(){const v=document.getElementById('mk-ratetype').value,lbl=document.getElementById('mk-ratelbl'),inp=document.getElementById('mk-ratevalue');const wrap=inp.closest('.f-group');wrap.hidden=v==='none';lbl.textContent=v==='fixed'?'Сумма в месяц, £':'Ставка, £ за кг';inp.placeholder=v==='fixed'?'50':'0.20';}
 function openAssignModal(){
-  document.getElementById('as-date').value=document.getElementById('fl-date').value||todayStr();
-  document.getElementById('as-progress').textContent='';
-  document.getElementById('as-list').innerHTML=BANKS.filter(b=>b.active).map(b=>
-    `<label><input type="checkbox" value="${b.id}"> ${esc(b.name)}<span style="color:var(--muted);font-weight:400"> — ${esc(b.text)}</span></label>`
-  ).join('')||'<p class="empty" style="padding:14px">'+t('Банков пока нет')+'</p>';
+  document.getElementById('as-date').value=DAY.date||todayStr();document.getElementById('as-driver').value=currentDriver()?.id||'';document.getElementById('as-progress').textContent='';
+  document.getElementById('as-list').innerHTML=BANKS.filter(b=>b.active).map(b=>`<label><input type="checkbox" value="${b.id}"> ${esc(b.name)}<span class="muted" style="font-weight:400"> — ${esc(b.text)}</span></label>`).join('')||'<p class="empty">Контейнеров пока нет</p>';
   document.getElementById('m-assign-bg').classList.add('show');
 }
 async function saveAssign(){
-  const date=document.getElementById('as-date').value;
-  const driver_id=document.getElementById('as-driver').value;
-  const ids=[...document.querySelectorAll('#as-list input:checked')].map(i=>i.value);
-  if(!date||!driver_id||!ids.length){toast(t('Выберите дату, водителя и хотя бы один банк'));return;}
-  const btn=document.getElementById('as-save');btn.disabled=true;
-  const progress=document.getElementById('as-progress');progress.textContent=t('Обрабатываю банки…');
+  const date=document.getElementById('as-date').value,driver_id=document.getElementById('as-driver').value,ids=[...document.querySelectorAll('#as-list input:checked')].map(i=>i.value);
+  if(!date||!driver_id||!ids.length){toast('Выберите дату, водителя и хотя бы один контейнер');return;}
+  const btn=document.getElementById('as-save');btn.disabled=true;const progress=document.getElementById('as-progress');progress.textContent='Назначаю…';
   let added=0,skipped=0;const failed=[];
-  try{
-    const setup=await OpsDispatch.rpc(sb,'settings',{driver_id});
+  try{const setup=await OpsDispatch.rpc(sb,'settings',{driver_id});
     for(const bid of ids){
       if(ADDR.some(a=>a.bank_id===bid&&a.date===date&&['new','planned'].includes(a.status))){skipped++;continue;}
-      const b=BANKS.find(x=>x.id===bid);if(!b)continue;
-      const id=uuid();let created=false;
-      try{
-        const row={id,text:b.name+(b.text?' — '+b.text:''),bags:0,phone:'',note:b.note||'',date:setup.enabled?null:date,driver_id,status:setup.enabled?'new':'planned',kind:'bank',bank_id:b.id,lat:b.lat,lng:b.lng};
+      const b=BANKS.find(x=>x.id===bid);if(!b)continue;const id=uuid();let created=false;
+      try{const row={id,text:b.name+(b.text?' — '+b.text:''),bags:0,phone:'',note:b.note||'',date:setup.enabled?null:date,driver_id,status:setup.enabled?'new':'planned',kind:'bank',bank_id:b.id,lat:b.lat,lng:b.lng};
         const ins=await sb.from('addresses').insert(row);if(ins.error)throw ins.error;created=true;
-        if(setup.enabled){
-          await OpsDispatch.warm({sb,driver:{id:driver_id}},date,[id]);
-          const scheduled=await sb.from('addresses').update({date,status:'planned'}).eq('id',id);if(scheduled.error)throw scheduled.error;
-        }
+        if(setup.enabled){await OpsDispatch.warm({sb,driver:{id:driver_id}},date,[id]);const scheduled=await sb.from('addresses').update({date,status:'planned'}).eq('id',id);if(scheduled.error)throw scheduled.error;}
         added++;
-      }catch(e){
-        // Delete only this newly-created, undated draft; never a scheduled visit.
-        if(created&&setup.enabled)await sb.from('addresses').delete().eq('id',id).is('date',null);
-        failed.push(b.name+': '+OpsDispatch.error(e));
-      }
+      }catch(e){if(created&&setup.enabled)await sb.from('addresses').delete().eq('id',id).is('date',null);failed.push(b.name+': '+OpsDispatch.error(e));}
     }
   }catch(e){failed.push(OpsDispatch.error(e));}
   finally{btn.disabled=false;await refreshAll(true);}
   if(failed.length){progress.textContent='Назначено: '+added+'. '+failed.join(' ');return;}
-  progress.textContent='';closeModal('m-assign-bg');toast(t('Назначено визитов')+': '+added+(skipped?' · '+skipped+' '+t('уже были на эту дату'):''));
+  progress.textContent='';closeModal('m-assign-bg');toast('Назначено визитов: '+added+(skipped?' · '+skipped+' уже были на эту дату':''));
 }
 
-/* ---------- photos ---------- */
-let PHOTOS=[], LBLIST=[], LBIDX=0;
-function photoUrl(path){return Ops.photoUrl(path);}
-function addrById(id){ return ADDR.find(a=>a.id===id); }
-function photoCount(addressId){ return PHOTOS.reduce((n,p)=>n+(p.address_id===addressId?1:0),0); }
-function dayPhotoCount(ds){
-  return PHOTOS.reduce((n,p)=>{ const a=addrById(p.address_id); return n+((a&&a.date===ds)?1:0); },0);
-}
-function phTime(iso){
-  const d=new Date(iso);
-  return d.toLocaleDateString('ru-GB',{day:'2-digit',month:'2-digit'})+' '+
-         d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-}
+/* ---------- фото ---------- */
+const photoUrl=p=>Ops.photoUrl(p);
+const addrById=id=>ADDR.find(a=>a.id===id);
+const photoCount=id=>PHOTOS.reduce((n,p)=>n+(p.address_id===id?1:0),0);
+const dayPhotoCount=ds=>PHOTOS.reduce((n,p)=>{const a=addrById(p.address_id);return n+((a&&a.date===ds)?1:0);},0);
+const phTime=iso=>{const d=new Date(iso);return d.toLocaleDateString('ru-GB',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});};
 const KIND_LBL={open:'Бин открыт',empty:'Бин пуст',rubbish:'Мусор',photo:'Прочее'};
-function kindOf(p){ const k=p.kind||'photo'; return KIND_LBL[k]?k:'photo'; }
+const kindOf=p=>{const k=p.kind||'photo';return KIND_LBL[k]?k:'photo';};
 function photoFiltered(){
-  const ds=document.getElementById('ph-date').value;
-  const all=document.getElementById('ph-all').checked;
-  const drv=document.getElementById('ph-driver').value;
-  const ks=document.getElementById('ph-kind');
-  const kf=ks?ks.value:'';
-  return PHOTOS.filter(p=>{
-    if(drv&&p.driver_id!==drv) return false;
-    if(kf&&kindOf(p)!==kf) return false;
-    if(!all&&ds){ const a=addrById(p.address_id); if(!a||a.date!==ds) return false; }
-    return true;
-  });
+  const ds=document.getElementById('ph-date').value,all=document.getElementById('ph-all').checked,drv=document.getElementById('ph-driver').value,kf=document.getElementById('ph-kind').value;
+  return PHOTOS.filter(p=>{if(drv&&p.driver_id!==drv)return false;if(kf&&kindOf(p)!==kf)return false;if(!all&&ds){const a=addrById(p.address_id);if(!a||a.date!==ds)return false;}return true;});
 }
 function renderPhotos(){
   const list=photoFiltered();
-  document.getElementById('ph-grid').innerHTML=list.map((p,i)=>{
-    const a=addrById(p.address_id);
-    return `<div class="phcard" onclick="lbShow(${i},'grid')" style="position:relative">
-      <span class="phkind ${kindOf(p)}">${t(KIND_LBL[kindOf(p)])}</span>
-      <img loading="lazy" src="${photoUrl(p.path)}" alt="photo">
-      <div class="phmeta">
-        <span class="adr">${a&&a.kind==='bank'?BANKPL+' ':''}${a?esc(a.text):t('(адрес удалён)')}</span>
-        <span style="color:${drvColor(p.driver_id)};font-weight:700">●</span> ${esc(drvName(p.driver_id))}
-        · ${phTime(p.created_at)}
-        ${p.comment?'<div class="note-red">'+esc(p.comment)+'</div>':''}
-      </div></div>`;
-  }).join('')||'<p class="empty" style="grid-column:1/-1">'+t('Фото не найдены')+'</p>';
-  document.getElementById('ph-count').textContent=t('Показано')+': '+list.length;
+  document.getElementById('ph-grid').innerHTML=list.slice(0,300).map((p,i)=>{const a=addrById(p.address_id);return `<div class="phcard" onclick="lbShow(${i})"><span class="phkind ${kindOf(p)}">${KIND_LBL[kindOf(p)]}</span><img loading="lazy" src="${photoUrl(p.path)}" alt="photo"><div class="phmeta"><span class="adr">${a&&a.kind==='bank'?BANKPL+' ':''}${a?esc(a.text):'(адрес удалён)'}</span><span class="dot" style="background:${drvColor(p.driver_id)}"></span>${esc(drvName(p.driver_id))} · ${phTime(p.created_at)}${p.comment?'<div style="color:var(--crit)">'+esc(p.comment)+'</div>':''}</div></div>`;}).join('')||'<p class="empty" style="grid-column:1/-1">Фото не найдены</p>';
+  document.getElementById('ph-count').textContent='Показано: '+Math.min(list.length,300);
 }
-function openAddrGallery(addressId){
-  LBLIST=PHOTOS.filter(p=>p.address_id===addressId);
-  if(LBLIST.length) lbShowList(0);
-}
-function lbShow(i){ LBLIST=photoFiltered(); lbShowList(i); }
+function openAddrGallery(addressId){LBLIST=PHOTOS.filter(p=>p.address_id===addressId);if(LBLIST.length)lbShowList(0);}
+function lbShow(i){LBLIST=photoFiltered();lbShowList(i);}
 async function lbShowList(i){
-  if(!LBLIST.length) return;
-  LBIDX=(i+LBLIST.length)%LBLIST.length;
-  const p=LBLIST[LBIDX], a=addrById(p.address_id);
-  await Ops.signPhotos(sb,[p.path]);
-  if(!OPS_PROFILE)return;
+  if(!LBLIST.length)return;LBIDX=(i+LBLIST.length)%LBLIST.length;const p=LBLIST[LBIDX],a=addrById(p.address_id);
+  await Ops.signPhotos(sb,[p.path]);if(!OPS_PROFILE)return;
   document.getElementById('lb-img').src=photoUrl(p.path);
-  document.getElementById('lb-cap').textContent=
-    '['+t(KIND_LBL[kindOf(p)])+'] '+(a?a.text:t('(адрес удалён)'))+' — '+drvName(p.driver_id)+' · '+phTime(p.created_at)+
-    (p.comment?' · '+p.comment:'')+' · '+(LBIDX+1)+'/'+LBLIST.length;
+  document.getElementById('lb-cap').textContent='['+KIND_LBL[kindOf(p)]+'] '+(a?a.text:'(адрес удалён)')+' — '+drvName(p.driver_id)+' · '+phTime(p.created_at)+(p.comment?' · '+p.comment:'')+' · '+(LBIDX+1)+'/'+LBLIST.length;
   document.getElementById('photo-lb').classList.add('show');
 }
-function lbNav(d){ lbShowList(LBIDX+d); }
-function lbClose(){ document.getElementById('photo-lb').classList.remove('show'); LBLIST=[]; }
+function lbNav(d){lbShowList(LBIDX+d);}
+function lbClose(){document.getElementById('photo-lb').classList.remove('show');LBLIST=[];}
 async function lbDelete(){
-  const p=LBLIST[LBIDX]; if(!p) return;
-  if(!confirm(t('Удалить это фото навсегда?'))) return;
-  try{
-    await sb.from('photos').delete().eq('id',p.id);
-    await sb.storage.from('photos').remove([p.path]);
-  }catch(e){}
-  PHOTOS=PHOTOS.filter(x=>x.id!==p.id);
-  LBLIST.splice(LBIDX,1);
-  renderAddrTable(); renderDash();
-  if(document.getElementById('p-photo').classList.contains('active')) renderPhotos();
-  if(LBLIST.length) lbShowList(LBIDX); else lbClose();
-  toast(t('Фото удалено'));
+  const p=LBLIST[LBIDX];if(!p||!confirm('Удалить это фото навсегда?'))return;
+  try{await sb.from('photos').delete().eq('id',p.id);await sb.storage.from('photos').remove([p.path]);}catch(e){}
+  PHOTOS=PHOTOS.filter(x=>x.id!==p.id);LBLIST.splice(LBIDX,1);renderAddrTable();renderToday();if(SUB.bank==='photos')renderPhotos();
+  if(LBLIST.length)lbShowList(LBIDX);else lbClose();toast('Фото удалено');
 }
 
-/* ---------- export ---------- */
-/* ================= REPORTS ================= */
+/* ---------- отчёты хостам (PDF, без изменений по сути) ---------- */
 const BRAND={ink:'#10231A',green:'#2ECC71',dgreen:'#1E6B45',muted:'#6B7280',line:'#DDDDD6',soft:'#F4F6F3'};
 const MONTHS_EN=['January','February','March','April','May','June','July','August','September','October','November','December'];
-
-function rateOf(b){
-  return {type:(b.rate_type||'per_kg'), value:(b.rate_value==null?0.20:Number(b.rate_value))};
-}
-function money(n){ return '£'+Number(n||0).toFixed(2); }
-function ymNow(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
-function ymLabel(ym){
-  const [y,m]=ym.split('-'); return MONTHS_EN[Number(m)-1]+' '+y;
-}
-function lastDayOf(ym){
-  const [y,m]=ym.split('-').map(Number);
-  return new Date(y,m,0).getDate();
-}
-function payDueLabel(ym){
-  const [y,m]=ym.split('-').map(Number);
-  const d=new Date(y,m,1);
-  return '1 '+MONTHS_EN[d.getMonth()]+' '+d.getFullYear();
-}
-function ukDate(iso){
-  if(!iso) return '';
-  const d=new Date(iso+'T00:00:00');
-  const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const mon=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return days[d.getDay()]+' '+d.getDate()+' '+mon[d.getMonth()]+' '+d.getFullYear();
-}
-function hhmm(ts){
-  if(!ts) return '';
-  const d=new Date(ts);
-  return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
-}
-
-function monthVisits(bankId,ym){
-  return ADDR.filter(a=>a.kind==='bank'&&a.bank_id===bankId&&a.status==='done'
-      &&(a.date||'').slice(0,7)===ym)
-    .sort((x,y)=>(x.date||'').localeCompare(y.date||''));
-}
-function bankStats(b,ym){
-  const v=monthVisits(b.id,ym);
-  const kg=v.reduce((s,a)=>s+(Number(a.fill_level)||0),0);
-  const r=rateOf(b);
-  let pay=0;
-  if(r.type==='per_kg') pay=kg*r.value;
-  else if(r.type==='fixed') pay=r.value;
-  return {visits:v,kg:kg,rate:r,pay:pay};
-}
-function termsLabel(r){
-  if(r.type==='fixed') return money(r.value)+' / '+t('месяц');
-  if(r.type==='none') return '—';
-  return (r.value*100).toFixed(0)+'p / '+t('кг');
-}
-
-async function checkRateCols(){
-  try{
-    const {error}=await sb.from('banks').select('rate_type').limit(1);
-    return !error;
-  }catch(e){ return false; }
-}
-
+const rateOf=b=>({type:(b.rate_type||'per_kg'),value:(b.rate_value==null?0.20:Number(b.rate_value))});
+const money=n=>'£'+Number(n||0).toFixed(2);
+const ymNow=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');};
+const ymLabel=ym=>{const [y,m]=ym.split('-');return MONTHS_EN[Number(m)-1]+' '+y;};
+const payDueLabel=ym=>{const [y,m]=ym.split('-').map(Number);const d=new Date(y,m,1);return '1 '+MONTHS_EN[d.getMonth()]+' '+d.getFullYear();};
+const ukDate=iso=>{if(!iso)return '';const d=new Date(iso+'T00:00:00');return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]+' '+d.getDate()+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]+' '+d.getFullYear();};
+const hhmm=ts=>{if(!ts)return '';const d=new Date(ts);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');};
+const monthVisits=(bankId,ym)=>ADDR.filter(a=>a.kind==='bank'&&a.bank_id===bankId&&a.status==='done'&&(a.date||'').slice(0,7)===ym).sort((x,y)=>(x.date||'').localeCompare(y.date||''));
+function bankStats(b,ym){const v=monthVisits(b.id,ym);const kg=v.reduce((s,a)=>s+(Number(a.fill_level)||0),0);const r=rateOf(b);let pay=0;if(r.type==='per_kg')pay=kg*r.value;else if(r.type==='fixed')pay=r.value;return {visits:v,kg,rate:r,pay};}
+const termsLabel=r=>r.type==='fixed'?money(r.value)+' / месяц':r.type==='none'?'—':(r.value*100).toFixed(0)+'p / кг';
+async function checkRateCols(){try{const {error}=await sb.from('banks').select('rate_type').limit(1);return !error;}catch(e){return false;}}
 async function renderReports(){
-  const mEl=document.getElementById('rep-month');
-  if(!mEl.value) mEl.value=ymNow();
-  const ym=mEl.value;
-  const warn=document.getElementById('rep-warn');
-  const ok=await checkRateCols();
-  warn.style.display=ok?'none':'block';
-  if(!ok) warn.textContent=t('Столбцы ставок не найдены в базе — выполните SQL-миграцию, иначе суммы считаются по умолчанию 20p/кг.');
-
-  const rows=BANKS.map(b=>({b:b,st:bankStats(b,ym)}))
-    .filter(x=>x.st.visits.length>0)
-    .sort((a,b)=>b.st.kg-a.st.kg);
-
+  const mEl=document.getElementById('rep-month');if(!mEl.value)mEl.value=ymNow();const ym=mEl.value;
+  const warn=document.getElementById('rep-warn');const ok=await checkRateCols();warn.hidden=ok;if(!ok)warn.textContent='Столбцы ставок не найдены в базе — суммы считаются по умолчанию 20p/кг.';
+  const rows=BANKS.map(b=>({b,st:bankStats(b,ym)})).filter(x=>x.st.visits.length>0).sort((a,b)=>b.st.kg-a.st.kg);
   const tb=document.getElementById('rep-tbody');
-  if(!rows.length){
-    tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:22px">'
-      +t('Нет данных за этот месяц')+'</td></tr>';
-    return;
-  }
-  const totKg=rows.reduce((s,x)=>s+x.st.kg,0);
-  const totPay=rows.reduce((s,x)=>s+x.st.pay,0);
-  tb.innerHTML=rows.map(x=>`<tr>
-      <td><b>${esc(x.b.name)}</b><div style="font-size:11px;color:var(--muted)">${esc(x.b.text||'')}</div></td>
-      <td>${termsLabel(x.st.rate)}</td>
-      <td>${x.st.visits.length}</td>
-      <td><b>${x.st.kg}</b> ${t('кг')}</td>
-      <td>${x.st.rate.type==='none'?'—':'<b>'+money(x.st.pay)+'</b>'}</td>
-      <td style="text-align:right"><button class="btn btn-ghost" onclick="hostPdf('${x.b.id}')">PDF</button></td>
-    </tr>`).join('')
-    +`<tr style="background:var(--soft,#F4F6F3);font-weight:700">
-      <td>${t('Всего')}</td><td></td>
-      <td>${rows.reduce((s,x)=>s+x.st.visits.length,0)}</td>
-      <td>${totKg} ${t('кг')}</td><td>${money(totPay)}</td><td></td></tr>`;
+  if(!rows.length){tb.innerHTML='<tr><td colspan="6" class="empty">Нет данных за этот месяц</td></tr>';return;}
+  tb.innerHTML=rows.map(x=>`<tr><td><b>${esc(x.b.name)}</b><div class="muted small">${esc(x.b.text||'')}</div></td><td>${termsLabel(x.st.rate)}</td><td class="num">${x.st.visits.length}</td><td class="num"><b>${x.st.kg}</b> кг</td><td class="num">${x.st.rate.type==='none'?'—':'<b>'+money(x.st.pay)+'</b>'}</td><td style="text-align:right"><button class="btn btn-sm" onclick="hostPdf('${x.b.id}')">PDF</button></td></tr>`).join('')
+    +`<tr class="total"><td>Всего</td><td></td><td class="num">${rows.reduce((s,x)=>s+x.st.visits.length,0)}</td><td class="num">${rows.reduce((s,x)=>s+x.st.kg,0)} кг</td><td class="num">${money(rows.reduce((s,x)=>s+x.st.pay,0))}</td><td></td></tr>`;
 }
-
-/* --- изображения для PDF --- */
-async function imgToData(path,maxW){
-  try{
-    await Ops.signPhotos(sb,[path]);
-    const res=await fetch(photoUrl(path));
-    if(!res.ok) return null;
-    const blob=await res.blob();
-    const bmp=await createImageBitmap(blob);
-    const sc=Math.min(1,maxW/bmp.width);
-    const c=document.createElement('canvas');
-    c.width=Math.round(bmp.width*sc); c.height=Math.round(bmp.height*sc);
-    c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);
-    bmp.close&&bmp.close();
-    return {data:c.toDataURL('image/jpeg',0.7),w:c.width,h:c.height};
-  }catch(e){ return null; }
-}
-function visitPhotos(addrId){
-  const ps=PHOTOS.filter(p=>p.address_id===addrId);
-  return {open:ps.find(p=>p.kind==='open'), empty:ps.find(p=>p.kind==='empty')};
-}
-
-/* --- общий каркас документа --- */
+async function imgToData(path,maxW){try{await Ops.signPhotos(sb,[path]);const res=await fetch(photoUrl(path));if(!res.ok)return null;const blob=await res.blob();const bmp=await createImageBitmap(blob);const sc=Math.min(1,maxW/bmp.width);const c=document.createElement('canvas');c.width=Math.round(bmp.width*sc);c.height=Math.round(bmp.height*sc);c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);bmp.close&&bmp.close();return {data:c.toDataURL('image/jpeg',0.7),w:c.width,h:c.height};}catch(e){return null;}}
 function pdfShell(subtitle){
-  return {
-    pageSize:'A4', pageMargins:[40,98,40,46],
-    defaultStyle:{font:'Roboto',fontSize:9.5,color:'#1A1A18',lineHeight:1.25},
-    background:function(){ return {canvas:[
-      {type:'rect',x:0,y:0,w:595.28,h:80,color:BRAND.ink},
-      {type:'rect',x:0,y:80,w:595.28,h:4.5,color:BRAND.green}]}; },
-    header:{margin:[40,24,40,0],columns:[
-      {width:'*',stack:[
-        {text:[{text:'SUBNEX',bold:true,fontSize:16,color:'#FFFFFF'},
-               {text:'   G R O U P',bold:true,fontSize:7,color:BRAND.green}]},
-        {text:'Textile collection  ·  South Wales',fontSize:7.5,color:'#9AA6A0',margin:[0,5,0,0]}]},
-      {width:'auto',alignment:'right',stack:[
-        {text:'subnex.co.uk',fontSize:7.5,color:'#FFFFFF'},
-        {text:'info@subnex.co.uk',fontSize:7.5,color:'#9AA6A0',margin:[0,3,0,0]}]}]},
-    footer:function(cur,tot){ return {margin:[40,10,40,0],columns:[
-      {text:subtitle,fontSize:7,color:BRAND.muted},
-      {text:'Page '+cur+' / '+tot,fontSize:7,color:BRAND.muted,alignment:'right'}]}; },
-    styles:{
-      h1:{fontSize:18,bold:true,margin:[0,0,0,4]},
-      sec:{fontSize:10.5,bold:true,color:BRAND.dgreen,margin:[0,16,0,6]},
-      lbl:{fontSize:6.8,bold:true,color:BRAND.muted,characterSpacing:0.4},
-      val:{fontSize:10},
-      th:{fontSize:8,bold:true,color:'#FFFFFF'},
-      note:{fontSize:7.5,color:BRAND.muted}
-    }
-  };
+  return {pageSize:'A4',pageMargins:[40,98,40,46],defaultStyle:{font:'Roboto',fontSize:9.5,color:'#1A1A18',lineHeight:1.25},
+    background:function(){return {canvas:[{type:'rect',x:0,y:0,w:595.28,h:80,color:BRAND.ink},{type:'rect',x:0,y:80,w:595.28,h:4.5,color:BRAND.green}]};},
+    header:{margin:[40,24,40,0],columns:[{width:'*',stack:[{text:[{text:'SUBNEX',bold:true,fontSize:16,color:'#FFFFFF'},{text:'   G R O U P',bold:true,fontSize:7,color:BRAND.green}]},{text:'Textile collection  ·  South Wales',fontSize:7.5,color:'#9AA6A0',margin:[0,5,0,0]}]},{width:'auto',alignment:'right',stack:[{text:'subnex.co.uk',fontSize:7.5,color:'#FFFFFF'},{text:'info@subnex.co.uk',fontSize:7.5,color:'#9AA6A0',margin:[0,3,0,0]}]}]},
+    footer:function(cur,tot){return {margin:[40,10,40,0],columns:[{text:subtitle,fontSize:7,color:BRAND.muted},{text:'Page '+cur+' / '+tot,fontSize:7,color:BRAND.muted,alignment:'right'}]};},
+    styles:{h1:{fontSize:18,bold:true,margin:[0,0,0,4]},sec:{fontSize:10.5,bold:true,color:BRAND.dgreen,margin:[0,16,0,6]},lbl:{fontSize:6.8,bold:true,color:BRAND.muted,characterSpacing:0.4},val:{fontSize:10},th:{fontSize:8,bold:true,color:'#FFFFFF'},note:{fontSize:7.5,color:BRAND.muted}}};
 }
-function kvRow(pairs){
-  return {columns:pairs.map(p=>({width:'*',stack:[
-    {text:p[0].toUpperCase(),style:'lbl'},
-    {text:p[1]||'—',style:'val',margin:[0,2,0,0]}]})),margin:[0,0,0,10]};
-}
-function noBorder(){ return {hLineWidth:()=>0,vLineWidth:()=>0,paddingLeft:()=>0,paddingRight:()=>0,paddingTop:()=>0,paddingBottom:()=>0}; }
-
-/* --- отчёт хосту --- */
+const kvRow=pairs=>({columns:pairs.map(p=>({width:'*',stack:[{text:p[0].toUpperCase(),style:'lbl'},{text:p[1]||'—',style:'val',margin:[0,2,0,0]}]})),margin:[0,0,0,10]});
 async function hostPdf(bankId,silent){
-  const b=BANKS.find(x=>x.id===bankId); if(!b) return;
-  const ym=document.getElementById('rep-month').value||ymNow();
-  const st=bankStats(b,ym);
-  if(!st.visits.length){ toast(t('Нет данных за этот месяц')); return; }
-  if(!silent) toast(t('Готовлю PDF…'));
-
-  const showKg=b.show_weights!==false;
-  const perKg=st.rate.type==='per_kg';
-  const body=[];
-
+  const b=BANKS.find(x=>x.id===bankId);if(!b)return;const ym=document.getElementById('rep-month').value||ymNow();const st=bankStats(b,ym);
+  if(!st.visits.length){toast('Нет данных за этот месяц');return;}if(!silent)toast('Готовлю PDF…');
+  const showKg=b.show_weights!==false,perKg=st.rate.type==='per_kg';const body=[];
   body.push({text:'Monthly collection report',style:'h1'});
-  body.push({text:'This report covers every collection carried out at your site during the period below.',
-             margin:[0,0,0,14],color:'#3A3A38'});
-  body.push(kvRow([['Site',b.name],['Period',ymLabel(ym)],
-    ['Agreed rate',perKg?((st.rate.value*100).toFixed(0)+'p per kg')
-      :(st.rate.type==='fixed'?(money(st.rate.value)+' per month'):'—')]]));
-  body.push(kvRow([['Address',b.text||''],['Site contact',b.contact_name||''],
-    ['Payment due',st.rate.type==='none'?'—':payDueLabel(ym)]]));
-
+  body.push({text:'This report covers every collection carried out at your site during the period below.',margin:[0,0,0,14],color:'#3A3A38'});
+  body.push(kvRow([['Site',b.name],['Period',ymLabel(ym)],['Agreed rate',perKg?((st.rate.value*100).toFixed(0)+'p per kg'):(st.rate.type==='fixed'?(money(st.rate.value)+' per month'):'—')]]));
+  body.push(kvRow([['Address',b.text||''],['Site contact',b.contact_name||''],['Payment due',st.rate.type==='none'?'—':payDueLabel(ym)]]));
   const boxCells=[];
-  if(showKg) boxCells.push({stack:[{text:'TOTAL COLLECTED (ESTIMATED)',style:'lbl'},
-    {text:st.kg+' kg',fontSize:19,bold:true,margin:[0,3,0,0]}]});
-  if(perKg) boxCells.push({stack:[{text:'RATE',style:'lbl'},
-    {text:(st.rate.value*100).toFixed(0)+'p',fontSize:19,bold:true,margin:[0,3,0,0]}]});
-  if(st.rate.type!=='none') boxCells.push({stack:[{text:'AMOUNT PAYABLE',style:'lbl'},
-    {text:money(st.pay),fontSize:19,bold:true,color:BRAND.dgreen,margin:[0,3,0,0]}]});
-  boxCells.push({stack:[{text:'COLLECTIONS',style:'lbl'},
-    {text:String(st.visits.length),fontSize:19,bold:true,margin:[0,3,0,0]}]});
-  body.push({table:{widths:boxCells.map(()=>'*'),body:[boxCells]},
-    layout:{hLineWidth:()=>0.7,vLineWidth:(i,n)=>(i===0||i===n.table.widths.length)?0.7:0.7,
-      hLineColor:()=>BRAND.line,vLineColor:()=>BRAND.line,
-      paddingLeft:()=>11,paddingRight:()=>11,paddingTop:()=>9,paddingBottom:()=>10,
-      fillColor:()=>BRAND.soft},margin:[0,4,0,0]});
-
+  if(showKg)boxCells.push({stack:[{text:'TOTAL COLLECTED (ESTIMATED)',style:'lbl'},{text:st.kg+' kg',fontSize:19,bold:true,margin:[0,3,0,0]}]});
+  if(perKg)boxCells.push({stack:[{text:'RATE',style:'lbl'},{text:(st.rate.value*100).toFixed(0)+'p',fontSize:19,bold:true,margin:[0,3,0,0]}]});
+  if(st.rate.type!=='none')boxCells.push({stack:[{text:'AMOUNT PAYABLE',style:'lbl'},{text:money(st.pay),fontSize:19,bold:true,color:BRAND.dgreen,margin:[0,3,0,0]}]});
+  boxCells.push({stack:[{text:'COLLECTIONS',style:'lbl'},{text:String(st.visits.length),fontSize:19,bold:true,margin:[0,3,0,0]}]});
+  body.push({table:{widths:boxCells.map(()=>'*'),body:[boxCells]},layout:{hLineWidth:()=>0.7,vLineWidth:()=>0.7,hLineColor:()=>BRAND.line,vLineColor:()=>BRAND.line,paddingLeft:()=>11,paddingRight:()=>11,paddingTop:()=>9,paddingBottom:()=>10,fillColor:()=>BRAND.soft},margin:[0,4,0,0]});
   body.push({text:'Collections this period',style:'sec'});
-  const head=[{text:'#',style:'th'},{text:'DATE',style:'th'},{text:'TIME',style:'th'}];
-  if(showKg) head.push({text:'ESTIMATED WEIGHT',style:'th',alignment:'right'});
-  if(perKg) head.push({text:'VALUE',style:'th',alignment:'right'});
-  const rows=[head];
-  st.visits.forEach((a,i)=>{
-    const r=[String(i+1),ukDate(a.date),hhmm(a.done_at)];
-    if(showKg) r.push({text:(Number(a.fill_level)||0)+' kg',alignment:'right'});
-    if(perKg) r.push({text:money((Number(a.fill_level)||0)*st.rate.value),alignment:'right'});
-    rows.push(r);
-  });
-  const tot=[{text:'',border:[false,true,false,false]},{text:'Total',bold:true},{text:''}];
-  if(showKg) tot.push({text:st.kg+' kg',bold:true,alignment:'right'});
-  if(perKg) tot.push({text:money(st.pay),bold:true,alignment:'right'});
-  rows.push(tot);
-  const w=['auto','*','auto']; if(showKg) w.push('auto'); if(perKg) w.push('auto');
-  body.push({table:{headerRows:1,widths:w,body:rows},
-    layout:{hLineWidth:()=>0.4,vLineWidth:()=>0,hLineColor:()=>BRAND.line,
-      paddingTop:()=>6,paddingBottom:()=>6,paddingLeft:()=>8,paddingRight:()=>8,
-      fillColor:(i)=>i===0?BRAND.ink:(i===rows.length-1?BRAND.soft:(i%2?null:'#FAFAF7'))}});
-  if(showKg) body.push({text:'Weights are estimated by the collection driver and recorded on site at the moment of collection.',
-    style:'note',margin:[0,6,0,0]});
-
-  body.push({table:{widths:['*'],body:[[{stack:[
-    {text:'Questions about this report?',bold:true,margin:[0,0,0,3]},
-    {text:'Reply to this email or call us and we will look into any collection listed above.'
-      +(st.rate.type==='none'?'':' Payment is made by bank transfer on the 1st of the month for the previous month.'),
-      color:'#3A3A38'}]}]]},
-    layout:{hLineWidth:()=>0,vLineWidth:(i)=>i===0?2.5:0,vLineColor:()=>BRAND.green,
-      paddingLeft:()=>11,paddingRight:()=>11,paddingTop:()=>10,paddingBottom:()=>10,
-      fillColor:()=>BRAND.soft},margin:[0,10,0,0]});
-
-  const doc=pdfShell('Subnex Group Ltd  ·  Collection report  ·  '+b.name+'  ·  '+ymLabel(ym));
-  doc.content=body;
-  doc.info={title:'Subnex collection report — '+b.name+' — '+ymLabel(ym),author:'Subnex Group Ltd'};
+  const head=[{text:'#',style:'th'},{text:'DATE',style:'th'},{text:'TIME',style:'th'}];if(showKg)head.push({text:'ESTIMATED WEIGHT',style:'th',alignment:'right'});if(perKg)head.push({text:'VALUE',style:'th',alignment:'right'});
+  const rows=[head];st.visits.forEach((a,i)=>{const r=[String(i+1),ukDate(a.date),hhmm(a.done_at)];if(showKg)r.push({text:(Number(a.fill_level)||0)+' kg',alignment:'right'});if(perKg)r.push({text:money((Number(a.fill_level)||0)*st.rate.value),alignment:'right'});rows.push(r);});
+  const tot=[{text:'',border:[false,true,false,false]},{text:'Total',bold:true},{text:''}];if(showKg)tot.push({text:st.kg+' kg',bold:true,alignment:'right'});if(perKg)tot.push({text:money(st.pay),bold:true,alignment:'right'});rows.push(tot);
+  const w=['auto','*','auto'];if(showKg)w.push('auto');if(perKg)w.push('auto');
+  body.push({table:{headerRows:1,widths:w,body:rows},layout:{hLineWidth:()=>0.4,vLineWidth:()=>0,hLineColor:()=>BRAND.line,paddingTop:()=>6,paddingBottom:()=>6,paddingLeft:()=>8,paddingRight:()=>8,fillColor:(i)=>i===0?BRAND.ink:(i===rows.length-1?BRAND.soft:(i%2?null:'#FAFAF7'))}});
+  if(showKg)body.push({text:'Weights are estimated by the collection driver and recorded on site at the moment of collection.',style:'note',margin:[0,6,0,0]});
+  body.push({table:{widths:['*'],body:[[{stack:[{text:'Questions about this report?',bold:true,margin:[0,0,0,3]},{text:'Reply to this email or call us and we will look into any collection listed above.'+(st.rate.type==='none'?'':' Payment is made by bank transfer on the 1st of the month for the previous month.'),color:'#3A3A38'}]}]]},layout:{hLineWidth:()=>0,vLineWidth:(i)=>i===0?2.5:0,vLineColor:()=>BRAND.green,paddingLeft:()=>11,paddingRight:()=>11,paddingTop:()=>10,paddingBottom:()=>10,fillColor:()=>BRAND.soft},margin:[0,10,0,0]});
+  const doc=pdfShell('Subnex Group Ltd  ·  Collection report  ·  '+b.name+'  ·  '+ymLabel(ym));doc.content=body;doc.info={title:'Subnex collection report — '+b.name+' — '+ymLabel(ym),author:'Subnex Group Ltd'};
   const fname='Subnex-'+b.name.replace(/[^\w\-]+/g,'-').replace(/^-|-$/g,'')+'-'+ym+'.pdf';
   return new Promise(res=>pdfMake.createPdf(doc).download(fname,res));
 }
-
-async function allHostPdf(){
-  const ym=document.getElementById('rep-month').value||ymNow();
-  const list=BANKS.filter(b=>monthVisits(b.id,ym).length>0);
-  if(!list.length){ toast(t('Нет данных за этот месяц')); return; }
-  toast(t('Готовлю PDF…'));
-  for(const b of list){ await hostPdf(b.id,true); await new Promise(r=>setTimeout(r,600)); }
-}
-
-/* --- внутренняя сводка --- */
+async function allHostPdf(){const ym=document.getElementById('rep-month').value||ymNow();const list=BANKS.filter(b=>monthVisits(b.id,ym).length>0);if(!list.length){toast('Нет данных за этот месяц');return;}toast('Готовлю PDF…');for(const b of list){await hostPdf(b.id,true);await new Promise(r=>setTimeout(r,600));}}
 async function internalPdf(){
-  const ym=document.getElementById('rep-month').value||ymNow();
-  const rows=BANKS.map(b=>({b:b,st:bankStats(b,ym)})).filter(x=>x.st.visits.length>0);
-  if(!rows.length){ toast(t('Нет данных за этот месяц')); return; }
-  toast(t('Готовлю PDF…'));
-
-  const body=[{text:'Internal summary — '+ymLabel(ym),style:'h1'},
-    {text:'Operational totals and amounts payable to sites. Not for distribution.',
-     margin:[0,0,0,14],color:'#3A3A38'}];
-
-  const totKg=rows.reduce((s,x)=>s+x.st.kg,0);
-  const totPay=rows.reduce((s,x)=>s+x.st.pay,0);
-  const totVis=rows.reduce((s,x)=>s+x.st.visits.length,0);
-  body.push({table:{widths:['*','*','*','*'],body:[[
-    {stack:[{text:'SITES',style:'lbl'},{text:String(rows.length),fontSize:19,bold:true,margin:[0,3,0,0]}]},
-    {stack:[{text:'COLLECTIONS',style:'lbl'},{text:String(totVis),fontSize:19,bold:true,margin:[0,3,0,0]}]},
-    {stack:[{text:'TOTAL COLLECTED',style:'lbl'},{text:totKg+' kg',fontSize:19,bold:true,margin:[0,3,0,0]}]},
-    {stack:[{text:'TOTAL PAYABLE',style:'lbl'},{text:money(totPay),fontSize:19,bold:true,color:BRAND.dgreen,margin:[0,3,0,0]}]}]]},
-    layout:{hLineWidth:()=>0.7,vLineWidth:()=>0.7,hLineColor:()=>BRAND.line,vLineColor:()=>BRAND.line,
-      paddingLeft:()=>11,paddingRight:()=>11,paddingTop:()=>9,paddingBottom:()=>10,
-      fillColor:()=>BRAND.soft}});
-
+  const ym=document.getElementById('rep-month').value||ymNow();const rows=BANKS.map(b=>({b,st:bankStats(b,ym)})).filter(x=>x.st.visits.length>0);if(!rows.length){toast('Нет данных за этот месяц');return;}toast('Готовлю PDF…');
+  const body=[{text:'Internal summary — '+ymLabel(ym),style:'h1'},{text:'Operational totals and amounts payable to sites. Not for distribution.',margin:[0,0,0,14],color:'#3A3A38'}];
+  const totKg=rows.reduce((s,x)=>s+x.st.kg,0),totPay=rows.reduce((s,x)=>s+x.st.pay,0),totVis=rows.reduce((s,x)=>s+x.st.visits.length,0);
+  body.push({table:{widths:['*','*','*','*'],body:[[{stack:[{text:'SITES',style:'lbl'},{text:String(rows.length),fontSize:19,bold:true,margin:[0,3,0,0]}]},{stack:[{text:'COLLECTIONS',style:'lbl'},{text:String(totVis),fontSize:19,bold:true,margin:[0,3,0,0]}]},{stack:[{text:'TOTAL COLLECTED',style:'lbl'},{text:totKg+' kg',fontSize:19,bold:true,margin:[0,3,0,0]}]},{stack:[{text:'TOTAL PAYABLE',style:'lbl'},{text:money(totPay),fontSize:19,bold:true,color:BRAND.dgreen,margin:[0,3,0,0]}]}]]},layout:{hLineWidth:()=>0.7,vLineWidth:()=>0.7,hLineColor:()=>BRAND.line,vLineColor:()=>BRAND.line,paddingLeft:()=>11,paddingRight:()=>11,paddingTop:()=>9,paddingBottom:()=>10,fillColor:()=>BRAND.soft}});
   body.push({text:'By site',style:'sec'});
-  const sr=[[{text:'SITE',style:'th'},{text:'TERMS',style:'th'},{text:'COLL.',style:'th',alignment:'right'},
-             {text:'COLLECTED',style:'th',alignment:'right'},{text:'PAYABLE',style:'th',alignment:'right'}]];
-  rows.sort((a,b)=>b.st.kg-a.st.kg).forEach(x=>{
-    const r=x.st.rate;
-    sr.push([x.b.name,
-      r.type==='per_kg'?((r.value*100).toFixed(0)+'p / kg'):(r.type==='fixed'?(money(r.value)+' / month'):'no payment'),
-      {text:String(x.st.visits.length),alignment:'right'},
-      {text:x.st.kg+' kg',alignment:'right'},
-      {text:r.type==='none'?'—':money(x.st.pay),alignment:'right',bold:true}]);
-  });
-  sr.push([{text:'Total',bold:true},'',{text:String(totVis),alignment:'right',bold:true},
-    {text:totKg+' kg',alignment:'right',bold:true},{text:money(totPay),alignment:'right',bold:true}]);
-  body.push({table:{headerRows:1,widths:['*','auto','auto','auto','auto'],body:sr},
-    layout:{hLineWidth:()=>0.4,vLineWidth:()=>0,hLineColor:()=>BRAND.line,
-      paddingTop:()=>6,paddingBottom:()=>6,paddingLeft:()=>8,paddingRight:()=>8,
-      fillColor:(i)=>i===0?BRAND.ink:(i===sr.length-1?BRAND.soft:(i%2?null:'#FAFAF7'))}});
-
-  const byDay={};
-  rows.forEach(x=>x.st.visits.forEach(a=>{
-    const d=a.date||'';
-    if(!byDay[d]) byDay[d]={kg:0,n:0};
-    byDay[d].kg+=Number(a.fill_level)||0; byDay[d].n++;
-  }));
-  const days=Object.keys(byDay).sort();
-  body.push({text:'By day',style:'sec'});
-  const dr=[[{text:'DATE',style:'th'},{text:'COLLECTIONS',style:'th',alignment:'right'},
-             {text:'COLLECTED',style:'th',alignment:'right'}]];
-  days.forEach(d=>dr.push([ukDate(d),{text:String(byDay[d].n),alignment:'right'},
-    {text:byDay[d].kg+' kg',alignment:'right'}]));
-  dr.push([{text:'Total',bold:true},{text:String(totVis),alignment:'right',bold:true},
-    {text:totKg+' kg',alignment:'right',bold:true}]);
-  body.push({table:{headerRows:1,widths:['*','auto','auto'],body:dr},
-    layout:{hLineWidth:()=>0.4,vLineWidth:()=>0,hLineColor:()=>BRAND.line,
-      paddingTop:()=>6,paddingBottom:()=>6,paddingLeft:()=>8,paddingRight:()=>8,
-      fillColor:(i)=>i===0?BRAND.ink:(i===dr.length-1?BRAND.soft:(i%2?null:'#FAFAF7'))}});
-
-  const doc=pdfShell('Subnex Group Ltd  ·  Internal summary  ·  '+ymLabel(ym));
-  doc.content=body;
-  doc.info={title:'Subnex internal summary — '+ymLabel(ym),author:'Subnex Group Ltd'};
+  const sr=[[{text:'SITE',style:'th'},{text:'TERMS',style:'th'},{text:'COLL.',style:'th',alignment:'right'},{text:'COLLECTED',style:'th',alignment:'right'},{text:'PAYABLE',style:'th',alignment:'right'}]];
+  rows.sort((a,b)=>b.st.kg-a.st.kg).forEach(x=>{const r=x.st.rate;sr.push([x.b.name,r.type==='per_kg'?((r.value*100).toFixed(0)+'p / kg'):(r.type==='fixed'?(money(r.value)+' / month'):'no payment'),{text:String(x.st.visits.length),alignment:'right'},{text:x.st.kg+' kg',alignment:'right'},{text:r.type==='none'?'—':money(x.st.pay),alignment:'right',bold:true}]);});
+  sr.push([{text:'Total',bold:true},'',{text:String(totVis),alignment:'right',bold:true},{text:totKg+' kg',alignment:'right',bold:true},{text:money(totPay),alignment:'right',bold:true}]);
+  body.push({table:{headerRows:1,widths:['*','auto','auto','auto','auto'],body:sr},layout:{hLineWidth:()=>0.4,vLineWidth:()=>0,hLineColor:()=>BRAND.line,paddingTop:()=>6,paddingBottom:()=>6,paddingLeft:()=>8,paddingRight:()=>8,fillColor:(i)=>i===0?BRAND.ink:(i===sr.length-1?BRAND.soft:(i%2?null:'#FAFAF7'))}});
+  const byDay={};rows.forEach(x=>x.st.visits.forEach(a=>{const d=a.date||'';if(!byDay[d])byDay[d]={kg:0,n:0};byDay[d].kg+=Number(a.fill_level)||0;byDay[d].n++;}));
+  const days=Object.keys(byDay).sort();body.push({text:'By day',style:'sec'});
+  const dr=[[{text:'DATE',style:'th'},{text:'COLLECTIONS',style:'th',alignment:'right'},{text:'COLLECTED',style:'th',alignment:'right'}]];
+  days.forEach(d=>dr.push([ukDate(d),{text:String(byDay[d].n),alignment:'right'},{text:byDay[d].kg+' kg',alignment:'right'}]));
+  dr.push([{text:'Total',bold:true},{text:String(totVis),alignment:'right',bold:true},{text:totKg+' kg',alignment:'right',bold:true}]);
+  body.push({table:{headerRows:1,widths:['*','auto','auto'],body:dr},layout:{hLineWidth:()=>0.4,vLineWidth:()=>0,hLineColor:()=>BRAND.line,paddingTop:()=>6,paddingBottom:()=>6,paddingLeft:()=>8,paddingRight:()=>8,fillColor:(i)=>i===0?BRAND.ink:(i===dr.length-1?BRAND.soft:(i%2?null:'#FAFAF7'))}});
+  const doc=pdfShell('Subnex Group Ltd  ·  Internal summary  ·  '+ymLabel(ym));doc.content=body;doc.info={title:'Subnex internal summary — '+ymLabel(ym),author:'Subnex Group Ltd'};
   pdfMake.createPdf(doc).download('Subnex-INTERNAL-'+ym+'.pdf');
 }
 
-function onRateTypeChange(){
-  const v=document.getElementById('mk-ratetype').value;
-  const lbl=document.getElementById('mk-ratelbl');
-  const inp=document.getElementById('mk-ratevalue');
-  if(v==='none'){ lbl.style.display='none'; inp.style.display='none'; return; }
-  lbl.style.display=''; inp.style.display='';
-  lbl.textContent=t(v==='fixed'?'Сумма в месяц, £':'Ставка, £ за кг');
-  inp.placeholder=v==='fixed'?'50':'0.20';
-}
-
-function exportRows(){
-  const from=document.getElementById('ex-from').value;
-  const to=document.getElementById('ex-to').value;
-  return ADDR.filter(a=>{
-    if(!a.date) return !from&&!to;
-    if(from&&a.date<from) return false;
-    if(to&&a.date>to) return false;
-    return true;
-  });
-}
+/* ---------- экспорт ---------- */
+function exportRows(){const from=document.getElementById('ex-from').value,to=document.getElementById('ex-to').value;return ADDR.filter(a=>{if(!a.date)return !from&&!to;if(from&&a.date<from)return false;if(to&&a.date>to)return false;return true;});}
 function exportCSV(){
-  const rows=exportRows();
-  const csvCell=v=>{ const s=String(v??''); return /[",;\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; };
-  const head=['date','driver','type','address','bags','fill_level','phone','note','status','result_note','done_at'];
-  const lines=[head.join(';')].concat(rows.map(a=>[
-    a.date||'', drvName(a.driver_id), a.kind||'d2d', a.text, a.bags||0,
-    (a.fill_level==null?'':a.fill_level), a.phone||'', a.note||'',
-    a.status, a.result_note||'', a.done_at||''
-  ].map(csvCell).join(';')));
-  downloadFile('\ufeff'+'sep=;\r\n'+lines.join('\r\n'),'subnex-export-'+todayStr()+'.csv','text/csv');
-  toast('CSV: '+rows.length+' '+t('строк'));
+  const rows=exportRows();const csvCell=v=>{const s=String(v??'');return /[",;\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
+  const head=['date','driver','type','address','bags','bags_text','source','charity','phone','note','status','result_note','done_at'];
+  const lines=[head.join(';')].concat(rows.map(a=>[a.date||'',drvName(a.driver_id),a.kind||'d2d',a.text,a.bags||0,a.bags_text||'',C.sourceNames[C.sourceOf(a)]||'',a.charity||'',a.phone||'',a.note||'',a.status,a.result_note||'',a.done_at||''].map(csvCell).join(';')));
+  downloadFile('﻿'+'sep=;\r\n'+lines.join('\r\n'),'subnex-export-'+todayStr()+'.csv','text/csv');toast('CSV: '+rows.length+' строк');
 }
-function exportJSON(){
-  downloadFile(JSON.stringify({drivers:DRIVERS,addresses:ADDR,banks:BANKS,photos:PHOTOS},null,2),
-    'subnex-backup-'+todayStr()+'.json','application/json');
-}
-function downloadFile(content,name,type){
-  const blob=new Blob([content],{type});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob); a.download=name; a.click();
-  URL.revokeObjectURL(a.href);
-}
+function exportJSON(){downloadFile(JSON.stringify({drivers:DRIVERS,addresses:ADDR,banks:BANKS,photos:PHOTOS},null,2),'subnex-backup-'+todayStr()+'.json','application/json');}
+function downloadFile(content,name,type){const blob=new Blob([content],{type});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();URL.revokeObjectURL(a.href);}
 
-document.querySelectorAll('.modal-bg').forEach(bg=>{
-  bg.addEventListener('click',e=>{ if(e.target===bg) bg.classList.remove('show'); });
-});
-document.getElementById('admin-password').addEventListener('keydown',e=>{ if(e.key==='Enter') gateEnter(); });
-
-document.getElementById('lang-sel').value=LANG;
-applyLang();
+document.querySelectorAll('.modal-bg').forEach(bg=>bg.addEventListener('click',e=>{if(e.target===bg)bg.classList.remove('show');}));
+document.getElementById('admin-password').addEventListener('keydown',e=>{if(e.key==='Enter')gateEnter();});
+window.addEventListener('hashchange',()=>{const p=location.hash.replace('#','');if(OPS_PROFILE&&p&&p!==PAGE&&PAGES.includes(p))go(p);});
 init();
-
 </script>
 </body>
 </html>

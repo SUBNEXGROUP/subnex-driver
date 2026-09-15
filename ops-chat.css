@@ -1,9 +1,110 @@
-/* SUBNEX SMS workspace. Scoped styles preserve the existing route application. */
-.ops-root{--oc-ink:#15241d;--oc-green:#17664a;--oc-yellow:#ffc400;--oc-line:#dce2db;position:fixed;inset:0;z-index:20000;background:#edf0eb;color:var(--oc-ink);font:15px/1.45 system-ui,sans-serif;display:flex;flex-direction:column;text-align:left}
-.ops-root *{box-sizing:border-box}.ops-root button,.ops-root input,.ops-root select,.ops-root textarea{font:inherit}.ops-root button{cursor:pointer;border:1px solid var(--oc-line);border-radius:9px;padding:9px 13px;background:white;color:var(--oc-ink);box-shadow:none;min-height:40px}.ops-root button:hover{background:#edf5ef}.ops-root button:disabled{opacity:.45;cursor:default}.ops-root .oc-primary{background:var(--oc-yellow);border-color:#d0a600;font-weight:750}.ops-root .oc-green{background:var(--oc-green);color:white}.ops-root input:not([type=checkbox]),.ops-root select,.ops-root textarea{width:100%;border:1px solid #c5cec6;border-radius:8px;padding:10px 12px;margin:0;background:white;color:var(--oc-ink);min-width:0}.ops-root textarea{resize:vertical;min-height:84px}.ops-root label{display:block;font-size:13px;font-weight:600;margin:0}.ops-root label>input,.ops-root label>select{margin-top:5px!important}.ops-root input[type=checkbox]{accent-color:var(--oc-green);width:17px;height:17px;margin:0 7px 0 0;vertical-align:middle}.ops-root :focus-visible{outline:3px solid #6bbdaf;outline-offset:2px}
-.oc-top{height:70px;padding:12px 24px;background:var(--oc-ink);color:white;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-shrink:0}.oc-brand{font-size:22px;font-weight:800;letter-spacing:1px}.oc-brand small{font-size:13px;font-weight:500;color:#c7d4c8;letter-spacing:0;margin-left:15px}.oc-top nav{display:flex;gap:8px}.oc-top button{min-height:36px;padding:5px 11px}.oc-body{display:grid;grid-template-columns:330px minmax(0,1fr);max-width:1480px;margin:0 auto;width:100%;min-height:0;flex:1;border-left:1px solid var(--oc-line);border-right:1px solid var(--oc-line)}
-.oc-side{background:white;border-right:1px solid var(--oc-line);display:flex;flex-direction:column;min-height:0}.oc-filters{padding:17px;display:grid;gap:10px;border-bottom:1px solid var(--oc-line)}.oc-list{overflow:auto;flex:1;min-height:0}.ops-root .oc-thread{width:100%;text-align:left;border:0;border-radius:0;border-bottom:1px solid #e8ece6;padding:16px 18px;display:block;min-height:100px}.ops-root .oc-thread.active{background:#e9f1e9;box-shadow:inset 4px 0 var(--oc-green)}.oc-thread strong{display:block;font-size:15px}.oc-thread p{margin:4px 0;color:#627167;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.oc-thread small{color:#647066}.oc-dot{display:inline-block;width:7px;height:7px;background:#dd8d13;border-radius:50%;margin-right:6px}.oc-conversation{background:#f6f7f3;min-height:0;display:flex;flex-direction:column;position:relative}.oc-head{padding:16px 24px;border-bottom:1px solid var(--oc-line);background:white;flex-shrink:0}.oc-head strong{font-size:19px}.oc-head p{margin:3px 0}.oc-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.oc-between{justify-content:space-between}.oc-muted{color:#617267;font-size:13px}.oc-chip{display:inline-block;font-size:12px;padding:3px 8px;border-radius:5px;background:#e9eee5;margin-right:6px;margin-top:5px}.oc-chip.warn{background:#fff0d0;color:#805500}.oc-chip.ok{background:#dceedd;color:#24623b}.oc-messages{overflow:auto;flex:1;min-height:100px;padding:18px 24px;display:flex;flex-direction:column;gap:12px;align-items:flex-start;overscroll-behavior:contain}.oc-message{max-width:min(85%,640px);background:white;border:1px solid var(--oc-line);padding:12px 15px;border-radius:3px 14px 14px 14px;overflow-wrap:anywhere}.oc-message.out{align-self:flex-end;background:#e5efdf;border-radius:14px 3px 14px 14px}.oc-message .oc-text{white-space:pre-wrap}.oc-message footer{font-size:11px;color:#637262;margin-top:8px;text-align:right}.oc-message .oc-error{color:#9a3c25;font-weight:600}.oc-compose{border-top:1px solid var(--oc-line);padding:12px 24px 16px;background:white;flex-shrink:0;max-height:54dvh;overflow:auto}.oc-compose .oc-controls{display:flex;gap:7px;margin-bottom:10px;flex-wrap:wrap}.oc-compose .oc-controls button.active{background:#e8f1e8;border-color:var(--oc-green)}.oc-slots{display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:10px;margin:8px 0 12px}.oc-preview{font-size:12px;color:#53634f;white-space:pre-wrap;background:#f2f5ed;border-radius:7px;padding:10px;margin:8px 0}.oc-help{font-size:12px;color:#647263;margin:8px 0}.oc-notice{padding:9px 24px;background:#fff4d8;font-size:13px;flex-shrink:0;display:none}.oc-notice.on{display:block}.oc-empty{margin:auto;padding:32px;text-align:center;color:#5f7267}.oc-empty strong{display:block;font-size:25px;color:#1d4331;margin-bottom:10px}.oc-form{display:grid;gap:12px}.oc-modal-wrap{position:absolute;inset:0;background:#10231aa8;display:flex;align-items:center;justify-content:center;padding:20px;z-index:2}.oc-modal{background:white;border-radius:16px;padding:24px;width:540px;max-width:100%;max-height:90dvh;overflow:auto;box-shadow:0 20px 80px #10231a40}.oc-modal h2{margin:0 0 14px;font-size:22px}.oc-modal h3{margin:18px 0 10px;font-size:16px}.oc-modal .oc-actions{display:flex;gap:10px;margin-top:17px;justify-content:flex-end}.oc-member{border-bottom:1px solid var(--oc-line);padding:10px 0;overflow-wrap:anywhere}.oc-table{width:100%;border-collapse:collapse;font-size:13px}.oc-table td,.oc-table th{padding:7px 4px;text-align:left;border-bottom:1px solid var(--oc-line)}.oc-back{display:none!important}.oc-auth-note{font-size:13px;color:#607064;margin-top:10px}.oc-login label{display:block;text-align:left;margin-top:14px}.oc-login input{width:100%;padding:13px;border:1px solid #8a998e;border-radius:9px;font:inherit}.oc-login button{width:100%;margin-top:20px;padding:13px;font:inherit;font-weight:700;border:2px solid #101b24;border-radius:10px;background:#ffc400}.ops-slot-label{display:block;font-size:13px;font-weight:650;color:#17664a;margin-top:4px}
-@media(min-width:1400px){.oc-body{margin:18px auto 22px;border-radius:14px;overflow:hidden;border:1px solid var(--oc-line)}}
-@media(max-width:700px){.oc-top{height:58px;padding:10px 12px}.oc-brand{font-size:18px}.oc-brand small{display:none}.oc-top button{font-size:12px;padding:5px 8px}.oc-body{display:block;position:relative}.oc-side,.oc-conversation{height:100%}.oc-conversation{display:none}.ops-root.oc-selected .oc-side{display:none}.ops-root.oc-selected .oc-conversation{display:flex}.oc-back{display:inline-block!important}.oc-head{padding:10px 13px}.oc-head strong{font-size:17px}.oc-messages{padding:12px}.oc-message{max-width:90%}.oc-compose{padding:10px 12px;max-height:56dvh}.oc-compose .oc-controls button{font-size:12px;padding:7px 9px;min-height:36px}.oc-head p{font-size:13px}.oc-modal-wrap{padding:10px}.oc-modal{padding:18px}.oc-slots{gap:7px}.oc-notice{padding:8px 12px}.oc-root label{font-size:12px}.oc-head .oc-muted{font-size:11px}}
+/* SUBNEX SMS — переписка. Стили на переменных subnex-ui.css.
+   Два режима: .ops-root (всплывающее окно, телефон водителя) и .ops-root.ops-inline (встроено в пульт). */
+.ops-root{position:fixed;inset:0;z-index:20000;background:var(--ground);color:var(--ink);font:14.5px/1.45 var(--body);display:flex;flex-direction:column;text-align:left}
+.ops-root.ops-inline{position:relative;inset:auto;z-index:auto;background:transparent;min-height:0}
+.ops-root *{box-sizing:border-box}
+.ops-root button,.ops-root input,.ops-root select,.ops-root textarea{font:inherit}
+.ops-root button{cursor:pointer;border:1px solid var(--line-2);border-radius:9px;padding:8px 13px;background:var(--surface);color:var(--ink);box-shadow:none;min-height:38px;font-weight:600;font-size:13.5px}
+.ops-root button:hover{background:var(--surface-3);border-color:var(--ink-2)}
+.ops-root button:disabled{opacity:.45;cursor:default}
+.ops-root .oc-primary{background:var(--accent);border-color:var(--accent-2);color:var(--accent-ink);font-weight:700}
+.ops-root .oc-primary:hover{background:#FFC826}
+.ops-root .oc-green{background:var(--brand);border-color:var(--brand);color:#fff}
+.ops-root .oc-green:hover{background:var(--brand-2)}
+.ops-root input:not([type=checkbox]),.ops-root select,.ops-root textarea{width:100%;border:1px solid var(--line-2);border-radius:9px;padding:10px 12px;margin:0;background:var(--surface);color:var(--ink);min-width:0;min-height:40px;font-size:14px}
+.ops-root input:focus,.ops-root select:focus,.ops-root textarea:focus{outline:2px solid var(--brand);outline-offset:0;border-color:var(--brand)}
+.ops-root textarea{resize:vertical;min-height:84px}
+.ops-root label{display:block;font-size:12.5px;font-weight:600;margin:0;color:var(--ink-2);text-transform:none;letter-spacing:normal}
+.ops-root label>input,.ops-root label>select{margin-top:5px!important}
+.ops-root input[type=checkbox]{accent-color:var(--brand);width:16px;height:16px;margin:0 7px 0 0;vertical-align:middle}
+.ops-root :focus-visible{outline:2px solid var(--brand);outline-offset:2px}
 
-.ops-root .oc-top nav{position:static;inset:auto;background:none;border:0;box-shadow:none;z-index:auto;padding:0;padding-bottom:0}.ops-root .oc-top nav button{display:block;flex:none;letter-spacing:normal;text-transform:none}.ops-root label{letter-spacing:normal;text-transform:none}.ops-root .oc-top{flex-wrap:nowrap}
+/* шапка — только во всплывающем режиме */
+.oc-top{height:62px;padding:10px 20px;background:var(--rail);color:#fff;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-shrink:0;flex-wrap:nowrap}
+.oc-brand{font-family:var(--display);font-size:19px;font-weight:800;letter-spacing:.02em}
+.oc-brand .oc-brand-acc{color:var(--accent)}
+.oc-brand small{font-size:12.5px;font-weight:500;color:var(--rail-muted);letter-spacing:0;margin-left:14px;font-family:var(--body)}
+.oc-top nav{display:flex;gap:8px;position:static;background:none;border:0;box-shadow:none;padding:0}
+.oc-top nav button{min-height:34px;padding:5px 11px;background:var(--rail-2);border-color:rgba(255,255,255,.15);color:#fff;font-size:12.5px;display:block;flex:none}
+.oc-top nav button:hover{background:#1a3329}
+
+.oc-body{display:grid;grid-template-columns:320px minmax(0,1fr);max-width:1480px;margin:0 auto;width:100%;min-height:0;flex:1;border:1px solid var(--line);background:var(--surface);border-radius:var(--r-l);overflow:hidden}
+.ops-inline .oc-body{max-width:none;height:min(78dvh,900px);min-height:480px}
+.ops-root:not(.ops-inline) .oc-body{border-radius:0;border-left:0;border-right:0;border-bottom:0}
+@media(min-width:1400px){.ops-root:not(.ops-inline) .oc-body{margin:16px auto 20px;border-radius:var(--r-l);border:1px solid var(--line)}}
+
+.oc-side{background:var(--surface);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.oc-filters{padding:14px;display:grid;gap:9px;border-bottom:1px solid var(--line)}
+.oc-list{overflow:auto;flex:1;min-height:0}
+.ops-root .oc-thread{width:100%;text-align:left;border:0;border-radius:0;border-bottom:1px solid var(--line);padding:13px 16px;display:block;min-height:88px;font-weight:400;background:transparent}
+.ops-root .oc-thread:hover{background:var(--surface-3)}
+.ops-root .oc-thread.active{background:var(--brand-soft);box-shadow:inset 3px 0 var(--brand)}
+.oc-thread strong{display:block;font-size:13.5px;font-family:var(--mono);font-weight:600}
+.oc-thread p{margin:3px 0;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12.8px}
+.oc-thread small{color:var(--muted);font-size:11.5px}
+.oc-dot{display:inline-block;width:7px;height:7px;background:var(--accent-2);border-radius:50%;margin-right:6px;vertical-align:1px}
+.oc-conversation{background:var(--surface-3);min-height:0;display:flex;flex-direction:column;position:relative}
+.oc-head{padding:14px 20px;border-bottom:1px solid var(--line);background:var(--surface);flex-shrink:0}
+.oc-head strong{font-size:17px;font-family:var(--mono);font-weight:600}
+.oc-head p{margin:4px 0;font-size:13.5px;font-weight:500}
+.oc-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.oc-between{justify-content:space-between}
+.oc-muted{color:var(--muted);font-size:12.5px}
+.oc-chip{display:inline-block;font-size:11.5px;padding:3px 8px;border-radius:999px;background:var(--surface-2);color:var(--ink-2);margin-right:5px;margin-top:5px;font-weight:600;border:0;min-height:0;line-height:1.3}
+.ops-root button.oc-chip{cursor:pointer}
+.oc-chip.warn{background:var(--warn-soft);color:var(--warn)}
+.oc-chip.ok{background:var(--ok-soft);color:var(--ok)}
+.oc-messages{overflow:auto;flex:1;min-height:100px;padding:16px 20px;display:flex;flex-direction:column;gap:10px;align-items:flex-start;overscroll-behavior:contain}
+.oc-message{max-width:min(85%,620px);background:var(--surface);border:1px solid var(--line);padding:10px 13px;border-radius:3px 12px 12px 12px;overflow-wrap:anywhere;font-size:13.5px}
+.oc-message.out{align-self:flex-end;background:var(--brand-soft);border-color:color-mix(in srgb,var(--brand) 25%,var(--line));border-radius:12px 3px 12px 12px}
+.oc-message .oc-text{white-space:pre-wrap}
+.oc-message footer{font-size:11px;color:var(--muted);margin-top:6px;text-align:right}
+.oc-message .oc-error{color:var(--crit);font-weight:600}
+.oc-compose{border-top:1px solid var(--line);padding:12px 20px 14px;background:var(--surface);flex-shrink:0;max-height:54dvh;overflow:auto}
+.oc-compose .oc-controls{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.oc-compose .oc-controls button{min-height:34px;padding:6px 11px;font-size:12.5px;border-radius:999px}
+.oc-compose .oc-controls button.active{background:var(--ink);border-color:var(--ink);color:#fff}
+.oc-slots{display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:10px;margin:8px 0 12px}
+.oc-preview{font-size:12.5px;color:var(--ink-2);white-space:pre-wrap;background:var(--surface-3);border:1px solid var(--line);border-radius:8px;padding:10px;margin:8px 0}
+.oc-help{font-size:12.3px;color:var(--muted);margin:8px 0}
+.oc-notice{padding:9px 20px;background:var(--warn-soft);color:var(--warn);font-size:13px;flex-shrink:0;display:none;font-weight:500}
+.oc-notice.on{display:block}
+.ops-inline .oc-notice{border-radius:8px;margin-bottom:10px}
+.oc-empty{margin:auto;padding:32px;text-align:center;color:var(--muted)}
+.oc-empty strong{display:block;font-size:20px;color:var(--ink);margin-bottom:8px;font-family:var(--display)}
+.oc-form{display:grid;gap:12px}
+.oc-modal-wrap{position:absolute;inset:0;background:rgba(11,24,19,.55);display:flex;align-items:center;justify-content:center;padding:20px;z-index:2}
+.ops-inline .oc-modal-wrap{position:fixed;z-index:1600}
+.oc-modal{background:var(--surface);border-radius:16px;padding:22px;width:540px;max-width:100%;max-height:90dvh;overflow:auto;box-shadow:var(--shadow-2);border:1px solid var(--line)}
+.oc-modal h2{margin:0 0 14px;font-size:19px;font-family:var(--display);font-weight:800}
+.oc-modal h3{margin:18px 0 10px;font-size:14.5px;font-family:var(--display);font-weight:700}
+.oc-modal .oc-actions{display:flex;gap:8px;margin-top:16px;justify-content:flex-end}
+.oc-member{border-bottom:1px solid var(--line);padding:10px 0;overflow-wrap:anywhere;font-size:13.5px}
+.oc-hours{display:grid;gap:0}
+.oc-hours .oc-member button{min-height:32px;padding:4px 10px;font-size:12.5px}
+.oc-table{width:100%;border-collapse:collapse;font-size:13px}
+.oc-table td,.oc-table th{padding:7px 4px;text-align:left;border-bottom:1px solid var(--line)}
+.oc-back{display:none!important}
+.oc-auth-note{font-size:13px;color:var(--muted);margin-top:10px}
+.oc-login label{display:block;text-align:left;margin-top:14px}
+.oc-login input{width:100%;padding:13px;border:1px solid var(--line-2);border-radius:9px;font:inherit}
+.oc-login button{width:100%;margin-top:20px;padding:13px;font:inherit;font-weight:700;border:1px solid var(--accent-2);border-radius:10px;background:var(--accent);color:var(--accent-ink)}
+.ops-slot-label{display:block;font-size:12.5px;font-weight:600;color:var(--brand);margin-top:4px;font-family:var(--mono)}
+
+@media(max-width:720px){
+  .oc-top{height:54px;padding:8px 12px}.oc-brand{font-size:16px}.oc-brand small{display:none}.oc-top button{font-size:12px;padding:5px 8px}
+  .oc-body{display:block;position:relative;border-radius:0}
+  .ops-inline .oc-body{height:auto;min-height:0}
+  .oc-side,.oc-conversation{height:100%}
+  .ops-inline .oc-side,.ops-inline .oc-conversation{height:min(76dvh,800px)}
+  .oc-conversation{display:none}
+  .ops-root.oc-selected .oc-side{display:none}
+  .ops-root.oc-selected .oc-conversation{display:flex}
+  .oc-back{display:inline-block!important}
+  .oc-head{padding:10px 13px}.oc-head strong{font-size:15.5px}
+  .oc-messages{padding:12px}.oc-message{max-width:90%}
+  .oc-compose{padding:10px 12px;max-height:56dvh}
+  .oc-compose .oc-controls button{font-size:12px;padding:6px 9px;min-height:34px}
+  .oc-head p{font-size:13px}.oc-modal-wrap{padding:10px}.oc-modal{padding:18px}
+  .oc-slots{gap:7px}.oc-notice{padding:8px 12px}
+}
