@@ -34,6 +34,44 @@ class Dispatch{
  intake(){const one=this.mode==='one';return `<div class="od-intro"><h3>${one?'Новая заявка на сбор':'Заявки из письма'}</h3><p>${one?'Дата и время появятся после подбора и согласования с клиентом.':'Скопируйте таблицу из письма партнёра и вставьте сюда — приложение разберёт адреса, телефоны и мешки.'}</p></div><label>Источник<select id="od-source">${sourceOptions(this.source)}</select></label>${this.mode==='batch'?'<label>Таблица из письма<textarea id="od-paste" rows="10" placeholder="Вставьте таблицу целиком. Также подходят строки с адресами или CSV."></textarea></label><button class="od-primary" data-action="parse">Разобрать и проверить</button>':`<div class="od-grid">${input('text','Полный адрес','','text','placeholder="Дом, улица, город, postcode"')}${input('phone','Мобильный телефон','','tel','placeholder="07…"')}${input('bags_text','Мешки — как в заявке','','text','placeholder="4 to 10"')}${input('not_before','Клиент доступен с','','date')}</div><input data-field="estimated_kg" data-num type="hidden" value="10"><input data-field="service_minutes" data-num type="hidden" value="5"><details><summary>Контакт и примечание</summary><div class="od-grid">${input('contact_name','Имя')}${input('contact_email','Email','','email')}</div><label>Примечание<textarea data-field="note" rows="2"></textarea></label></details><button class="od-primary" data-action="review-one">Проверить заявку</button>`}`;}
  review(){return `<div class="od-intro"><h3>Проверка · ${this.rows.length} ${this.rows.length===1?'заявка':'заявок'}</h3><p>Исправьте выделенные поля. Заявки без полного адреса или телефона добавить нельзя.</p></div>${this.rows.map((r,i)=>{const issues=C.issues(r,this.o.addresses?.()||this.requests,this.rows.slice(0,i));return `<article class="od-card ${issues.length?'od-invalid':''}" data-row="${i}"><div class="od-between"><b>${i+1}. ${esc(r.text)||'Без адреса'}</b><button data-action="remove-row" data-index="${i}" aria-label="Убрать заявку ${i+1}">Убрать</button></div><div class="od-row-issues" role="status">${issues.map(esc).join(' · ')}</div><div class="od-grid">${input('text','Адрес',r.text)}${input('phone','Телефон',r.phone,'tel')}${input('bags_text','Мешки',r.bags_text)}${input('not_before','Доступен с',r.not_before,'date')}<label>Источник<select data-field="intake_channel">${sourceOptions(r.intake_channel)}</select></label><label>Сбор<select data-field="service_minutes"><option value="5" ${+r.service_minutes!==10?'selected':''}>5 минут</option><option value="10" ${+r.service_minutes===10?'selected':''}>10 минут</option></select></label></div><input data-field="estimated_kg" data-num type="hidden" value="${esc(r.estimated_kg||10)}"><details><summary>Контакт и примечание из письма</summary><div class="od-grid">${input('contact_name','Имя',r.contact_name)}${input('contact_email','Email',r.contact_email,'email')}</div><textarea data-field="note" rows="2">${esc(r.note)}</textarea></details></article>`;}).join('')}<div class="od-footer"><button data-action="batch">Другой список</button><button class="od-primary" data-action="import">Добавить в очередь · ${this.rows.length}</button></div>`;}
 
+
+ /* Готовый текст для партнёра: даты и интервалы так, как их назовут клиенту. */
+ partnerList(list){
+  const longDate=day=>{const d=new Date(day+'T12:00:00Z'),n=d.getUTCDate();
+   const suf=n%100>=11&&n%100<=13?'th':({1:'st',2:'nd',3:'rd'}[n%10]||'th');
+   return ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getUTCDay()]+' '+n+suf+' '
+    +['January','February','March','April','May','June','July','August','September','October','November','December'][d.getUTCMonth()];};
+  const clock=m=>{const h=Math.floor(m/60);return (h%12||12)+':'+String(m%60).padStart(2,'0')+(h<12?'am':'pm');};
+  const byDay=new Map();
+  for(const a of list){const d=C.ukDay(a.held_start);if(!byDay.has(d))byDay.set(d,[]);byDay.get(d).push(a);}
+  const out=['Hi, here are the collection times:',''];
+  for(const day of [...byDay.keys()].sort()){
+   out.push(longDate(day));
+   for(const a of byDay.get(day).sort((x,y)=>C.ukMinute(x.held_start)-C.ukMinute(y.held_start)))
+    out.push('- '+a.text+' - '+clock(C.ukMinute(a.held_start))+' to '+clock(C.ukMinute(a.held_end)));
+   out.push('');
+  }
+  out.push('All times are UK time. Please confirm with the customers and let us know if any of these do not suit. Thank you.');
+  return out.join('\n');
+ }
+ copyForPartner(){
+  const {direct}=this.sendable();
+  if(!direct.length){this.notice('Нет заявок от партнёра с назначенным временем. Сначала распределите и сохраните предложения.',true);return;}
+  const text=this.partnerList(direct);
+  const w=this.dialog('Текст для WhatsApp',
+   `<p class="od-muted">${direct.length} ${direct.length===1?'адрес':'адресов'}. При копировании отметим их как отправленные — чтобы время случайно не сняли.</p>`
+   +`<textarea id="od-wa-text" rows="14" readonly>${esc(text)}</textarea>`
+   +`<div class="od-actions" style="margin-top:8px"><button id="od-wa-copy">Скопировать</button></div>`,null);
+  w.querySelector('#od-wa-copy').onclick=async()=>{
+   const b=w.querySelector('#od-wa-copy'),f=w.querySelector('#od-wa-text');b.disabled=true;
+   const failed=[];
+   for(const a of direct){try{await this.call('share',{address_id:a.id});}catch(e){failed.push(a.text);}}
+   try{await navigator.clipboard.writeText(text);b.textContent='Скопировано';}
+   catch{f.select();b.textContent='Выделено — нажмите Ctrl+C';}
+   finally{b.disabled=false;}
+   w.querySelector('.od-dialog-error').textContent=failed.length?'Не отмечены как отправленные: '+failed.join('; ')+'. Текст скопирован, но проверьте эти адреса.':'';
+  };
+ }
  /* Заявки, у которых уже зарезервировано время, но клиенту ещё ничего не ушло. */
  sendable(){
   const direct=[],sms=[],blocked=[];
@@ -111,7 +149,7 @@ class Dispatch{
    if(z.mode==='monthly'){const d=C.nextTripDays(z,C.ukDay(),1)[0];return `<span class="od-chip" style="background:var(--far-soft);color:var(--far)">${esc(z.name)} · выезд ${d?label(d):'не задан'}</span>`;}
    return '<span class="od-muted">Ждёт распределения</span>';};
   const acts=a=>{const b=[];if(a.hold_id&&['partner_whatsapp','missing'].includes(C.sourceOf(a)))b.push(`<button data-action="partner" data-id="${a.id}">Согласовать</button>`);else if(a.hold_id||a.offer_state||a.date)b.push(`<button data-action="sms" data-id="${a.id}">SMS</button>`);if(a.hold_id&&!['preparing','awaiting','manual'].includes(a.offer_state))b.push(`<button data-action="release" data-id="${a.id}">Снять</button>`);if(this.available(a))b.push(`<button data-action="edit" data-id="${a.id}">Изменить</button>`);return b.join('');};
-  return `<div class="od-intro od-between"><div><h3>Заявки без даты · ${this.requests.length}</h3><p>Отметьте адреса — приложение подберёт день и время, заполняя уже начатые дни вплотную к соседним адресам.</p></div><div class="od-actions"><button data-action="sendall" ${ready.total?'':'disabled data-locked="true"'}>Отправить предложения${ready.total?' · '+ready.total:''}</button><button data-action="refresh">Обновить</button></div></div>
+  return `<div class="od-intro od-between"><div><h3>Заявки без даты · ${this.requests.length}</h3><p>Отметьте адреса — приложение подберёт день и время, заполняя уже начатые дни вплотную к соседним адресам.</p></div><div class="od-actions"><button data-action="sendall" ${ready.total?'':'disabled data-locked="true"'}>Отправить предложения${ready.total?' · '+ready.total:''}</button>${ready.direct.length?`<button data-action="copypartner">Текст для WhatsApp · ${ready.direct.length}</button>`:''}<button data-action="refresh">Обновить</button></div></div>
   <details><summary>Искать места с ${label(this.from)}, на ${this.days} дней вперёд</summary><div class="od-grid"><label>Начиная с<input id="od-from" type="date" min="${C.ukDay()}" value="${this.from}"></label><label>Горизонт<select id="od-days"><option value="7" ${this.days===7?'selected':''}>7 дней</option><option value="14" ${this.days===14?'selected':''}>14 дней</option></select></label></div></details>
   ${this.requests.length>500?'<p class="od-warning">Показаны первые 500 заявок. Распределите их, затем обновите очередь.</p>':''}
   ${shown.length?`<div class="od-selection od-between"><label class="od-select"><input type="checkbox" id="od-all" ${free.length&&free.slice(0,40).every(a=>this.selected.has(a.id))?'checked':''}> Выбрать первые 40 свободных</label><b id="od-count">Выбрано: ${this.selected.size}</b></div>
@@ -151,6 +189,7 @@ class Dispatch{
  if(act==='release'){this.dialog('Снять предложение',`<p>${esc(a.text)}</p><label><input id="od-withdrawn" type="checkbox">${a.shared_at?'Я отозвал это время у партнёра.':'Предложение ещё не передано клиенту или уже отозвано.'}</label>`,async w=>{if(!w.querySelector('#od-withdrawn').checked)throw new Error('PARTNER_WITHDRAWAL_REQUIRED');await this.call('release',{address_id:a.id,acknowledged:true});await this.reload();this.render();},'Снять предложение');return;}
  if(act==='legacy'){const p=this.legacy.find(p=>p.id===b.dataset.id);this.dialog('Подтвердить прежнее предложение',`<p>${esc(p.address)} · ${label(C.ukDay(p.starts_at))} ${C.hm(C.ukMinute(p.starts_at))}</p><label><input id="od-legacy-agreed" type="checkbox">Партнёр подтвердил эту дату и время.</label>`,async w=>{if(!w.querySelector('#od-legacy-agreed').checked)throw new Error('AGREEMENT_REQUIRED');await warm(this.o,C.ukDay(p.starts_at));await this.call('legacy_confirm',{id:p.id,agreed:true});await this.reload();this.render();await this.o.onChanged?.();},'Подтвердить');return;}
  if(act==='sendall'){this.sendAll();return;}
+ if(act==='copypartner'){this.copyForPartner();return;}
  if(act==='sms'){const plan=a.held_start?{dispatch:true,driver_id:this.driver.id,address_id:a.id,day:C.ukDay(a.held_start),start:C.hm(C.ukMinute(a.held_start)),end:C.hm(C.ukMinute(a.held_end))}:null;if(!this.inline)this.close();if(this.o.onChoose&&plan)this.o.onChoose(plan);else this.o.onSms?.(a.id,plan);return;}
  this.run(async()=>{if(act==='refresh'){await this.reload();this.render();this.notice('Список обновлён.');}
  else if(act==='import'){online(this.o);this.syncRows();if(!this.rows.length)throw new Error('В списке нет заявок.');const issues=this.rows.flatMap((r,i)=>C.issues(r,this.o.addresses?.()||this.requests,this.rows.slice(0,i)).map(m=>`${i+1}: ${m}`));if(issues.length){this.updateIssues();throw new Error(issues.join('\n'));}const rows=this.rows.map(({raw,row,...r})=>r);const signature=JSON.stringify(rows);if(this.importSignature&&this.importSignature!==signature)this.importId=crypto.randomUUID();this.importSignature=signature;const r=await this.call('import',{request_id:this.importId,rows});this.selected=new Set(r.ids.slice(0,40));await this.reload();this.mode='queue';this.render();this.notice(`Добавлено: ${r.imported}. Теперь можно подобрать время.`);await this.o.onChanged?.();}

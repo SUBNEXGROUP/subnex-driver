@@ -315,7 +315,11 @@ table.t tr.total td{background:var(--surface-3);font-weight:700}
 .page.active{display:flex}
 /* Раздел на всю высоту экрана: переписка. Страница не скроллится, скроллит только список сообщений. */
 body.fullpage{overflow:hidden}
-body.fullpage .console{height:100dvh;padding-bottom:14px}
+/* Переписка во весь экран: колонки сетки тянутся на всю высоту, список и сообщения прокручиваются внутри,
+   поле для письма всегда внизу на виду. Без align-items:stretch карточка росла вместе со списком. */
+body.fullpage .console{height:100dvh;padding-bottom:14px;align-items:stretch}
+body.fullpage .main{height:100%}
+body.fullpage .oc-body{max-height:calc(100dvh - 150px)}
 body.fullpage .main{min-height:0}
 body.fullpage .page.active{min-height:0;flex:1}
 body.fullpage .inline-host{flex:1;min-height:0;display:flex;flex-direction:column}
