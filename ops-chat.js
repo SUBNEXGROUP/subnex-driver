@@ -4,6 +4,15 @@
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const codes={ACCESS_DENIED:'Нет доступа. Администратор должен назначить ваш аккаунт и водителя.',LOGIN_REQUIRED:'Войдите в аккаунт заново.',NOT_CONFIGURED:'Сервер ещё не настроен. Проверьте установку по инструкции.',UK_MOBILE_REQUIRED:'Укажите британский мобильный номер, например 07446 932887.',ADDRESS_REQUIRED:'Сначала привяжите адрес сбора к переписке.',DRIVER_REQUIRED:'Назначьте активного водителя.',SLOT_CONFLICT:'Этот промежуток уже занят или предложен другому клиенту. Выберите свободное время.',SLOT_IN_PAST:'Выберите будущую дату и время.',OUTSIDE_WORKING_HOURS:'Время выходит за рабочий график этого дня. Откройте Настройки → Часы и доступ и продлите часы этого дня недели (или выберите время внутри графика).',SLOT_INVALID:'Проверьте дату и время.',STALE_ADDRESS:'Адрес или назначение изменились. Обновите переписку и проверьте время заново.',AGREEMENT_REQUIRED:'Подтвердите, что клиент согласовал дату и время.',CONFIRMED_CHANGE_REQUIRES_AGREEMENT:'Для переноса нужно отдельное согласие клиента.',USE_CHAT_TO_RESCHEDULE:'Подтверждённые дата и интервал сохраняются.',ALREADY_SCHEDULED_USE_MANUAL:'Сбор уже запланирован. Подтверждённое время сохраняется.',OPTED_OUT:'Клиент отказался от SMS. Отправка заблокирована до его START.',MESSAGE_LENGTH:'Введите от 1 до 1000 символов.',RATE_LIMIT:'Достигнут лимит отправки. Попробуйте позже.',REQUEST_ID_REUSED:'Запрос уже использован с другим текстом. Обновите переписку.',RECENT_DUPLICATE:'Такое сообщение уже отправлялось в последнюю минуту.',PHONE_HAS_ACTIVE_REQUEST:'На этот номер уже есть активная заявка. Откройте её переписку.',CREATE_AUTH_USER_FIRST:'Сначала создайте и подтвердите пользователя в Supabase → Authentication → Users.',CANNOT_DISABLE_YOURSELF:'Нельзя отключить или понизить собственный аккаунт.',DATABASE_ERROR:'Сервер не сохранил действие. Обновите экран и проверьте данные.',SERVICE_UNAVAILABLE:'Нет подтверждения от сервера. Обновите историю перед повторной отправкой.',NETWORK:'Нет подтверждения от сервера. Текст сохранён в этом окне; повтор использует тот же номер запроса.'};
 Object.assign(codes,{CANCELLATION_REQUIRED:'Подтвердите закрытие именно этой заявки.',CANCELLATION_REASON:'Выберите причину закрытия.',REQUEST_ALREADY_FINISHED:'Эта заявка уже завершена. Обновите переписку.'});
+/* Дружелюбное сообщение клиенту о переносе. Английский, как и все письма клиентам. */
+const moveMessage=(address,name,brand,day,start,end)=>{
+ const when=new Intl.DateTimeFormat('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'UTC'})
+  .format(new Date(day+'T12:00:00Z'));
+ return `Hello, this is ${name?name+' from '+brand:brand}.\n\n`
+  +`Your clothing collection at ${address.text} has been moved to ${when}, between ${start} and ${end} (UK time).\n\n`
+  +`Thank you for letting us know. If this no longer suits you, just reply to this message and we will find another day.\n\n`
+  +`Kind regards,\n${name?name+'\n':''}${brand}`;
+};
 const collectionStates={new:'Новая',planned:'Запланирована',done:'Выполнено',noanswer:'Не отвечает',problem:'Проблема',cancelled:'Отменена'};
 const resultStatuses=['done','noanswer','problem'];
 const collectionState=a=>collectionStates[a?.status]||a?.status||'Не указан';
@@ -101,7 +110,7 @@ class Chat{
   if(prepend)box.scrollTop=box.scrollHeight-previous;else if(bottom||!this.initialScroll){box.scrollTop=box.scrollHeight;this.initialScroll=true;}
  }
  compose(draft){this.planner=draft?.planner||null;const {address:a,thread:t}=this.data;this.closureId=draft?.closure_id||(!a?t.closed_request?.id:null);const schedulable=!!a&&['new','planned'].includes(a.status)&&!isClosed(a);if(!schedulable)this.mode='reply';this.formVersion=a?.collection_version;const isOffer=this.mode==='offer',manual=this.mode==='confirm';
-  this.$('.oc-compose').innerHTML=`${schedulable&&!a.date&&['subnex','partner'].includes(a.collection_source)?'<button data-act=planner style="margin-bottom:10px">Подобрать время по маршруту</button>':''}${this.planner?'<p class=oc-help>Интервал выбран по маршруту. Перед отправкой проверим его ещё раз.</p>':''}<div class="oc-controls"><button data-act="mode" data-mode="reply" class="${this.mode==='reply'?'active':''}">Сообщение</button><button data-act="mode" data-mode="offer" ${!schedulable||a.date?'disabled':''} class="${isOffer?'active':''}">Предложить время</button><button data-act="mode" data-mode="confirm" ${!schedulable||a.collection_start?'disabled':''} class="${manual?'active':''}">Подтвердить вручную</button></div>${isOffer||manual?`<div class="oc-slots"><label>Дата<input id="oc-day" type="date" min="${ukDate()}" value="${esc(draft?.day||a?.date||(this.data.offer?.starts_at?ukDate(this.data.offer.starts_at):ukDate()))}"></label><label>С<input id="oc-start" type="time" value="${esc(draft?.start||(a?.collection_start?ukTime(a.collection_start):this.data.offer?.starts_at?ukTime(this.data.offer.starts_at):'09:00'))}"></label><label>До<input id="oc-end" type="time" value="${esc(draft?.end||(a?.collection_end?ukTime(a.collection_end):this.data.offer?.ends_at?ukTime(this.data.offer.ends_at):'09:30'))}"></label></div><div class="oc-help">Время Великобритании. Новый интервал прибытия — 30 минут; время сбора учитывается отдельно.</div>`:''}${manual?`<label><input id="oc-agreed" type="checkbox">Клиент согласовал эту дату и время в переписке или по телефону.</label>${a?.date?'<label style="margin-top:10px"><input id="oc-change-agreed" type="checkbox">Клиент согласен изменить ранее назначенный срок.</label>':''}<p class="oc-help">Подтверждение добавит адрес в маршрут. Автоматическая SMS подтвердит запись клиенту.</p><button class="oc-green" id="oc-confirm" data-act="confirm">Подтвердить и добавить в маршрут</button>`:`<label for="oc-body">${isOffer?'Текст предложения':'Сообщение клиенту'}</label><textarea id="oc-body" maxlength="1000" placeholder="Текст SMS…"></textarea>${isOffer?'<div class="oc-preview" id="oc-preview"></div>':''}<div class="oc-row oc-between" style="margin-top:8px"><span class="oc-muted" id="oc-count"></span><button class="oc-primary" id="oc-send" data-act="send" ${t.opted_out?'disabled':''}>${isOffer?'Отправить предложение':'Отправить SMS'}</button></div><p class="oc-help">${isOffer?(t.manual_mode||t.active_offer_id?'Продолжается ручное согласование. После ответа подтвердите время кнопкой выше.':'Адрес попадёт в маршрут после точного ответа YES. Другой ответ откроет ручное согласование.'):'SMS отправляется с номера компании. Статус «Доставлено» не подтверждает сбор.'}</p>`}`;
+  this.$('.oc-compose').innerHTML=`${schedulable&&!a.date&&['subnex','partner'].includes(a.collection_source)?'<button data-act=planner style="margin-bottom:10px">Подобрать время по маршруту</button>':''}${schedulable&&a.collection_start?'<button data-act=movecol style="margin-bottom:10px">Перенести сбор</button>':''}${this.planner?'<p class=oc-help>Интервал выбран по маршруту. Перед отправкой проверим его ещё раз.</p>':''}<div class="oc-controls"><button data-act="mode" data-mode="reply" class="${this.mode==='reply'?'active':''}">Сообщение</button><button data-act="mode" data-mode="offer" ${!schedulable||a.date?'disabled':''} class="${isOffer?'active':''}">Предложить время</button><button data-act="mode" data-mode="confirm" ${!schedulable||a.collection_start?'disabled':''} class="${manual?'active':''}">Подтвердить вручную</button></div>${isOffer||manual?`<div class="oc-slots"><label>Дата<input id="oc-day" type="date" min="${ukDate()}" value="${esc(draft?.day||a?.date||(this.data.offer?.starts_at?ukDate(this.data.offer.starts_at):ukDate()))}"></label><label>С<input id="oc-start" type="time" value="${esc(draft?.start||(a?.collection_start?ukTime(a.collection_start):this.data.offer?.starts_at?ukTime(this.data.offer.starts_at):'09:00'))}"></label><label>До<input id="oc-end" type="time" value="${esc(draft?.end||(a?.collection_end?ukTime(a.collection_end):this.data.offer?.ends_at?ukTime(this.data.offer.ends_at):'09:30'))}"></label></div><div class="oc-help">Время Великобритании. Новый интервал прибытия — 30 минут; время сбора учитывается отдельно.</div>`:''}${manual?`<label><input id="oc-agreed" type="checkbox">Клиент согласовал эту дату и время в переписке или по телефону.</label>${a?.date?'<label style="margin-top:10px"><input id="oc-change-agreed" type="checkbox">Клиент согласен изменить ранее назначенный срок.</label>':''}<p class="oc-help">Подтверждение добавит адрес в маршрут. Автоматическая SMS подтвердит запись клиенту.</p><button class="oc-green" id="oc-confirm" data-act="confirm">Подтвердить и добавить в маршрут</button>`:`<label for="oc-body">${isOffer?'Текст предложения':'Сообщение клиенту'}</label><textarea id="oc-body" maxlength="1000" placeholder="Текст SMS…"></textarea>${isOffer?'<div class="oc-preview" id="oc-preview"></div>':''}<div class="oc-row oc-between" style="margin-top:8px"><span class="oc-muted" id="oc-count"></span><button class="oc-primary" id="oc-send" data-act="send" ${t.opted_out?'disabled':''}>${isOffer?'Отправить предложение':'Отправить SMS'}</button></div><p class="oc-help">${isOffer?(t.manual_mode||t.active_offer_id?'Продолжается ручное согласование. После ответа подтвердите время кнопкой выше.':'Адрес попадёт в маршрут после точного ответа YES. Другой ответ откроет ручное согласование.'):'SMS отправляется с номера компании. Статус «Доставлено» не подтверждает сбор.'}</p>`}`;
   const body=this.$('#oc-body');if(body){body.value=draft?.body??(isOffer?`Hi, this is SUBNEX. We'd like to collect your bags${a?.text?' from '+a.text:''}.`:'');body.addEventListener('input',()=>this.preview());}
   for(const id of ['#oc-day','#oc-start','#oc-end'])this.$(id)?.addEventListener('input',()=>{if(id==='#oc-start'&&!a?.collection_start){const m=SubnexDispatchCore.minute(this.$('#oc-start').value);if(Number.isFinite(m)&&m+30<1440)this.$('#oc-end').value=SubnexDispatchCore.hm(m+30);}this.preview();});this.preview();
  }
@@ -117,6 +126,7 @@ class Chat{
   if(act==='cancel-request'){this.closeCollection();return;}
   if(act==='rebook'){const a=this.data?.address,c=this.data?.thread.closed_request||(isClosed(a)?{text:a.text,source:a.collection_source}:null);if(c)this.newThread(this.data.thread.phone,c);return;}
   if(act==='planner'){await this.run(()=>this.pickTime());return;}
+  if(act==='movecol'){await this.run(()=>this.moveCollection());return;}
   if(act==='close'){this.close();return;}if(act==='back'){this.rememberDraft();this.root.classList.remove('oc-selected');return;}
   if(act==='thread'){this.initialScroll=false;await this.select(b.dataset.id);return;}
   if(act==='mode'){if(this.sendBusy)return;const mode=b.dataset.mode;if(mode!=='reply'&&(!this.data.address||!['new','planned'].includes(this.data.address.status)||isClosed(this.data.address))){this.notice('Для нового сбора создайте отдельную заявку.');return;}this.mode=mode;this.compose();return;}
@@ -132,6 +142,77 @@ class Chat{
   if(this.closed||!this.data?.address||this.data.address.id!==plan.address_id)return;
   this.mode='offer';this.compose({...plan,planner:plan});this.rememberDraft();
   this.notice('Время выбрано. Проверьте текст и нажмите «Отправить предложение».');
+ }
+ /* Перенос уже согласованного сбора прямо из переписки: клиент просит другой день,
+    приложение само подбирает время в этом дне по маршруту. Подтверждённый срок
+    двигается только с явной отметкой согласия клиента. */
+ async moveCollection(){
+  const a=this.data?.address,t=this.data?.thread;
+  if(!a||!a.collection_start)return;
+  const D=window.OpsDispatch;
+  if(!D?.core||!D.rpc)throw new Error('Модуль маршрута не загружен. Обновите страницу.');
+  const C=D.core,driverId=a.driver_id||t.driver_id;
+  if(!driverId)throw new Error(codes.DRIVER_REQUIRED);
+  const brand=a.collection_source==='subnex'?'SUBNEX':'We Recycle Clothes';
+  let zones=[];
+  try{const z=await this.sb.rpc('subnex_zones',{p_action:'list',p_data:{}});if(!z.error)zones=z.data.zones||[];}catch(e){}
+  let slots=[];
+  const w=this.modal('Перенести сбор',`<p><b>${esc(a.text)}</b></p>
+   <p class="oc-help">Сейчас согласовано: ${esc(slotLabel(a))}. Перенос изменит договорённость с клиентом.</p>
+   <label>Новая дата<input id="oc-mv-day" type="date" min="${ukDate()}" value="${esc(a.date||ukDate())}"></label>
+   <label>Время<select id="oc-mv-time"><option value="">Считаю…</option></select></label>
+   <p class="oc-help" id="oc-mv-note">Время подбирается по маршруту выбранного дня — первым идёт самое выгодное по дороге.</p>
+   <label><input id="oc-mv-agreed" type="checkbox">Клиент согласовал перенос.</label>
+   <label><input id="oc-mv-sms" type="checkbox" checked>Отправить клиенту сообщение о переносе.</label>
+   <textarea id="oc-mv-text" rows="7" readonly></textarea>`,
+   async wrap=>{
+    const day=wrap.querySelector('#oc-mv-day').value,pick=wrap.querySelector('#oc-mv-time').value;
+    const slot=slots[+pick];
+    if(!day||!slot)throw new Error('Выберите дату и свободное время.');
+    if(!wrap.querySelector('#oc-mv-agreed').checked)throw new Error(codes.CONFIRMED_CHANGE_REQUIRES_AGREEMENT);
+    const r=await this.sb.rpc('subnex_move_request',{p_data:{address_id:a.id,version:a.collection_version,
+      day,start:slot.start,end:slot.end,agreed:true}});
+    if(r.error)throw r.error;
+    let tail='';
+    if(wrap.querySelector('#oc-mv-sms').checked){
+     try{await this.call('send',{thread_id:t.id,kind:'reply',body:wrap.querySelector('#oc-mv-text').value,request_id:crypto.randomUUID()});}
+     catch(e){tail=' Сообщение не ушло: '+errText(e)+' Напишите клиенту вручную.';}
+    }
+    await this.loadDetail(true);await this.loadList();this.compose();this.o.onChanged?.();
+    this.notice('Сбор перенесён: '+day+', '+slot.start+'–'+slot.end+'.'+tail);
+   },'Перенести');
+  const text=()=>{
+   const box=w.querySelector('#oc-mv-text'),slot=slots[+w.querySelector('#oc-mv-time').value];
+   box.value=slot?moveMessage(a,this.driverName(),brand,w.querySelector('#oc-mv-day').value,slot.start,slot.end):'';
+  };
+  const load=async()=>{
+   const day=w.querySelector('#oc-mv-day').value;
+   const sel=w.querySelector('#oc-mv-time'),note=w.querySelector('#oc-mv-note');
+   slots=[];sel.innerHTML='<option value="">Считаю…</option>';note.textContent='Считаю дорогу на этот день…';text();
+   try{
+    if(!day)throw new Error('Укажите дату.');
+    const o={sb:this.sb,driver:{id:driverId},hasOutbox:this.o.hasOutbox};
+    let roads={};
+    try{roads=(await D.warm(o,day,[a.id])).roads||{};}catch(e){}
+    const snap=await D.rpc(this.sb,'snapshot',{driver_id:driverId,from_day:day,days:1,address_ids:[a.id]});
+    const node={key:'mv:'+a.id,address_id:a.id,text:a.text,lat:a.lat,lng:a.lng,
+      service:a.service_minutes||5,kg:a.estimated_kg||10};
+    slots=C.slotsFor({days:snap.days,assigned:[],unassigned:[]},node,day,{...snap.config,zones},roads,8);
+    sel.innerHTML=slots.length
+     ?slots.map((s,i)=>`<option value="${i}">${esc(s.start)}–${esc(s.end)}${s.extra_minutes?' · +'+s.extra_minutes+' мин дороги':''}</option>`).join('')
+     :'<option value="">Свободного места нет</option>';
+    note.textContent=slots.length
+     ?`Свободных мест в этот день: ${slots.length}. Первое — с наименьшим крюком.`
+     :'В этот день места нет: не пускают дорога, рабочие часы или день выезда зоны. Выберите другую дату.';
+   }catch(e){
+    sel.innerHTML='<option value="">Не удалось посчитать</option>';
+    note.textContent=errText(e);
+   }
+   text();
+  };
+  w.querySelector('#oc-mv-day').addEventListener('change',load);
+  w.querySelector('#oc-mv-time').addEventListener('change',text);
+  load();
  }
  async pickTime(){
   const a=this.data?.address,threadId=this.threadId;

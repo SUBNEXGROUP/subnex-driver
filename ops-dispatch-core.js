@@ -248,7 +248,7 @@ function movePlanned(plan,requests,address_id,day,config,roads,start){
 /* Свободные места для адреса в конкретном дне — для переноса уже согласованных сборов,
    которые живут в базе, а не в пачке. node — узел этого адреса из плана. */
 function slotsFor(plan,node,day,config,roads,limit=6){
- const work=plan.days.map(d=>{const nodes=d.nodes.filter(n=>n.key!==node.key);
+ const work=plan.days.map(d=>{const nodes=d.nodes.filter(n=>n.key!==node.key&&!(node.address_id&&n.address_id===node.address_id));
   const {fit,...rest}=d;return {...rest,nodes,order:ordered(nodes,d.order)};});
  const target=work.find(d=>d.day===day);
  if(!target)return [];
