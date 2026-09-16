@@ -140,9 +140,17 @@ function summarize(work,config,roads,assigned,unassigned){
    Если от предыдущей остановки ехать считанные минуты (та же или соседняя улица),
    клиенту называется то же время: водитель делает оба адреса за один подход.
    Интервал расширяется только если пересчёт дня подтверждает, что машина успевает. */
+/* Как интервал выглядит для клиента: у подтверждённых сборов это их обещанное окно,
+   у новых — подобранное. Ровно то же показывает пульт. */
+const slotKey=n=>(n.starts_at?ukMinute(n.starts_at):n.earliest)+'-'+(n.ends_at?ukMinute(n.ends_at):n.latest);
+function sharedPairs(work){let n=0;
+ for(const day of work){const byKey=new Map(day.nodes.map(x=>[x.key,x]));
+  for(let i=1;i<day.order.length;i++){const a=byKey.get(day.order[i-1]),b=byKey.get(day.order[i]);
+   if(a&&b&&slotKey(a)===slotKey(b))n++;}}
+ return n;}
 function shareSlots(work,assigned,config,roads){
  const limit=planParam(config,'same_slot_minutes');
- if(!(limit>0))return 0;
+ if(!(limit>0))return sharedPairs(work);
  const mine=new Map(assigned.map(a=>[a.address_id,a]));
  let merged=0;
  for(const day of work){
@@ -168,7 +176,8 @@ function shareSlots(work,assigned,config,roads){
    anchor=n;
   }
  }
- return merged;
+ // Считаем не правки, а результат: сколько соседних адресов делят одно окно.
+ return sharedPairs(work);
 }
 async function planBatch(days,requests,config,roads,onProgress=()=>{}){
  const work=days.map(d=>({...d,nodes:[...d.nodes],order:ordered(d.nodes,d.order)})),remaining=[...requests],assigned=[],unassigned=[];
