@@ -46,6 +46,7 @@
 <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
 <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.9-6.6M21 3v6h-6"/></symbol>
 <symbol id="i-pen" viewBox="0 0 24 24"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></symbol>
+<symbol id="i-report" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12.5h6M9 16.5h4"/></symbol>
 <symbol id="i-dl" viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v3h16v-3"/></symbol>
 <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
 <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8V4z"/></symbol>
@@ -86,6 +87,7 @@
       <button data-page="day"><svg class="ic"><use href="#i-route"/></svg>День маршрута</button>
       <button data-page="chat"><svg class="ic"><use href="#i-chat"/></svg>Переписка<span class="badge" id="nb-chat" hidden></span></button>
       <button data-page="banks"><svg class="ic"><use href="#i-bin"/></svg>Контейнеры</button>
+      <button data-page="reports"><svg class="ic"><use href="#i-report"/></svg>Отчёты</button>
       <button data-page="settings"><svg class="ic"><use href="#i-set"/></svg>Настройки</button>
     </nav>
     <div class="rail-foot">
@@ -200,8 +202,8 @@
     <!-- ---------- КОНТЕЙНЕРЫ ---------- -->
     <section class="page" data-page="banks">
       <div class="phead">
-        <div><h1>Контейнеры</h1><p>Постоянные точки сбора, визиты, фото и отчёты хостам</p></div>
-        <div class="subtabs" id="bank-tabs"><button data-sub="list" aria-current="true">Список</button><button data-sub="photos">Фото</button><button data-sub="reports">Отчёты хостам</button></div>
+        <div><h1>Контейнеры</h1><p>Постоянные точки сбора, визиты и фото</p></div>
+        <div class="subtabs" id="bank-tabs"><button data-sub="list" aria-current="true">Список</button><button data-sub="photos">Фото</button></div>
       </div>
       <div id="bank-list" class="stack">
         <div class="row"><button class="btn btn-pri" onclick="openBankModal()"><svg class="ic"><use href="#i-plus"/></svg> Добавить контейнер</button><button class="btn" onclick="openAssignModal()">Назначить визиты на день</button></div>
@@ -219,7 +221,32 @@
           <div class="card-b"><div class="photogrid" id="ph-grid"></div></div>
         </div>
       </div>
-      <div id="bank-reports" hidden class="stack">
+    </section>
+
+    <!-- ---------- ОТЧЁТЫ ---------- -->
+    <section class="page" data-page="reports">
+      <div class="phead">
+        <div><h1>Отчёты</h1><p>Месяц работы: сборы по charity для партнёров и вывозы для хостов контейнеров</p></div>
+        <div class="subtabs" id="rp-tabs"><button data-sub="charity" aria-current="true">Партнёрам</button><button data-sub="hosts">Хостам</button></div>
+      </div>
+      <div id="rp-charity" class="stack">
+        <div class="note warn" id="cr-warn" hidden></div>
+        <div class="row">
+          <input type="month" class="field" id="cr-month" style="width:auto" onchange="renderCharity()">
+          <select class="field" id="cr-source" style="width:auto" onchange="renderCharity()">
+            <option value="">Все источники</option>
+            <option value="partner_email">Partner Email</option>
+            <option value="partner_whatsapp">Partner WhatsApp</option>
+            <option value="missing">Missing Collections</option>
+            <option value="subnex_website">SUBNEX Collections</option>
+          </select>
+          <button class="btn" onclick="allCharityPdf()"><svg class="ic"><use href="#i-dl"/></svg> Все отчёты (PDF)</button>
+          <button class="btn" onclick="charitySummaryPdf()"><svg class="ic"><use href="#i-dl"/></svg> Сводка для себя (PDF)</button>
+        </div>
+        <div class="card"><div class="tscroll"><table class="t"><thead><tr><th>Charity</th><th>Источник</th><th>Сборов</th><th style="width:150px">Вес за месяц</th><th></th></tr></thead><tbody id="cr-tbody"></tbody></table></div>
+        <div class="tfoot"><span class="muted">Считаются только выполненные сборы за выбранный месяц. Вес вписываете вы — он сохраняется сразу и попадает в отчёт партнёру.</span></div></div>
+      </div>
+      <div id="rp-hosts" hidden class="stack">
         <div class="note warn" id="rep-warn" hidden></div>
         <div class="row"><input type="month" class="field" id="rep-month" style="width:auto" onchange="renderReports()"><button class="btn" onclick="internalPdf()"><svg class="ic"><use href="#i-dl"/></svg> Сводка для себя (PDF)</button><button class="btn" onclick="allHostPdf()"><svg class="ic"><use href="#i-dl"/></svg> Все отчёты хостам (PDF)</button></div>
         <div class="card"><div class="tscroll"><table class="t"><thead><tr><th>Площадка</th><th>Условия</th><th>Вывозов</th><th>Собрано</th><th>К выплате</th><th></th></tr></thead><tbody id="rep-tbody"></tbody></table></div>
@@ -582,7 +609,7 @@ function renderBadges(){
 
 /* ---------- навигация ---------- */
 let PAGE='today';
-const PAGES=['today','requests','cal','day','chat','banks','settings'];
+const PAGES=['today','requests','cal','day','chat','banks','reports','settings'];
 function go(page,opts={}){
   if(!PAGES.includes(page))page='today';
   PAGE=page;location.hash=page;
@@ -596,21 +623,22 @@ function go(page,opts={}){
 document.getElementById('nav').addEventListener('click',e=>{const b=e.target.closest('button[data-page]');if(b)go(b.dataset.page);});
 function subtab(group,sub){
   document.querySelectorAll('#'+group+'-tabs button').forEach(b=>b.setAttribute('aria-current',b.dataset.sub===sub?'true':'false'));
-  const map={req:['queue','all'],bank:['list','photos','reports'],set:['hours','dispatch','zones','intake','drivers','data']};
+  const map={req:['queue','all'],bank:['list','photos'],rp:['charity','hosts'],set:['hours','dispatch','zones','intake','drivers','data']};
   for(const s of map[group])document.getElementById(group+'-'+s).hidden=s!==sub;
   SUB[group]=sub;
   if(group==='req'&&sub==='queue')ensureQueue();
   if(group==='req'&&sub==='all')renderAddrTable();
   if(group==='bank'&&sub==='photos')renderPhotos();
-  if(group==='bank'&&sub==='reports')renderReports();
+  if(group==='rp'&&sub==='hosts')renderReports();
+  if(group==='rp'&&sub==='charity')renderCharity();
   if(group==='set'&&sub==='hours')renderHours();
   if(group==='set'&&sub==='dispatch')ensureSettingsDispatch();
   if(group==='set'&&sub==='zones')renderZones();
   if(group==='set'&&sub==='intake')renderIntake();
   if(group==='set'&&sub==='drivers')renderDrivers();
 }
-const SUB={req:'queue',bank:'list',set:'hours'};
-for(const g of ['req','bank','set'])document.getElementById(g+'-tabs').addEventListener('click',e=>{const b=e.target.closest('button[data-sub]');if(b)subtab(g,b.dataset.sub);});
+const SUB={req:'queue',bank:'list',rp:'charity',set:'hours'};
+for(const g of ['req','bank','rp','set'])document.getElementById(g+'-tabs').addEventListener('click',e=>{const b=e.target.closest('button[data-sub]');if(b)subtab(g,b.dataset.sub);});
 function renderPage(page,fresh,opts={}){
   if(page==='today')renderToday();
   else if(page==='requests'){if(opts.sub)subtab('req',opts.sub);else subtab('req',SUB.req);if(fresh&&opts.tab&&QUEUE)QUEUE.action(opts.tab);if(!fresh&&QUEUE&&!QUEUE.busy&&!QUEUE.closed&&QUEUE.mode==='queue')QUEUE.reload().then(()=>{if(!QUEUE.busy&&QUEUE.mode==='queue')QUEUE.render();}).catch(()=>{});}
@@ -618,6 +646,7 @@ function renderPage(page,fresh,opts={}){
   else if(page==='day')renderDayPage(fresh);
   else if(page==='chat'){if(!opts.skipChat)ensureChat();}
   else if(page==='banks'){renderBanks();subtab('bank',SUB.bank);}
+  else if(page==='reports')subtab('rp',opts.sub||SUB.rp);
   else if(page==='settings')subtab('set',opts.sub||SUB.set);
 }
 
@@ -1170,6 +1199,103 @@ async function internalPdf(){
   body.push({table:{headerRows:1,widths:['*','auto','auto'],body:dr},layout:{hLineWidth:()=>0.4,vLineWidth:()=>0,hLineColor:()=>BRAND.line,paddingTop:()=>6,paddingBottom:()=>6,paddingLeft:()=>8,paddingRight:()=>8,fillColor:(i)=>i===0?BRAND.ink:(i===dr.length-1?BRAND.soft:(i%2?null:'#FAFAF7'))}});
   const doc=pdfShell('Subnex Group Ltd  ·  Internal summary  ·  '+ymLabel(ym));doc.content=body;doc.info={title:'Subnex internal summary — '+ymLabel(ym),author:'Subnex Group Ltd'};
   pdfMake.createPdf(doc).download('Subnex-INTERNAL-'+ym+'.pdf');
+}
+
+
+/* ---------- отчёты партнёру по charity ---------- */
+const SRC_EN={subnex_website:'Subnex website',partner_email:'Partner email',partner_whatsapp:'Partner WhatsApp',missing:'Missing collections'};
+const BOX_L={hLineWidth:()=>0.7,vLineWidth:()=>0.7,hLineColor:()=>BRAND.line,vLineColor:()=>BRAND.line,paddingLeft:()=>11,paddingRight:()=>11,paddingTop:()=>9,paddingBottom:()=>10,fillColor:()=>BRAND.soft};
+const tableL=n=>({hLineWidth:()=>0.4,vLineWidth:()=>0,hLineColor:()=>BRAND.line,paddingTop:()=>6,paddingBottom:()=>6,paddingLeft:()=>8,paddingRight:()=>8,fillColor:i=>i===0?BRAND.ink:(i===n-1?BRAND.soft:(i%2?null:'#FAFAF7'))});
+const bagsEN=a=>{const raw=a.bags_text?String(a.bags_text).trim():(a.bags?String(a.bags):'');return raw?raw.replace(/\s*(?:to|-|–)\s*/i,' – ')+' bags':'—';};
+const crName=a=>(a.charity||'').trim()||'Не указана';
+let CR_ROWS=[],CRT={},CRT_OK=true;
+
+function crGroups(ym,src){
+  const list=ADDR.filter(a=>a.kind!=='bank'&&a.status==='done'&&(a.date||'').slice(0,7)===ym&&(!src||C.sourceOf(a)===src));
+  const map=new Map();
+  for(const a of list){const name=crName(a);if(!map.has(name))map.set(name,{charity:name,items:[],sources:new Set()});
+    const g=map.get(name);g.items.push(a);g.sources.add(C.sourceOf(a));}
+  return [...map.values()].map(g=>{g.items.sort((x,y)=>(x.date||'').localeCompare(y.date||''));g.kg=Number(CRT[g.charity]&&CRT[g.charity].kg)||0;return g;})
+    .sort((a,b)=>b.items.length-a.items.length||a.charity.localeCompare(b.charity));
+}
+async function loadCharityTotals(ym){
+  try{const {data,error}=await sb.rpc('subnex_reports',{p_action:'list',p_data:{ym}});if(error)throw error;
+    CRT={};(data.totals||[]).forEach(t=>{CRT[t.charity]={kg:Number(t.kg)||0,note:t.note||''};});CRT_OK=true;}
+  catch(e){CRT={};CRT_OK=false;}
+}
+async function renderCharity(){
+  const mEl=document.getElementById('cr-month');if(!mEl.value)mEl.value=ymNow();
+  const ym=mEl.value,src=document.getElementById('cr-source').value;
+  await loadCharityTotals(ym);
+  const warn=document.getElementById('cr-warn');warn.hidden=CRT_OK;
+  if(!CRT_OK)warn.textContent='Вес пока не сохраняется — выполните sql/14_charity_reports.sql в Supabase. Списки и PDF работают и без него.';
+  CR_ROWS=crGroups(ym,src);
+  const tb=document.getElementById('cr-tbody');
+  if(!CR_ROWS.length){tb.innerHTML='<tr><td colspan="5" class="empty">За этот месяц выполненных сборов нет</td></tr>';return;}
+  const totN=CR_ROWS.reduce((t,g)=>t+g.items.length,0),totKg=CR_ROWS.reduce((t,g)=>t+g.kg,0);
+  tb.innerHTML=CR_ROWS.map((g,i)=>`<tr><td><b>${esc(g.charity)}</b><div class="muted small">последний сбор ${esc(dayShort(g.items[g.items.length-1].date))}</div></td>`
+    +`<td>${[...g.sources].map(x=>'<span class="chip ghost">'+esc(C.sourceNames[x]||x)+'</span>').join(' ')}</td>`
+    +`<td class="num"><b>${g.items.length}</b></td>`
+    +`<td><input class="field" type="number" min="0" step="0.1" inputmode="decimal" style="width:110px" value="${g.kg||''}" placeholder="кг" data-kg="${i}"${CRT_OK?'':' disabled'}></td>`
+    +`<td style="text-align:right"><button class="btn btn-sm" data-crpdf="${i}">PDF</button></td></tr>`).join('')
+   +`<tr class="total"><td>Всего</td><td></td><td class="num">${totN}</td><td id="cr-total-kg">${totKg?totKg.toFixed(1)+' кг':'—'}</td><td></td></tr>`;
+}
+async function saveCharityKg(i,value){
+  const g=CR_ROWS[i];if(!g)return;
+  const kg=Math.max(0,Math.round((Number(value)||0)*10)/10);
+  try{const {error}=await sb.rpc('subnex_reports',{p_action:'save',p_data:{ym:document.getElementById('cr-month').value||ymNow(),charity:g.charity,kg:String(kg)}});
+    if(error)throw error;
+    CRT[g.charity]={kg,note:(CRT[g.charity]||{}).note||''};g.kg=kg;
+    const cell=document.getElementById('cr-total-kg');
+    if(cell){const t=CR_ROWS.reduce((s,x)=>s+x.kg,0);cell.textContent=t?t.toFixed(1)+' кг':'—';}
+    toast('Вес сохранён: '+g.charity);
+  }catch(e){toast(Ops.error(e));}
+}
+document.getElementById('cr-tbody').addEventListener('change',e=>{const el=e.target.closest('input[data-kg]');if(el)saveCharityKg(Number(el.dataset.kg),el.value);});
+document.getElementById('cr-tbody').addEventListener('click',e=>{const b=e.target.closest('button[data-crpdf]');if(b)charityPdf(CR_ROWS[Number(b.dataset.crpdf)]);});
+
+async function charityPdf(g,silent){
+  if(!g||!g.items.length){toast('Нет данных за этот месяц');return;}
+  const ym=document.getElementById('cr-month').value||ymNow();if(!silent)toast('Готовлю PDF…');
+  const kg=Number((CRT[g.charity]||{}).kg)||0;
+  const body=[{text:'Monthly collection report',style:'h1'},
+    {text:'Household collections carried out by Subnex Group for this charity during the period below.',margin:[0,0,0,14],color:'#3A3A38'}];
+  body.push(kvRow([['Charity',g.charity],['Period',ymLabel(ym)],['Report issued',ukDate(todayStr())]]));
+  const boxes=[{stack:[{text:'COLLECTIONS',style:'lbl'},{text:String(g.items.length),fontSize:19,bold:true,margin:[0,3,0,0]}]},
+    {stack:[{text:'TOTAL COLLECTED',style:'lbl'},{text:kg?kg.toFixed(1)+' kg':'—',fontSize:19,bold:true,color:BRAND.dgreen,margin:[0,3,0,0]}]},
+    {stack:[{text:'AVERAGE PER COLLECTION',style:'lbl'},{text:kg?(kg/g.items.length).toFixed(1)+' kg':'—',fontSize:19,bold:true,margin:[0,3,0,0]}]}];
+  body.push({table:{widths:boxes.map(()=>'*'),body:[boxes]},layout:BOX_L,margin:[0,4,0,0]});
+  body.push({text:'Weights are recorded at our sorting facility after collection and cover the whole period shown above.',style:'note',margin:[0,10,0,0]});
+  body.push({table:{widths:['*'],body:[[{stack:[{text:'Questions about this report?',bold:true,margin:[0,0,0,3]},{text:'Reply to this email or call us and we will check any collection made for you in this period.',color:'#3A3A38'}]}]]},
+    layout:{hLineWidth:()=>0,vLineWidth:i=>i===0?2.5:0,vLineColor:()=>BRAND.green,paddingLeft:()=>11,paddingRight:()=>11,paddingTop:()=>10,paddingBottom:()=>10,fillColor:()=>BRAND.soft},margin:[0,10,0,0]});
+  const doc=pdfShell('Subnex Group Ltd  ·  Collection report  ·  '+g.charity+'  ·  '+ymLabel(ym));
+  doc.content=body;doc.info={title:'Subnex collection report — '+g.charity+' — '+ymLabel(ym),author:'Subnex Group Ltd'};
+  const fname='Subnex-'+g.charity.replace(/[^\w\-]+/g,'-').replace(/^-|-$/g,'')+'-'+ym+'.pdf';
+  return new Promise(res=>pdfMake.createPdf(doc).download(fname,res));
+}
+async function allCharityPdf(){
+  if(!CR_ROWS.length){toast('Нет данных за этот месяц');return;}
+  toast('Готовлю PDF…');
+  for(const g of CR_ROWS){await charityPdf(g,true);await new Promise(r=>setTimeout(r,600));}
+}
+async function charitySummaryPdf(){
+  if(!CR_ROWS.length){toast('Нет данных за этот месяц');return;}
+  const ym=document.getElementById('cr-month').value||ymNow();toast('Готовлю PDF…');
+  const totN=CR_ROWS.reduce((s,g)=>s+g.items.length,0),totKg=CR_ROWS.reduce((s,g)=>s+g.kg,0);
+  const body=[{text:'Internal summary — '+ymLabel(ym),style:'h1'},
+    {text:'Door-to-door collections by charity. Not for distribution.',margin:[0,0,0,14],color:'#3A3A38'}];
+  body.push({table:{widths:['*','*','*'],body:[[
+    {stack:[{text:'CHARITIES',style:'lbl'},{text:String(CR_ROWS.length),fontSize:19,bold:true,margin:[0,3,0,0]}]},
+    {stack:[{text:'COLLECTIONS',style:'lbl'},{text:String(totN),fontSize:19,bold:true,margin:[0,3,0,0]}]},
+    {stack:[{text:'TOTAL COLLECTED',style:'lbl'},{text:totKg?totKg.toFixed(1)+' kg':'—',fontSize:19,bold:true,color:BRAND.dgreen,margin:[0,3,0,0]}]}]]},layout:BOX_L});
+  body.push({text:'By charity',style:'sec'});
+  const sr=[[{text:'CHARITY',style:'th'},{text:'SOURCE',style:'th'},{text:'COLL.',style:'th',alignment:'right'},{text:'COLLECTED',style:'th',alignment:'right'}]];
+  CR_ROWS.forEach(g=>sr.push([g.charity,[...g.sources].map(x=>SRC_EN[x]||x).join(', '),{text:String(g.items.length),alignment:'right'},{text:g.kg?g.kg.toFixed(1)+' kg':'—',alignment:'right',bold:true}]));
+  sr.push([{text:'Total',bold:true},'',{text:String(totN),alignment:'right',bold:true},{text:totKg?totKg.toFixed(1)+' kg':'—',alignment:'right',bold:true}]);
+  body.push({table:{headerRows:1,widths:['*','auto','auto','auto'],body:sr},layout:tableL(sr.length)});
+  const doc=pdfShell('Subnex Group Ltd  ·  Internal summary  ·  '+ymLabel(ym));
+  doc.content=body;doc.info={title:'Subnex internal summary — '+ymLabel(ym),author:'Subnex Group Ltd'};
+  pdfMake.createPdf(doc).download('Subnex-INTERNAL-charity-'+ym+'.pdf');
 }
 
 /* ---------- экспорт ---------- */
