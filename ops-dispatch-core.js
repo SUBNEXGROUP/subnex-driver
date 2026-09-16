@@ -84,7 +84,7 @@ function ordered(nodes,previous=[]){const present=new Set(nodes.map(n=>n.key));c
 /* Мягкие приоритеты планировщика (минуты «стоимости»). Не требования бизнеса, а выбранные коэффициенты — см. описание этапа 2.
    wait_weight — каждая минута простоя, которую создаёт вставка; empty_day_penalty — открытие пустого дня, когда есть начатые;
    sla_days / sla_penalty — срок сбора после заявки; max_wait — простой сверх этого штрафуется вдвое. */
-const PLAN_DEFAULTS={wait_weight:1,empty_day_penalty:45,sla_days:7,sla_penalty:90,max_wait:15,cluster_penalty:12};
+const PLAN_DEFAULTS={wait_weight:1,empty_day_penalty:45,sla_days:7,sla_penalty:90,max_wait:15,cluster_penalty:0,service_minutes:5,estimated_kg:10,same_slot_minutes:6};
 const planParam=(config,k)=>Number.isFinite(+config[k])?+config[k]:PLAN_DEFAULTS[k];
 const slaDeadline=(request,config)=>{const c=request.created_at?ukDay(request.created_at):null;if(!c)return null;const d=new Date(Date.parse(c+'T12:00:00Z')+planParam(config,'sla_days')*86400000);return d.toISOString().slice(0,10);};
 function placements(day,request,config,roads){
@@ -98,9 +98,9 @@ function placements(day,request,config,roads){
  if(trip&&trip.prefix!==rule.prefix)return [];
  const nodes=day.nodes.filter(n=>n.address_id!==request.id),order=ordered(nodes,day.order);
  const base=evaluate(nodes,order,config,day.hours,roads,day.start_minute);if(!base.ok)return [];
- const opens=minute(day.hours.opens),closes=minute(day.hours.closes),earliestMin=Math.max(opens,day.start_minute||0),svc=request.service_minutes??10;
- const node={key:'a:'+request.id,address_id:request.id,text:request.text,lat:request.lat,lng:request.lng,earliest:earliestMin,latest:closes,service:svc,kg:request.estimated_kg??40,kind:'hold'};
- const byId=new Map(nodes.map(n=>[n.key,n])),rz=zone(request.text),sameZoneInDay=nodes.some(n=>zone(n.text)===rz);
+ const opens=minute(day.hours.opens),closes=minute(day.hours.closes),earliestMin=Math.max(opens,day.start_minute||0),svc=request.service_minutes??PLAN_DEFAULTS.service_minutes;
+ const node={key:'a:'+request.id,address_id:request.id,text:request.text,lat:request.lat,lng:request.lng,earliest:earliestMin,latest:closes,service:svc,kg:request.estimated_kg??PLAN_DEFAULTS.estimated_kg,kind:'hold'};
+ const byId=new Map(nodes.map(n=>[n.key,n]));
  const deadline=slaDeadline(request,config),late=deadline&&day.day>deadline;
  const result=[];
  for(let i=0;i<=order.length;i++){
@@ -116,11 +116,11 @@ function placements(day,request,config,roads){
    const pinned={...node,earliest:start,latest:start+30};if(pinned.latest>closes)continue;
    const fit=evaluate([...nodes,pinned],candidate,config,day.hours,roads,day.start_minute);
    if(!fit.ok||fit.kg>config.capacity_kg-config.reserve_kg||fit.free_minutes<config.reserve_minutes)continue;
-   const extra=fit.drive-(nodes.length?base.drive:0),waitDelta=Math.max(0,fit.wait-base.wait),switchDelta=Math.max(0,fit.switches-base.switches);
-   const prev=i>0?byId.get(order[i-1]):null,adjacent=(prev&&zone(prev.text)===rz)||(next&&zone(next.text)===rz);
-   const cluster=nodes.length&&!adjacent?(sameZoneInDay?planParam(config,'cluster_penalty'):config.zone_penalty_minutes):0;
+   const extra=fit.drive-(nodes.length?base.drive:0),waitDelta=Math.max(0,fit.wait-base.wait);
+   // Цена вставки — только реальные минуты: добавленная дорога и добавленный простой.
+   // Район адреса значения не имеет: CF и NP в одном дне допустимы, если они рядом.
    const idle=waitDelta*planParam(config,'wait_weight')+(waitDelta>planParam(config,'max_wait')?waitDelta:0);
-   const score=extra+idle+switchDelta*config.zone_penalty_minutes+cluster+(nodes.length?0:planParam(config,'empty_day_penalty'))+(late?planParam(config,'sla_penalty'):0);
+   const score=extra+idle+(nodes.length?0:planParam(config,'empty_day_penalty'))+(late?planParam(config,'sla_penalty'):0);
    result.push({day:day.day,address_id:request.id,start:hm(start),end:hm(start+30),node:pinned,fit,extra_minutes:extra,wait_minutes:waitDelta,score,late:!!late});
   }
  }
@@ -135,6 +135,40 @@ function summarize(work,config,roads,assigned,unassigned){
  return {days,metrics:{assigned:assigned.length,unassigned:unassigned.length,days_used:used.length,
   drive:used.reduce((s,d)=>s+d.fit.drive,0),wait:used.reduce((s,d)=>s+d.fit.wait,0),switches:used.reduce((s,d)=>s+d.fit.switches,0),
   late:assigned.filter(a=>a.late).length,extra_drive:assigned.reduce((s,a)=>s+a.extra_minutes,0)}};
+}
+/* Соседние адреса — один интервал.
+   Если от предыдущей остановки ехать считанные минуты (та же или соседняя улица),
+   клиенту называется то же время: водитель делает оба адреса за один подход.
+   Интервал расширяется только если пересчёт дня подтверждает, что машина успевает. */
+function shareSlots(work,assigned,config,roads){
+ const limit=planParam(config,'same_slot_minutes');
+ if(!(limit>0))return 0;
+ const mine=new Map(assigned.map(a=>[a.address_id,a]));
+ let merged=0;
+ for(const day of work){
+  const byKey=new Map(day.nodes.map(n=>[n.key,n]));
+  let anchor=null;
+  for(const key of day.order){
+   const n=byKey.get(key);
+   if(!n){anchor=null;continue;}
+   const own=mine.get(n.address_id);
+   if(anchor&&own&&own.day===day.day&&(n.earliest!==anchor.earliest||n.latest!==anchor.latest)){
+    const leg=legMinutes(anchor,n,config,roads);
+    if(Number.isFinite(leg)&&leg<=limit&&anchor.earliest<=n.earliest){
+     const trial={...n,earliest:anchor.earliest,latest:anchor.latest};
+     const nodes=day.nodes.map(x=>x.key===key?trial:x);
+     const fit=evaluate(nodes,day.order,config,day.hours,roads,day.start_minute);
+     if(fit.ok){
+      day.nodes=nodes;byKey.set(key,trial);
+      own.start=hm(trial.earliest);own.end=hm(trial.latest);own.node=trial;own.shared=true;
+      merged++;continue;
+     }
+    }
+   }
+   anchor=n;
+  }
+ }
+ return merged;
 }
 async function planBatch(days,requests,config,roads,onProgress=()=>{}){
  const work=days.map(d=>({...d,nodes:[...d.nodes],order:ordered(d.nodes,d.order)})),remaining=[...requests],assigned=[],unassigned=[];
@@ -160,9 +194,11 @@ async function planBatch(days,requests,config,roads,onProgress=()=>{}){
   for(const r of [...remaining]){const options=dayOptions(work,r,config,roads);if(options.length){applyChoice(work,options[0]);options[0].request_token=r.dispatch_token;assigned.push(options[0]);remaining.splice(remaining.indexOf(r),1);improved=true;}}
   await new Promise(resolve=>setTimeout(resolve,0));if(!improved)break;
  }
+ const shared=shareSlots(work,assigned,config,roads);
  const from=days[0]?.day||ukDay();
  for(const r of remaining)unassigned.push({address_id:r.id,reason:zoneReason(config,r.text,from)||'Нет подходящего места с учётом дороги, договорённостей и рабочих часов.'});
- return {assigned,unassigned,...summarize(work,config,roads,assigned,unassigned)};
+ const out={assigned,unassigned,...summarize(work,config,roads,assigned,unassigned)};
+ out.metrics.shared=shared;return out;
 }
 function splitDelimited(text,delimiter){const rows=[];let row=[],cell='',quoted=false;for(let i=0;i<text.length;i++){const c=text[i];if(c==='"'){if(quoted&&text[i+1]==='"'){cell+='"';i++;}else if(quoted||!cell)quoted=!quoted;else cell+=c;}else if(c===delimiter&&!quoted){row.push(cell.trim());cell='';}else if((c==='\n'||c==='\r')&&!quoted){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell.trim());if(row.some(Boolean))rows.push(row);row=[];cell='';}else cell+=c;}row.push(cell.trim());if(row.some(Boolean))rows.push(row);return rows;}
 function parseRows(text,html,source){
@@ -178,7 +214,7 @@ function parseRows(text,html,source){
    note=cells.filter((_,j)=>j!==(index>=0?index:cells.indexOf(address))).join(' | ');
    if(cells.length===1){address=address.replace(tel,'').replace(email,'').replace(/\|+/g,',').trim();}
   }
-  return {row:i+1,text:address.trim(),contact_name:name,phone:phone(tel),contact_email:email,bags_text:bags,note,intake_channel:source,estimated_kg:40,service_minutes:10,not_before:null,raw:all};
+  return {row:i+1,text:address.trim(),contact_name:name,phone:phone(tel),contact_email:email,bags_text:bags,note,intake_channel:source,estimated_kg:PLAN_DEFAULTS.estimated_kg,service_minutes:PLAN_DEFAULTS.service_minutes,not_before:null,raw:all};
  });
 }
 function issues(row,existing=[],previous=[]){const out=[];const pc=postcode(row.text);
@@ -193,6 +229,6 @@ function issues(row,existing=[],previous=[]){const out=[];const pc=postcode(row.
  if(existing.some(a=>['new','planned'].includes(a.status)&&key(a.text)===key(row.text)))out.push('Адрес уже есть в действующих заявках');
  return out;
 }
-root.SubnexDispatchCore={sourceNames,sourceOf,postcode,key,phone,hm,minute,ukDay,ukMinute,pointKey,validPoint,zone,evaluate,ordered,placements,planBatch,parseRows,issues,PLAN_DEFAULTS,postcodeArea,zoneRule,zoneTripDay,tripZoneOf,nextTripDays,zoneReason,nthWeekday};
+root.SubnexDispatchCore={sourceNames,sourceOf,postcode,key,phone,hm,minute,ukDay,ukMinute,pointKey,validPoint,zone,evaluate,ordered,placements,planBatch,shareSlots,parseRows,issues,PLAN_DEFAULTS,postcodeArea,zoneRule,zoneTripDay,tripZoneOf,nextTripDays,zoneReason,nthWeekday};
 if(typeof module!=='undefined'&&module.exports)module.exports=root.SubnexDispatchCore;
 })(typeof window==='undefined'?globalThis:window);
