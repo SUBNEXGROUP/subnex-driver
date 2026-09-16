@@ -27,7 +27,16 @@ const legMinutes=(a,b,config,roads)=>{if(pointKey(a)===pointKey(b))return 0;cons
    Дальние районы (BS, SA) обслуживаются в назначенный день месяца.
    Правила приходят с сервера (public.subnex_zones) и кладутся в config.zones. */
 const postcodeArea=s=>{const m=String(s||'').toUpperCase().match(/\b([A-Z]{1,2})\d[A-Z\d]?\s*\d[A-Z]{2}\b/);return m?m[1]:'';};
-const zoneRule=(config,text)=>{const a=postcodeArea(text);return a?(config.zones||[]).find(z=>z.prefix===a)||null:null;};
+/* Номер индекса: «… Cardigan SA43 1EJ» → 43. Нужен, чтобы отделить Суонси (SA1–13)
+   от запада Уэльса (SA14–99) — буквы у них общие, а поездки разные. */
+const postcodeNumber=s=>{const m=String(s||'').toUpperCase().match(/\b[A-Z]{1,2}(\d\d?)[A-Z]?\s*\d[A-Z]{2}\b/);return m?parseInt(m[1],10):null;};
+const zoneSpan=z=>((z.num_to??99)-(z.num_from??0));
+const zoneKey=z=>z&&(z.code||z.prefix);
+const sameZone=(x,y)=>!!x&&!!y&&zoneKey(x)===zoneKey(y);
+/* Зона адреса: совпали буквы и номер попал в диапазон. Выигрывает самый узкий диапазон. */
+const zoneRule=(config,text)=>{const a=postcodeArea(text);if(!a)return null;const n=postcodeNumber(text)??0;
+ const hits=(config.zones||[]).filter(z=>z.prefix===a&&n>=(z.num_from??0)&&n<=(z.num_to??99));
+ return hits.length?hits.sort((x,y)=>zoneSpan(x)-zoneSpan(y))[0]:null;};
 /* n-й день недели месяца; week=5 — последний. Возвращает YYYY-MM-DD. */
 function nthWeekday(day,weekday,week){
  const [y,m]=day.split('-').map(Number);const last=new Date(Date.UTC(y,m,0)).getUTCDate();const hits=[];
@@ -97,9 +106,9 @@ function placements(day,request,config,roads){
  // День поездки в дальнюю зону: либо назначенная дата выезда, либо день, где уже стоит адрес этой зоны.
  const trip=tripZoneOf(config,day.day)||occupiedZoneOf(config,day);
  // Адрес дальней зоны допускается только в день поездки в неё.
- if(rule.mode==='monthly'&&(!trip||trip.prefix!==rule.prefix))return [];
+ if(rule.mode==='monthly'&&!sameZone(trip,rule))return [];
  // День поездки занимают только адреса этой зоны, иначе поездка расплывётся в зигзаг.
- if(trip&&trip.prefix!==rule.prefix)return [];
+ if(trip&&!sameZone(trip,rule))return [];
  const nodes=day.nodes.filter(n=>n.address_id!==request.id),order=ordered(nodes,day.order);
  const base=evaluate(nodes,order,config,day.hours,roads,day.start_minute);if(!base.ok)return [];
  const opens=minute(day.hours.opens),closes=minute(day.hours.closes),earliestMin=Math.max(opens,day.start_minute||0),svc=request.service_minutes??PLAN_DEFAULTS.service_minutes;
@@ -242,6 +251,6 @@ function issues(row,existing=[],previous=[]){const out=[];const pc=postcode(row.
  if(existing.some(a=>['new','planned'].includes(a.status)&&key(a.text)===key(row.text)))out.push('Адрес уже есть в действующих заявках');
  return out;
 }
-root.SubnexDispatchCore={sourceNames,sourceOf,postcode,key,phone,hm,minute,ukDay,ukMinute,pointKey,validPoint,zone,evaluate,ordered,placements,planBatch,shareSlots,parseRows,issues,PLAN_DEFAULTS,postcodeArea,zoneRule,zoneTripDay,tripZoneOf,occupiedZoneOf,nextTripDays,zoneReason,nthWeekday};
+root.SubnexDispatchCore={sourceNames,sourceOf,postcode,key,phone,hm,minute,ukDay,ukMinute,pointKey,validPoint,zone,evaluate,ordered,placements,planBatch,shareSlots,parseRows,issues,PLAN_DEFAULTS,postcodeArea,zoneRule,zoneTripDay,tripZoneOf,occupiedZoneOf,postcodeNumber,sameZone,nextTripDays,zoneReason,nthWeekday};
 if(typeof module!=='undefined'&&module.exports)module.exports=root.SubnexDispatchCore;
 })(typeof window==='undefined'?globalThis:window);

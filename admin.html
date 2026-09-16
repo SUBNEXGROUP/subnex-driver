@@ -18,8 +18,8 @@
 <link rel="stylesheet" href="ops-chat.css?v=20260916-console">
 <link rel="stylesheet" href="ops-dispatch.css?v=20260916-console">
 <script src="ops-chat.js?v=20260916-hours"></script>
-<script src="ops-dispatch-core.js?v=20260916-dense"></script>
-<script src="ops-dispatch.js?v=20260916-dense"></script>
+<script src="ops-dispatch-core.js?v=20260916-zones"></script>
+<script src="ops-dispatch.js?v=20260916-zones"></script>
 <script src="ops-planner.js?v=20260915-collection-hours"></script>
 <style>
 .leaflet-container{font-family:var(--body)}
@@ -338,7 +338,7 @@
 <!-- ===== МОДАЛЬНЫЕ ОКНА (старые сценарии, новый вид) ===== -->
 <div class="modal-bg" id="m-addr-bg"><div class="modal">
   <h2 id="m-addr-title">Адрес</h2>
-  <div class="row" style="margin-bottom:10px"><button class="btn btn-acc btn-sm" id="ma-chat" onclick="openAddressSMS()">SMS · согласовать сбор</button><span class="ops-slot-label" id="ma-slot" style="margin:0"></span></div>
+  <div class="row" style="margin-bottom:10px"><button class="btn btn-acc btn-sm" id="ma-chat" onclick="openAddressSMS()">SMS · согласовать сбор</button><button class="btn btn-sm" id="ma-move" onclick="openMoveModal()" style="display:none">Перенести</button><span class="ops-slot-label" id="ma-slot" style="margin:0"></span></div>
   <div class="stack">
     <div class="f-group"><label class="f">Адрес</label><textarea class="field" id="ma-text" placeholder="56 Corporation Rd, Cardiff CF11 7AW"></textarea></div>
     <div class="fgrid">
@@ -352,6 +352,24 @@
     <div class="f-group"><label class="f">Заметка о результате</label><input class="field" type="text" id="ma-resnote"></div>
   </div>
   <div class="modal-actions"><button class="btn btn-crit" id="ma-del" onclick="deleteAddrModal()" style="display:none">Удалить</button><span class="spacer"></span><button class="btn" onclick="closeModal('m-addr-bg')">Отмена</button><button class="btn btn-pri" id="ma-save" onclick="saveAddrModal()">Сохранить</button></div>
+</div></div>
+
+<div class="modal-bg" id="m-move-bg"><div class="modal">
+  <h2 id="m-move-title">Перенести заявку</h2>
+  <p class="muted" id="mv-now" style="margin:0 0 10px"></p>
+  <div class="stack">
+    <div class="f-group"><label class="f">Куда</label><select class="field" id="mv-mode" onchange="moveModeChange()">
+      <option value="day">На другую дату и время</option><option value="queue">Вернуть в очередь без даты</option></select></div>
+    <div class="row" id="mv-slot">
+      <div class="f-group"><label class="f">Дата</label><input class="field" type="date" id="mv-date"></div>
+      <div class="f-group"><label class="f">Время прибытия</label><input class="field" type="time" step="300" id="mv-start"></div>
+    </div>
+    <div class="f-group" id="mv-nbwrap" hidden><label class="f">Не раньше</label><input class="field" type="date" id="mv-nb"></div>
+    <p class="muted" id="mv-help"></p>
+    <label id="mv-agreewrap" hidden><input type="checkbox" id="mv-agreed"> Клиент согласовал перенос.</label>
+    <p class="crit" id="mv-err"></p>
+  </div>
+  <div class="modal-actions"><button class="btn" onclick="closeModal('m-move-bg')">Отмена</button><button class="btn btn-pri" id="mv-save" onclick="moveSave()">Перенести</button></div>
 </div></div>
 
 <div class="modal-bg" id="m-drv-bg"><div class="modal">
@@ -405,7 +423,7 @@
 <div class="modal-bg" id="m-zone-bg"><div class="modal">
   <h2 id="m-zone-title">Район обслуживания</h2>
   <div class="stack">
-    <div class="fgrid"><div class="f-group"><label class="f">Начало индекса</label><input class="field" type="text" id="mz-prefix" maxlength="2" placeholder="BS" style="text-transform:uppercase"></div><div class="f-group"><label class="f">Название</label><input class="field" type="text" id="mz-name" placeholder="Бристоль"></div></div>
+    <div class="fgrid"><div class="f-group"><label class="f">Код района</label><input class="field" type="text" id="mz-prefix" maxlength="7" placeholder="SA1-13" style="text-transform:uppercase"><small class="muted">Буквы индекса, при желании с номерами: <b>BS</b> — весь Бристоль, <b>SA1-13</b> — Суонси, <b>SA43</b> — только Кардиган.</small></div><div class="f-group"><label class="f">Название</label><input class="field" type="text" id="mz-name" placeholder="Бристоль"></div></div>
     <div class="f-group"><label class="f">Режим</label><select class="field" id="mz-mode" onchange="zoneModeChange()"><option value="regular">Обычный район — в любой рабочий день</option><option value="monthly">Выезд раз в месяц</option><option value="off">Выключен — не распределять</option></select></div>
     <div class="fgrid" id="mz-day-wrap" hidden>
       <div class="f-group"><label class="f">День недели</label><select class="field" id="mz-weekday"><option value="1">Понедельник</option><option value="2">Вторник</option><option value="3">Среда</option><option value="4">Четверг</option><option value="5">Пятница</option><option value="6">Суббота</option></select></div>
@@ -501,7 +519,7 @@ async function gateEnter(){
   const btn=document.getElementById('gate-btn');if(btn.disabled)return;btn.disabled=true;
   const err=document.getElementById('gate-err');err.textContent='';
   try{const {error}=await sb.auth.signInWithPassword({email:document.getElementById('admin-email').value.trim(),password:document.getElementById('admin-password').value});if(error)throw new Error('Не удалось войти. Проверьте email и пароль.');await acceptAdmin();document.getElementById('admin-password').value='';}
-  catch(e){err.textContent=Ops.error(e);}finally{btn.disabled=false;}
+  catch(e){err.textContent=window.OpsDispatch?.error(e)||Ops.error(e);}finally{btn.disabled=false;}
 }
 function clearAdmin(){
   OPS_PROFILE=null;Ops.clear();try{QUEUE?.close();SETD?.close();}catch{}QUEUE=null;SETD=null;sb?.removeAllChannels();DRIVERS=[];ADDR=[];BANKS=[];LOCS=[];PHOTOS=[];LBLIST=[];
@@ -898,13 +916,16 @@ async function renderZones(){
   host.innerHTML=ZONES.map(z=>{
     const n=z.waiting??waiting(z.prefix),next=(z.dates||[])[0];
     const badge=z.mode==='regular'?'<span class="chip st-ok">обычный район</span>':z.mode==='monthly'?'<span class="chip st-far">раз в месяц</span>':'<span class="chip st-cancelled">выключен</span>';
-    return `<div class="setrow"><div><b>${esc(z.prefix)} · ${esc(z.name)}</b><p>${badge} ${z.mode==='monthly'?esc(zoneWhen(z))+(next?' · ближайший выезд '+esc(dayShort(next)):''):''}${n?` · ждут распределения: ${n}`:''}</p></div><button class="btn btn-sm" onclick="zoneForm('${esc(z.prefix)}')">Изменить</button></div>`;
+    const span=(z.num_from??0)===0&&(z.num_to??99)===99?'':`индексы ${z.num_from}–${z.num_to}`;
+    return `<div class="setrow"><div><b>${esc(z.code||z.prefix)} · ${esc(z.name)}</b><small class="muted">${esc(span)}</small><p>${badge} ${z.mode==='monthly'?esc(zoneWhen(z))+(next?' · ближайший выезд '+esc(dayShort(next)):''):''}${n?` · ждут распределения: ${n}`:''}</p></div><button class="btn btn-sm" onclick="zoneForm('${esc(z.code||z.prefix)}')">Изменить</button></div>`;
   }).join('');
 }
-function zoneForm(prefix){
-  const z=prefix?ZONES.find(x=>x.prefix===prefix):null;
-  document.getElementById('m-zone-title').textContent=z?z.prefix+' · '+z.name:'Новый район';
-  document.getElementById('mz-prefix').value=z?z.prefix:'';document.getElementById('mz-prefix').disabled=!!z;
+let zonePrevCode=null;
+function zoneForm(code){
+  const z=code?ZONES.find(x=>(x.code||x.prefix)===code):null;
+  zonePrevCode=z?(z.code||z.prefix):null;
+  document.getElementById('m-zone-title').textContent=z?(z.code||z.prefix)+' · '+z.name:'Новый район';
+  document.getElementById('mz-prefix').value=z?(z.code||z.prefix):'';document.getElementById('mz-prefix').disabled=false;
   document.getElementById('mz-name').value=z?z.name:'';
   document.getElementById('mz-mode').value=z?z.mode:'monthly';
   document.getElementById('mz-weekday').value=z&&z.weekday!=null?z.weekday:4;
@@ -926,18 +947,20 @@ for(const id of ['mz-weekday','mz-week'])document.getElementById(id).addEventLis
 async function zoneSave(){
   const btn=document.getElementById('mz-save');btn.disabled=true;
   try{
-    const prefix=document.getElementById('mz-prefix').value.trim().toUpperCase();
-    if(!/^[A-Z]{1,2}$/.test(prefix))throw new Error('Начало индекса — одна или две латинские буквы, например BS.');
+    const code=document.getElementById('mz-prefix').value.replace(/\s+/g,'').toUpperCase();
+    const parsed=/^([A-Z]{1,2})(?:(\d{1,2})(?:-(\d{1,2}))?)?$/.exec(code);
+    if(!parsed)throw new Error('Код района: буквы индекса и, если нужно, номера — BS, SA43, SA14-99.');
+    if(parsed[3]&&+parsed[3]<+parsed[2])throw new Error('Второй номер диапазона должен быть больше первого.');
     const mode=document.getElementById('mz-mode').value;
-    const {error}=await sb.rpc('subnex_zones',{p_action:'save',p_data:{prefix,name:document.getElementById('mz-name').value.trim()||prefix,mode,weekday:+document.getElementById('mz-weekday').value,week_of_month:+document.getElementById('mz-week').value}});
+    const {error}=await sb.rpc('subnex_zones',{p_action:'save',p_data:{code,previous_code:zonePrevCode,name:document.getElementById('mz-name').value.trim()||code,mode,weekday:+document.getElementById('mz-weekday').value,week_of_month:+document.getElementById('mz-week').value}});
     if(error)throw error;
     closeModal('m-zone-bg');toast('Район сохранён');await renderZones();renderCal();
   }catch(e){document.getElementById('mz-err').textContent=Ops.error(e);}finally{btn.disabled=false;}
 }
 async function zoneDelete(){
-  const prefix=document.getElementById('mz-prefix').value.trim().toUpperCase();
-  if(!confirm('Убрать район '+prefix+'? Адреса с этим индексом перестанут распределяться автоматически.'))return;
-  try{const {error}=await sb.rpc('subnex_zones',{p_action:'delete',p_data:{prefix}});if(error)throw error;closeModal('m-zone-bg');toast('Район убран');await renderZones();renderCal();}
+  const code=(zonePrevCode||document.getElementById('mz-prefix').value).replace(/\s+/g,'').toUpperCase();
+  if(!confirm('Убрать район '+code+'? Адреса с этим индексом перестанут распределяться автоматически.'))return;
+  try{const {error}=await sb.rpc('subnex_zones',{p_action:'delete',p_data:{code}});if(error)throw error;closeModal('m-zone-bg');toast('Район убран');await renderZones();renderCal();}
   catch(e){document.getElementById('mz-err').textContent=Ops.error(e);}
 }
 
@@ -995,6 +1018,7 @@ function openAddrModal(id){
   document.getElementById('ma-date').value=a.date||'';document.getElementById('ma-driver').value=a.driver_id||'';document.getElementById('ma-status').value=a.status;document.getElementById('ma-resnote').value=a.result_note||'';
   document.getElementById('ma-del').style.display=!cancelled?'':'none';
   document.getElementById('ma-chat').style.display=a.phone&&a.kind!=='bank'?'':'none';
+  document.getElementById('ma-move').style.display=!cancelled&&a.kind!=='bank'&&['new','planned'].includes(a.status)?'':'none';
   document.getElementById('ma-slot').textContent=cancelled?'Заявка закрыта. Для следующего сбора: Переписка → Новая заявка.':(a.collection_start?'Согласовано: '+Ops.slotLabel(a):'Время не согласовано');
   document.getElementById('ma-date').disabled=cancelled||!!a.collection_start;
   document.getElementById('m-addr-bg').classList.add('show');
@@ -1015,6 +1039,59 @@ async function saveAddrModal(){
   const {error}=await sb.from('addresses').upsert(row);restore();
   if(error){toast(Ops.error(error));return;}
   closeModal('m-addr-bg');toast(row.lat!=null?'Сохранено':'Сохранено · координаты не найдены');refreshAll(true);
+}
+/* ---------- ПЕРЕНОС ЗАЯВКИ ---------- */
+function moveModeChange(){
+  const q=document.getElementById('mv-mode').value==='queue';
+  document.getElementById('mv-slot').hidden=q;
+  document.getElementById('mv-nbwrap').hidden=!q;
+  document.getElementById('mv-help').textContent=q
+    ? 'Дата снимется, заявка вернётся в очередь на распределение. Планировщик подберёт день заново.'
+    : 'Клиенту обещается интервал 30 минут. Новое место проверяется по дороге, рабочим часам и дню выезда зоны.';
+}
+function openMoveModal(){
+  const a=ADDR.find(x=>x.id===editAddrId);if(!a)return;
+  const confirmed=!!a.collection_start;
+  document.getElementById('m-move-title').textContent='Перенести · '+a.text;
+  document.getElementById('mv-now').textContent=confirmed
+    ? 'Сейчас согласовано: '+a.date+', '+Ops.ukTime(a.collection_start)+'–'+Ops.ukTime(a.collection_end)+'.'
+    : a.date?('Сейчас в маршруте на '+a.date+'.'):'Даты пока нет.';
+  document.getElementById('mv-mode').value='day';
+  document.getElementById('mv-date').min=todayStr();
+  document.getElementById('mv-date').value=a.date||'';
+  document.getElementById('mv-start').value=a.collection_start?Ops.ukTime(a.collection_start):'09:00';
+  document.getElementById('mv-nb').min=todayStr();document.getElementById('mv-nb').value='';
+  document.getElementById('mv-agreewrap').hidden=!confirmed;
+  document.getElementById('mv-agreed').checked=false;
+  document.getElementById('mv-err').textContent='';
+  moveModeChange();
+  document.getElementById('m-move-bg').classList.add('show');
+}
+async function moveSave(){
+  const a=ADDR.find(x=>x.id===editAddrId);if(!a)return;
+  const btn=document.getElementById('mv-save'),err=document.getElementById('mv-err');
+  const confirmed=!!a.collection_start,queued=document.getElementById('mv-mode').value==='queue';
+  err.textContent='';btn.disabled=true;
+  try{
+    if(confirmed&&!document.getElementById('mv-agreed').checked)
+      throw new Error('Отметьте, что клиент согласовал перенос. Подтверждённое время не двигается само.');
+    const data={address_id:a.id,version:a.collection_version,agreed:confirmed};
+    if(queued){data.to_queue=true;data.not_before=document.getElementById('mv-nb').value||null;}
+    else{
+      const d=document.getElementById('mv-date').value,st=document.getElementById('mv-start').value;
+      if(!d||!st)throw new Error('Укажите дату и время.');
+      const m=C.minute(st);
+      if(!Number.isFinite(m)||m+30>1440)throw new Error('Укажите время так, чтобы интервал в 30 минут уместился в сутки.');
+      Object.assign(data,{day:d,start:st,end:C.hm(m+30)});
+      try{await window.OpsDispatch?.warm({sb,driver:{id:a.driver_id},hasOutbox:()=>false},d,[a.id]);}catch(e){}
+    }
+    const {error}=await sb.rpc('subnex_move_request',{p_data:data});
+    if(error)throw error;
+    closeModal('m-move-bg');closeModal('m-addr-bg');
+    toast(queued?'Заявка вернулась в очередь':'Заявка перенесена');
+    refreshAll(true);
+  }catch(e){err.textContent=window.OpsDispatch?.error(e)||Ops.error(e);}
+  finally{btn.disabled=false;}
 }
 async function deleteAddrModal(){
   if(!editAddrId||!confirm('Удалить этот адрес?'))return;

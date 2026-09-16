@@ -148,7 +148,9 @@ class Dispatch{
    if(z.mode==='off')return `<span class="od-chip">Район «${esc(z.name)}» выключен</span>`;
    if(z.mode==='monthly'){const d=C.nextTripDays(z,C.ukDay(),1)[0];return `<span class="od-chip" style="background:var(--far-soft);color:var(--far)">${esc(z.name)} · выезд ${d?label(d):'не задан'}</span>`;}
    return '<span class="od-muted">Ждёт распределения</span>';};
-  const acts=a=>{const b=[];if(a.hold_id&&['partner_whatsapp','missing'].includes(C.sourceOf(a)))b.push(`<button data-action="partner" data-id="${a.id}">Согласовать</button>`);else if(a.hold_id||a.offer_state||a.date)b.push(`<button data-action="sms" data-id="${a.id}">SMS</button>`);if(a.hold_id&&!['preparing','awaiting','manual'].includes(a.offer_state))b.push(`<button data-action="release" data-id="${a.id}">Снять</button>`);if(this.available(a))b.push(`<button data-action="edit" data-id="${a.id}">Изменить</button>`);return b.join('');};
+  const acts=a=>{const b=[];if(a.hold_id&&['partner_whatsapp','missing'].includes(C.sourceOf(a)))b.push(`<button data-action="partner" data-id="${a.id}">Согласовать</button>`);else if(a.hold_id||a.offer_state||a.date)b.push(`<button data-action="sms" data-id="${a.id}">SMS</button>`);if(a.hold_id&&!['preparing','awaiting','manual'].includes(a.offer_state))b.push(`<button data-action="release" data-id="${a.id}">Снять</button>`);if(this.available(a))b.push(`<button data-action="edit" data-id="${a.id}">Изменить</button>`);
+   if(!['preparing','awaiting','manual'].includes(a.offer_state))b.push(`<button data-action="move" data-id="${a.id}">Перенести</button>`);
+   b.push(`<button data-action="drop" data-id="${a.id}">Убрать</button>`);return b.join('');};
   return `<div class="od-intro od-between"><div><h3>Заявки без даты · ${this.requests.length}</h3><p>Отметьте адреса — приложение подберёт день и время, заполняя уже начатые дни вплотную к соседним адресам.</p></div><div class="od-actions"><button data-action="sendall" ${ready.total?'':'disabled data-locked="true"'}>Отправить предложения${ready.total?' · '+ready.total:''}</button>${ready.direct.length?`<button data-action="copypartner">Текст для WhatsApp · ${ready.direct.length}</button>`:''}<button data-action="refresh">Обновить</button></div></div>
   <details><summary>Искать места с ${label(this.from)}, на ${this.days} дней вперёд</summary><div class="od-grid"><label>Начиная с<input id="od-from" type="date" min="${C.ukDay()}" value="${this.from}"></label><label>Горизонт<select id="od-days"><option value="7" ${this.days===7?'selected':''}>7 дней</option><option value="14" ${this.days===14?'selected':''}>14 дней</option></select></label></div></details>
   ${this.requests.length>500?'<p class="od-warning">Показаны первые 500 заявок. Распределите их, затем обновите очередь.</p>':''}
@@ -179,6 +181,54 @@ class Dispatch{
  for(let i=0;i<snap.days.length;i++){const d=snap.days[i];if(d.started_at||d.hours?.closed)continue;this.notice(`Рассчитываю дорогу · ${i+1}/${snap.days.length} · ${label(d.day)}`);try{Object.assign(roads,(await warm(this.o,d.day,ids)).roads);}catch(e){skipped.push({day:d.day,error:error(e)});}}
  snap=await this.call('snapshot',{from_day:this.from,days:this.days,address_ids:ids});this.tokens=Object.fromEntries(snap.days.map(d=>[d.day,d.token]));this.notice('Распределяю заявки вокруг договорённостей…');this.plan=await C.planBatch(snap.days,snap.requests,{...snap.config,zones:this.zones||[]},roads,(n,total)=>this.notice(`Подобрано ${n} из ${total}`));this.reserveId=crypto.randomUUID();this.mode='plan';this.render();this.notice(skipped.length?'Некоторые дни не рассчитаны: '+skipped.map(d=>label(d.day)+' — '+d.error).join(' '):this.plan.assigned.length?'Проверьте порядок и время перед сохранением.':'Подходящих мест пока нет. Измените горизонт поиска или проверьте проблемные дни.',!!skipped.length);}
  dialog(title,body,onSave,saveLabel='Сохранить'){this.$('.od-dialog')?.remove();const wrap=document.createElement('div');wrap.className='od-dialog';wrap.innerHTML=`<section role="dialog" aria-modal="true" aria-label="${esc(title)}"><h3>${esc(title)}</h3>${body}<p class="od-dialog-error" role="alert"></p><div class="od-actions"><button class="od-dialog-cancel">Закрыть</button>${onSave?`<button class="od-dialog-save od-primary">${saveLabel}</button>`:''}</div></section>`;this.root.append(wrap);wrap.querySelector('.od-dialog-cancel').onclick=()=>{if(!this.modalBusy)wrap.remove();};if(onSave)wrap.querySelector('.od-dialog-save').onclick=async()=>{const btn=wrap.querySelector('.od-dialog-save');if(this.modalBusy)return;this.modalBusy=true;btn.disabled=true;try{await onSave(wrap);wrap.remove();}catch(e){wrap.querySelector('.od-dialog-error').textContent=error(e);btn.disabled=false;}finally{this.modalBusy=false;}};wrap.querySelector('input,textarea,button')?.focus();return wrap;}
+ /* Перенос заявки: другая дата или возврат в очередь. Подтверждённое время
+    двигается только с явной отметкой, что клиент согласовал перенос. */
+ moveRequest(a){
+  const confirmed=!!a.collection_start,day=a.date||(a.held_start?C.ukDay(a.held_start):''),
+        start=a.held_start?C.hm(C.ukMinute(a.held_start)):'09:00';
+  const w=this.dialog('Перенести заявку',`<p><b>${esc(a.text)}</b></p>
+   ${confirmed?`<p class="od-muted">Сейчас согласовано: ${esc(label(a.date))}, ${esc(C.hm(C.ukMinute(a.collection_start)))}.</p>`:a.date?`<p class="od-muted">Сейчас в маршруте на ${esc(label(a.date))}.</p>`:''}
+   <label>Куда<select id="od-move-mode"><option value="day">На другую дату и время</option><option value="queue">Вернуть в очередь без даты</option></select></label>
+   <div class="od-grid" id="od-move-slot"><label>Дата<input id="od-move-date" type="date" min="${C.ukDay()}" value="${esc(day)}"></label><label>Время прибытия<input id="od-move-start" type="time" step="300" value="${esc(start)}"></label></div>
+   <label id="od-move-nbwrap" hidden>Не раньше<input id="od-move-nb" type="date" min="${C.ukDay()}"></label>
+   <p class="od-muted" id="od-move-help">Клиенту обещается интервал 30 минут. Новое место проверяется по дороге, рабочим часам и дню выезда зоны.</p>
+   ${confirmed?'<label><input id="od-move-agreed" type="checkbox">Клиент согласовал перенос.</label>':''}`,
+   async wrap=>{
+    const queued=wrap.querySelector('#od-move-mode').value==='queue';
+    if(confirmed&&!wrap.querySelector('#od-move-agreed').checked)throw new Error('CONFIRMED_CHANGE_REQUIRES_AGREEMENT');
+    const data={address_id:a.id,version:a.collection_version,agreed:confirmed};
+    if(queued){data.to_queue=true;data.not_before=wrap.querySelector('#od-move-nb').value||null;}
+    else{
+     const d=wrap.querySelector('#od-move-date').value,st=wrap.querySelector('#od-move-start').value;
+     if(!d||!st)throw new Error('SLOT_INVALID');
+     const m=C.minute(st);if(!Number.isFinite(m)||m+30>1440)throw new Error('SLOT_INVALID');
+     Object.assign(data,{day:d,start:st,end:C.hm(m+30)});
+     online(this.o);try{await warm(this.o,d,[a.id]);}catch(e){}
+    }
+    const r=await this.sb.rpc('subnex_move_request',{p_data:data});
+    if(r.error)throw r.error;
+    await this.reload();this.render();
+    this.notice(queued?'Заявка вернулась в очередь — подберите время заново.':'Заявка перенесена.');
+    await this.o.onChanged?.();
+   },'Перенести');
+  const mode=w.querySelector('#od-move-mode'),slot=w.querySelector('#od-move-slot'),nb=w.querySelector('#od-move-nbwrap'),help=w.querySelector('#od-move-help');
+  mode.onchange=()=>{const q=mode.value==='queue';slot.hidden=q;nb.hidden=!q;
+   help.textContent=q?'Дата снимется, заявка вернётся в очередь. Планировщик подберёт день заново.':'Клиенту обещается интервал 30 минут. Новое место проверяется по дороге, рабочим часам и дню выезда зоны.';};
+ }
+ /* Убрать заявку из базы. Это не «закрыть сбор»: история и переписка не сохраняются,
+    поэтому для заявок с перепиской путь один — «Переписка → Закрыть заявку». */
+ dropRequest(a){
+  this.dialog('Убрать заявку',`<p><b>${esc(a.text)}</b></p>
+   <p class="od-muted">Заявка исчезнет из базы вместе с фотографиями и заметками. Отменить это нельзя.</p>
+   <p class="od-muted">Если клиенту что-то обещали или по адресу есть переписка — закройте заявку в разделе «Переписка» кнопкой «Закрыть заявку»: тогда история останется, а клиент получит SMS об отмене.</p>
+   <label><input id="od-drop-sure" type="checkbox">Удалить эту заявку навсегда.</label>`,
+   async wrap=>{
+    if(!wrap.querySelector('#od-drop-sure').checked)throw new Error('Отметьте подтверждение удаления.');
+    const {error}=await this.sb.from('addresses').delete().eq('id',a.id);
+    if(error)throw new Error('Не удалось удалить: у заявки есть переписка или подтверждённый сбор. Закройте её в разделе «Переписка» кнопкой «Закрыть заявку».');
+    await this.reload();this.render();this.notice('Заявка удалена.');await this.o.onChanged?.();
+   },'Удалить');
+ }
  partner(a){const text=`We can collect from ${a.text} on ${new Intl.DateTimeFormat('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(C.ukDay(a.held_start)+'T12:00:00Z'))}, between ${C.hm(C.ukMinute(a.held_start))} and ${C.hm(C.ukMinute(a.held_end))} (UK time). Please confirm with the customer and let us know if this is suitable. Thank you.`;const w=this.dialog('Согласование с партнёром',`<textarea id="od-partner-text" rows="5" readonly>${esc(text)}</textarea><button id="od-copy">Скопировать для WhatsApp</button><p class="od-muted">Интервал уже зарезервирован. После ответа партнёра отметьте подтверждение.</p><label><input id="od-partner-agreed" type="checkbox">Партнёр подтвердил именно эти дату и интервал.</label>`,async w=>{if(!w.querySelector('#od-partner-agreed').checked)throw new Error('AGREEMENT_REQUIRED');online(this.o);await warm(this.o,C.ukDay(a.held_start),[a.id]);await this.call('confirm_partner',{address_id:a.id,agreed:true});await this.reload();this.render();this.notice('Подтверждено. Адрес добавлен в маршрут.');await this.o.onChanged?.();},'Добавить подтверждённый сбор');w.querySelector('#od-copy').onclick=async()=>{const b=w.querySelector('#od-copy');b.disabled=true;try{await warm(this.o,C.ukDay(a.held_start),[a.id]);await this.call('share',{address_id:a.id});await navigator.clipboard.writeText(text);b.textContent='Текст скопирован';a.shared_at=new Date().toISOString();}catch(e){w.querySelector('.od-dialog-error').textContent=error(e);w.querySelector('textarea').select();}finally{b.disabled=false;}};}
  action(act,b){if(this.busy)return;if(act==='close'){this.close();return;}if(['queue','one','batch','settings'].includes(act)){this.mode=act;this.notice('');this.render();return;}const a=this.requests.find(a=>a.id===b.dataset.id);
  if(act==='parse'){const text=this.$('#od-paste').value;this.rows=C.parseRows(text,this.pasteHtml,this.source);if(!this.rows.length||this.rows.length>200){this.notice('Вставьте от 1 до 200 заявок.',true);return;}this.importId=crypto.randomUUID();this.mode='review';this.render();return;}
@@ -186,6 +236,8 @@ class Dispatch{
  if(act==='remove-row'){this.syncRows();this.rows.splice(+b.dataset.index,1);this.importId=crypto.randomUUID();this.render();return;}
  if(act==='partner'){this.partner(a);return;}
  if(act==='edit'){const ok=C.validPoint(a);this.dialog('Изменить заявку',`<p><b>${esc(a.text)}</b></p><div class="od-grid">${input('not_before','Клиент доступен начиная с',a.not_before,'date')}<label>Сбор на адресе<select data-field="service_minutes"><option value="5" ${a.service_minutes!==10?'selected':''}>5 минут</option><option value="10" ${a.service_minutes===10?'selected':''}>10 минут</option></select></label></div><input data-field="estimated_kg" data-num type="hidden" value="${esc(a.estimated_kg||10)}"><p class="od-muted">Точка на карте: ${ok?`определена${a.geocode_source==='postcode'?' по почтовому индексу — это центр индекса, дом может быть в стороне':''}. <a href="https://www.openstreetmap.org/?mlat=${a.lat}&mlon=${a.lng}#map=18/${a.lat}/${a.lng}" target="_blank" rel="noopener">Проверить</a>`:'не определена — найдём автоматически перед расчётом.'}</p>`,async w=>{const data=this.fields(w);delete data.lat;delete data.lng;await this.call('edit_request',{address_id:a.id,...data});await this.reload();this.render();this.notice('Заявка обновлена.');});return;}
+ if(act==='move'){this.moveRequest(a);return;}
+ if(act==='drop'){this.dropRequest(a);return;}
  if(act==='release'){this.dialog('Снять предложение',`<p>${esc(a.text)}</p><label><input id="od-withdrawn" type="checkbox">${a.shared_at?'Я отозвал это время у партнёра.':'Предложение ещё не передано клиенту или уже отозвано.'}</label>`,async w=>{if(!w.querySelector('#od-withdrawn').checked)throw new Error('PARTNER_WITHDRAWAL_REQUIRED');await this.call('release',{address_id:a.id,acknowledged:true});await this.reload();this.render();},'Снять предложение');return;}
  if(act==='legacy'){const p=this.legacy.find(p=>p.id===b.dataset.id);this.dialog('Подтвердить прежнее предложение',`<p>${esc(p.address)} · ${label(C.ukDay(p.starts_at))} ${C.hm(C.ukMinute(p.starts_at))}</p><label><input id="od-legacy-agreed" type="checkbox">Партнёр подтвердил эту дату и время.</label>`,async w=>{if(!w.querySelector('#od-legacy-agreed').checked)throw new Error('AGREEMENT_REQUIRED');await warm(this.o,C.ukDay(p.starts_at));await this.call('legacy_confirm',{id:p.id,agreed:true});await this.reload();this.render();await this.o.onChanged?.();},'Подтвердить');return;}
  if(act==='sendall'){this.sendAll();return;}
