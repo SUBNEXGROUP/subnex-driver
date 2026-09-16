@@ -262,5 +262,5 @@ class Chat{
  }
  hoursForm(h,title){this.modal(title,`${h.day?`<label>Дата<input id="oc-hours-day" type="date" value="${esc(h.day)}"></label>`:''}<div class="oc-slots"><label>Первое прибытие с<input id="oc-hours-open" type="time" value="${h.opens.slice(0,5)}"></label><label>Последнее прибытие до<input id="oc-hours-close" type="time" value="${h.closes.slice(0,5)}"></label></div><label><input id="oc-hours-closed" type="checkbox" ${h.closed?'checked':''}>Выходной</label>`,async(w)=>{await this.call('save_hours',{...(h.day?{day:w.querySelector('#oc-hours-day').value}:{weekday:h.weekday}),opens:w.querySelector('#oc-hours-open').value,closes:w.querySelector('#oc-hours-close').value,closed:w.querySelector('#oc-hours-closed').checked});this.notice('График сохранён.');});}
 }
-window.Ops={api,profile:sb=>api(sb,'profile'),open,close,esc,error:errText,signPhotos,photoUrl,slotLabel,ukDate,ukTime,current:()=>current,settings:()=>current?.settings(),clear:()=>{photoCache.clear();close();}};
+window.Ops={api,profile:sb=>api(sb,'profile'),open,close,esc,error:errText,offerText:(source,day,start,end,name)=>{const t=partnerOffer(day,start,end,name);return t&&source==='subnex'?subnexOffer(t):t;},signPhotos,photoUrl,slotLabel,ukDate,ukTime,current:()=>current,settings:()=>current?.settings(),clear:()=>{photoCache.clear();close();}};
 })();
