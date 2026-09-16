@@ -38,6 +38,9 @@ function nthWeekday(day,weekday,week){
 const zoneTripDay=(rule,day)=>rule&&rule.mode==='monthly'&&Number.isFinite(rule.weekday)?nthWeekday(day,rule.weekday,rule.week_of_month||5):null;
 /* Зона, чей выезд назначен на этот день: такой день занимают только её адреса. */
 const tripZoneOf=(config,day)=>(config.zones||[]).find(z=>z.mode==='monthly'&&zoneTripDay(z,day)===day)||null;
+/* Зона, чей адрес уже стоит в дне (подтверждённый или удержанный): такой день считается
+   днём поездки в эту зону, даже если это не назначенная дата выезда. */
+const occupiedZoneOf=(config,day)=>{for(const n of day.nodes||[]){const z=zoneRule(config,n.text);if(z&&z.mode==='monthly')return z;}return null;};
 /* Ближайшие даты выезда зоны начиная с дня. */
 function nextTripDays(rule,from,count=3){const out=[];let [y,m]=from.split('-').map(Number);
  for(let i=0;i<14&&out.length<count;i++){const d=nthWeekday(`${y}-${String(m).padStart(2,'0')}-01`,rule.weekday,rule.week_of_month||5);
@@ -84,17 +87,18 @@ function ordered(nodes,previous=[]){const present=new Set(nodes.map(n=>n.key));c
 /* Мягкие приоритеты планировщика (минуты «стоимости»). Не требования бизнеса, а выбранные коэффициенты — см. описание этапа 2.
    wait_weight — каждая минута простоя, которую создаёт вставка; empty_day_penalty — открытие пустого дня, когда есть начатые;
    sla_days / sla_penalty — срок сбора после заявки; max_wait — простой сверх этого штрафуется вдвое. */
-const PLAN_DEFAULTS={wait_weight:1,empty_day_penalty:45,sla_days:7,sla_penalty:90,max_wait:15,cluster_penalty:0,service_minutes:5,estimated_kg:10,same_slot_minutes:6};
+const PLAN_DEFAULTS={wait_weight:1,empty_day_penalty:120,sla_days:7,sla_penalty:90,max_wait:15,cluster_penalty:0,service_minutes:5,estimated_kg:10,same_slot_minutes:6};
 const planParam=(config,k)=>Number.isFinite(+config[k])?+config[k]:PLAN_DEFAULTS[k];
 const slaDeadline=(request,config)=>{const c=request.created_at?ukDay(request.created_at):null;if(!c)return null;const d=new Date(Date.parse(c+'T12:00:00Z')+planParam(config,'sla_days')*86400000);return d.toISOString().slice(0,10);};
 function placements(day,request,config,roads){
  if(day.started_at||day.hours?.closed||request.not_before&&day.day<request.not_before)return [];
  const rule=zoneRule(config,request.text);
  if(!rule||rule.mode==='off')return [];
- // Адрес дальней зоны допускается только в её день выезда.
- if(rule.mode==='monthly'&&zoneTripDay(rule,day.day)!==day.day)return [];
- // День выезда зоны занимают только адреса этой зоны, иначе поездка расплывётся.
- const trip=tripZoneOf(config,day.day);
+ // День поездки в дальнюю зону: либо назначенная дата выезда, либо день, где уже стоит адрес этой зоны.
+ const trip=tripZoneOf(config,day.day)||occupiedZoneOf(config,day);
+ // Адрес дальней зоны допускается только в день поездки в неё.
+ if(rule.mode==='monthly'&&(!trip||trip.prefix!==rule.prefix))return [];
+ // День поездки занимают только адреса этой зоны, иначе поездка расплывётся в зигзаг.
  if(trip&&trip.prefix!==rule.prefix)return [];
  const nodes=day.nodes.filter(n=>n.address_id!==request.id),order=ordered(nodes,day.order);
  const base=evaluate(nodes,order,config,day.hours,roads,day.start_minute);if(!base.ok)return [];
@@ -238,6 +242,6 @@ function issues(row,existing=[],previous=[]){const out=[];const pc=postcode(row.
  if(existing.some(a=>['new','planned'].includes(a.status)&&key(a.text)===key(row.text)))out.push('Адрес уже есть в действующих заявках');
  return out;
 }
-root.SubnexDispatchCore={sourceNames,sourceOf,postcode,key,phone,hm,minute,ukDay,ukMinute,pointKey,validPoint,zone,evaluate,ordered,placements,planBatch,shareSlots,parseRows,issues,PLAN_DEFAULTS,postcodeArea,zoneRule,zoneTripDay,tripZoneOf,nextTripDays,zoneReason,nthWeekday};
+root.SubnexDispatchCore={sourceNames,sourceOf,postcode,key,phone,hm,minute,ukDay,ukMinute,pointKey,validPoint,zone,evaluate,ordered,placements,planBatch,shareSlots,parseRows,issues,PLAN_DEFAULTS,postcodeArea,zoneRule,zoneTripDay,tripZoneOf,occupiedZoneOf,nextTripDays,zoneReason,nthWeekday};
 if(typeof module!=='undefined'&&module.exports)module.exports=root.SubnexDispatchCore;
 })(typeof window==='undefined'?globalThis:window);
