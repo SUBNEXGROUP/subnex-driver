@@ -7,7 +7,7 @@ const slotOf=n=>[n.starts_at?C.ukMinute(n.starts_at):n.earliest,n.ends_at?C.ukMi
 const arrivalLabel=n=>{const [s,e]=slotOf(n);return s===e?'прибытие '+C.hm(s):'интервал '+C.hm(s)+'–'+C.hm(e);};
 const nextDay=d=>new Date(Date.parse(d+'T12:00:00Z')+86400000).toISOString().slice(0,10);
 const label=d=>new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'long',weekday:'short',timeZone:'UTC'}).format(new Date(d+'T12:00:00Z'));
-const errors={ACCESS_DENIED:'Нет доступа к этому водителю.',SETTINGS_REQUIRED:'Сначала сохраните старт, склад и параметры машины.',SETTINGS_INVALID:'Проверьте координаты и параметры машины.',SETTINGS_IN_USE:'В расписании уже есть договорённости. Старт, склад и параметры дороги пока сохранены; резерв можно изменить.',ROUTING_PROVIDER_REQUIRED:'Для расчёта дороги нужно подключить сервис маршрутов в настройках функции subnex-routing.',COORDINATES_REQUIRED:'Уточните координаты всех адресов этого дня.',ROADS_REQUIRED:'Не удалось получить время поездки. Повторите расчёт после восстановления сервиса.',DAY_CLOSED:'Выходной по рабочему графику.',TIME_REQUIRED:'Есть адрес без согласованного времени.',TIME_CONFLICT:'Не хватает времени на дорогу и сбор.',OUTSIDE_HOURS:'Интервал выходит за рабочий график.',OUTSIDE_WORKING_HOURS:'Время выходит за рабочий график этого дня. Продлите часы в Настройки → Часы и доступ.',DEPOT_LATE:'Проверьте обновление расчёта: время склада должно считаться отдельно.',DAY_BOUNDARY:'Поездка заканчивается на следующие сутки. Нужна отдельная проверка маршрута.',CAPACITY:'Превышена ожидаемая загрузка машины.',RESERVE_EXHAUSTED:'Для этого плана недостаточно свободного времени или запаса по загрузке.',PLAN_CHANGED:'Список заявок изменился. Пересчитайте план перед сохранением.',STALE_ADDRESS:'Заявка изменилась. Обновите список и пересчитайте план.',REQUEST_RESERVED:'Для заявки уже предложено время. Откройте согласование.',ARRIVAL_WINDOW_30:'Для нового предложения укажите интервал в 30 минут.',CONFIRMED_FIXED:'Подтверждённые дату и интервал изменять нельзя.',ROUTE_STARTED:'Маршрут уже начат. Новые заявки остаются в очереди на следующие дни.',PENDING_CONFIRMATIONS:'Сначала завершите согласование предложений этого дня или снимите неподтверждённые предложения.',START_TODAY_ONLY:'Начать можно маршрут на сегодняшний день.',EMPTY_ROUTE:'В этот день пока нет сборов.',DISPATCH_NOT_ENABLED:'Новая версия установлена, но ещё не включена. Завершите шаг активации.',PARTNER_WITHDRAWAL_REQUIRED:'Сначала отзовите предложение у партнёра.',USE_CHAT_TO_CLOSE_OFFER:'Закройте предложение в SMS-переписке, затем обновите очередь.',OUTSIDE_AREA:'Адрес вне зоны автоматического распределения.',SLOT_IN_PAST:'Это время уже прошло. Подберите новый интервал.',BEFORE_AVAILABILITY:'Клиент доступен позже выбранной даты.',SLOT_INVALID:'Проверьте дату, интервал 30 минут и доступность клиента.',DATE_RANGE:'Выберите дату от сегодня до 90 дней вперёд.',AGREEMENT_REQUIRED:'Отметьте подтверждение партнёра.',BATCH_LIMIT_40:'За один расчёт выберите не больше 40 заявок.',AUTH_REQUIRED:'Войдите в приложение заново.',DUPLICATE_BANK_VISIT:'Этот контейнер уже назначен на выбранный день.',OFFLINE_PENDING:'Сначала синхронизируйте изменения, сохранённые на устройстве.',REQUEST_ID_REUSED:'Состав уже сохранённого запроса отличается. Обновите очередь.'};
+const errors={ACCESS_DENIED:'Нет доступа к этому водителю.',SETTINGS_REQUIRED:'Сначала сохраните старт, склад и параметры машины.',SETTINGS_INVALID:'Проверьте координаты и параметры машины.',SETTINGS_IN_USE:'В расписании уже есть договорённости. Старт, склад и параметры дороги пока сохранены; резерв можно изменить.',ROUTING_PROVIDER_REQUIRED:'Для расчёта дороги нужно подключить сервис маршрутов в настройках функции subnex-routing.',COORDINATES_REQUIRED:'Уточните координаты всех адресов этого дня.',ROADS_REQUIRED:'Не удалось получить время поездки. Повторите расчёт после восстановления сервиса.',DAY_CLOSED:'Выходной по рабочему графику.',TIME_REQUIRED:'Есть адрес без согласованного времени.',TIME_CONFLICT:'Не хватает времени на дорогу и сбор.',OUTSIDE_HOURS:'Интервал выходит за рабочий график.',OUTSIDE_WORKING_HOURS:'Время выходит за рабочий график этого дня. Продлите часы в Настройки → Часы и доступ.',DEPOT_LATE:'Проверьте обновление расчёта: время склада должно считаться отдельно.',DAY_BOUNDARY:'Поездка заканчивается на следующие сутки. Нужна отдельная проверка маршрута.',CAPACITY:'Превышена ожидаемая загрузка машины.',RESERVE_EXHAUSTED:'Для этого плана недостаточно свободного времени или запаса по загрузке.',PLAN_CHANGED:'Список заявок изменился. Пересчитайте план перед сохранением.',STALE_ADDRESS:'Заявка изменилась. Обновите список и пересчитайте план.',REQUEST_RESERVED:'Для заявки уже предложено время. Откройте согласование.',ARRIVAL_WINDOW_30:'Для нового предложения укажите интервал в 30 минут.',CONFIRMED_FIXED:'Подтверждённые дату и интервал изменять нельзя.',CONFIRMED_CHANGE_REQUIRES_AGREEMENT:'Отметьте, что клиент согласовал перенос. Подтверждённое время само не двигается.',USE_CHAT_TO_RESCHEDULE:'Клиент ещё не ответил на отправленное время. Перенос делается в разделе «Переписка».',USE_CHAT_TO_CLOSE_OFFER:'Сначала закройте или снимите предложение клиенту.',REQUEST_ALREADY_FINISHED:'Эта заявка уже завершена. Обновите список.',SLOT_IN_PAST:'Это время уже прошло. Выберите будущую дату.',SLOT_INVALID:'Проверьте дату и время.',AGREEMENT_REQUIRED:'Нужна отметка, что клиент согласовал время.',ROUTE_STARTED:'Маршрут уже начат. Новые заявки остаются в очереди на следующие дни.',PENDING_CONFIRMATIONS:'Сначала завершите согласование предложений этого дня или снимите неподтверждённые предложения.',START_TODAY_ONLY:'Начать можно маршрут на сегодняшний день.',EMPTY_ROUTE:'В этот день пока нет сборов.',DISPATCH_NOT_ENABLED:'Новая версия установлена, но ещё не включена. Завершите шаг активации.',PARTNER_WITHDRAWAL_REQUIRED:'Сначала отзовите предложение у партнёра.',USE_CHAT_TO_CLOSE_OFFER:'Закройте предложение в SMS-переписке, затем обновите очередь.',OUTSIDE_AREA:'Адрес вне зоны автоматического распределения.',SLOT_IN_PAST:'Это время уже прошло. Подберите новый интервал.',BEFORE_AVAILABILITY:'Клиент доступен позже выбранной даты.',SLOT_INVALID:'Проверьте дату, интервал 30 минут и доступность клиента.',DATE_RANGE:'Выберите дату от сегодня до 90 дней вперёд.',AGREEMENT_REQUIRED:'Отметьте подтверждение партнёра.',BATCH_LIMIT_40:'За один расчёт выберите не больше 40 заявок.',AUTH_REQUIRED:'Войдите в приложение заново.',DUPLICATE_BANK_VISIT:'Этот контейнер уже назначен на выбранный день.',OFFLINE_PENDING:'Сначала синхронизируйте изменения, сохранённые на устройстве.',REQUEST_ID_REUSED:'Состав уже сохранённого запроса отличается. Обновите очередь.'};
 function error(e){let code=String(e?.code||e?.message||e||'');if(!errors[code]&&e?.message)code=e.message;let detail=e?.details||e?.detail;try{if(typeof detail==='string')detail=JSON.parse(detail);}catch{detail=null;}let key=code.replace(/^ROUTE_/,'');if(errors[code])key=code;let text=errors[key]||(/^ROUTING_HTTP_429/.test(code)?'Сервис дорог временно ограничил запросы. Подождите минуту и повторите.':/^ROUTING_HTTP_|fetch|Failed to fetch|network/i.test(code)?'Сервис дорог недоступен. План не сохранён; повторите позже.':code);if(code.includes('DUPLICATE_ADDRESS'))text='В пачке или действующих заявках есть этот адрес. Проверьте повторы.';if(code.includes('UK_MOBILE_REQUIRED'))text='Для согласования по SMS нужен номер +447…';if(detail?.to)text+=' Участок: '+(detail.from||'Старт')+' → '+detail.to+'.';if(Number.isFinite(detail?.arrival)&&Number.isFinite(detail?.latest))text+=' Расчётное прибытие '+C.hm(detail.arrival)+', согласовано не позже '+C.hm(detail.latest)+'.';if(detail?.address)text+=' '+detail.address+'.';return text;}
 async function rpc(sb,action,data){const r=await sb.rpc('subnex_dispatch',{p_action:action,p_data:data});if(r.error)throw r.error;return r.data;}
 async function edge(sb,data){const r=await sb.functions.invoke('subnex-routing',{body:data});if(r.error){let body;try{body=await r.error.context?.json();}catch{}throw new Error(body?.error||r.error.message);}if(r.data?.error)throw new Error(r.data.error);return r.data;}
@@ -161,7 +161,7 @@ class Dispatch{
  planView(){const m=this.plan.metrics,mm=v=>v>=60?Math.floor(v/60)+' ч '+(v%60?v%60+' мин':''):v+' мин';
   const days=this.plan.days.filter(d=>d.nodes.length),zcfg={zones:this.zones||[]};
   return `<div class="od-intro"><h3>Предложенный план</h3><p>Подтверждённые сборы не сдвигаются. При сохранении новые интервалы займут место до ответа клиента.</p>${m?`<div class="daystats" style="margin-top:12px"><div><div class="k">Распределено</div><div class="v">${m.assigned} <small>из ${m.assigned+m.unassigned}</small></div></div><div><div class="k">Дней занято</div><div class="v">${m.days_used}</div></div><div><div class="k">Дорога с запасом</div><div class="v">${mm(m.drive)}</div></div><div><div class="k">Простой в днях</div><div class="v">${mm(m.wait)}</div></div><div><div class="k">Общий интервал</div><div class="v">${m.shared||0} <small>соседних</small></div></div>${m.late?`<div><div class="k">Позже 7 дней</div><div class="v" style="color:var(--warn)">${m.late}</div></div>`:''}</div>`:''}</div>
-  ${days.map(d=>{const trip=C.tripZoneOf(zcfg,d.day)||C.occupiedZoneOf(zcfg,d);return `<article class="od-card"><div class="od-between"><h3>${label(d.day)}${trip?` <span class="od-chip" style="background:var(--far-soft);color:var(--far)">выезд · ${esc(trip.name)}</span>`:''}</h3><b>${d.started_at?'Маршрут начат':d.fit.ok?d.fit.stops.length+' остановок'+(added=>added?' (+'+added+' новых)':'')(this.plan.assigned.filter(a=>a.day===d.day).length)+' · выезд '+C.hm(d.fit.departure)+', склад '+C.hm(d.fit.finish):'Требует внимания'}</b></div>${d.fit.ok?`<p class="od-muted">Дорога с запасом ${d.fit.drive} мин · сборы ${d.fit.service} мин · простой ${d.fit.wait??0} мин</p><ol class="od-stops">${d.fit.stops.map((stop,si)=>{const n=d.nodes.find(n=>n.key===stop.key),fresh=this.plan.assigned.some(a=>a.address_id===stop.address_id);const p=si?d.nodes.find(x=>x.key===d.fit.stops[si-1].key):null,together=p&&String(slotOf(p))===String(slotOf(n));return `<li><div><strong>${esc(stop.text)}</strong><small>${fresh?'<span class="od-slot">Новая заявка</span> · ':n.kind==='confirmed'?'Подтверждено · ':'Ожидаем ответ · '}${arrivalLabel(n)}${together?' · <span class="od-slot">вместе с предыдущим</span>':''}${stop.wait?' · простой '+stop.wait+' мин':''}</small></div><b>≈ ${C.hm(stop.arrival)}</b></li>`;}).join('')}</ol>`:`<p class="od-warning">${esc(error({code:d.fit.code,detail:d.fit}))}</p>`}</article>`;}).join('')}
+  ${days.map(d=>{const trip=C.tripZoneOf(zcfg,d.day)||C.occupiedZoneOf(zcfg,d);return `<article class="od-card"><div class="od-between"><h3>${label(d.day)}${trip?` <span class="od-chip" style="background:var(--far-soft);color:var(--far)">выезд · ${esc(trip.name)}</span>`:''}</h3><b>${d.started_at?'Маршрут начат':d.fit.ok?d.fit.stops.length+' остановок'+(added=>added?' (+'+added+' новых)':'')(this.plan.assigned.filter(a=>a.day===d.day).length)+' · выезд '+C.hm(d.fit.departure)+', склад '+C.hm(d.fit.finish):'Требует внимания'}</b></div>${d.fit.ok?`<p class="od-muted">Дорога с запасом ${d.fit.drive} мин · сборы ${d.fit.service} мин · простой ${d.fit.wait??0} мин</p><ol class="od-stops">${d.fit.stops.map((stop,si)=>{const n=d.nodes.find(n=>n.key===stop.key),fresh=this.plan.assigned.some(a=>a.address_id===stop.address_id);const p=si?d.nodes.find(x=>x.key===d.fit.stops[si-1].key):null,together=p&&String(slotOf(p))===String(slotOf(n));return `<li><div><strong>${esc(stop.text)}</strong><small>${fresh?'<span class="od-slot">Новая заявка</span> · ':n.kind==='confirmed'?'Подтверждено · ':'Ожидаем ответ · '}${arrivalLabel(n)}${together?' · <span class="od-slot">вместе с предыдущим</span>':''}${stop.wait?' · простой '+stop.wait+' мин':''}</small></div><div class="od-stop-act"><b>≈ ${C.hm(stop.arrival)}</b><button data-action="replan" data-id="${esc(stop.address_id||'')}" data-key="${esc(stop.key)}" data-day="${esc(d.day)}">Перенести</button></div></li>`;}).join('')}</ol>`:`<p class="od-warning">${esc(error({code:d.fit.code,detail:d.fit}))}</p>`}</article>`;}).join('')}
   ${this.plan.unassigned.length?`<article class="od-card"><h3>Останутся в очереди · ${this.plan.unassigned.length}</h3>${this.plan.unassigned.map(a=>`<p><b>${esc(this.requests.find(r=>r.id===a.address_id)?.text||'')}</b><br><span class="od-muted">${esc(a.reason)}</span></p>`).join('')}</article>`:''}
   <div class="od-footer"><button data-action="queue">Вернуться к заявкам</button><button class="od-primary" data-action="reserve" ${this.plan.assigned.length?'':'disabled data-locked="true"'}>Сохранить предложения · ${this.plan.assigned.length}</button></div>`;}
  settings(){const c={capacity_kg:1500,travel_factor:1.2,leg_buffer_minutes:5,zone_penalty_minutes:12,day_penalty_minutes:2,home:this.o.home||{},depot:this.o.depot||{},...this.config,reserve_kg:0,reserve_minutes:0};
@@ -179,8 +179,99 @@ class Dispatch{
  async calculate(){online(this.o);if(!this.selected.size)throw new Error('Выберите хотя бы одну свободную заявку.');if(!C.validPoint(this.config.home)||!C.validPoint(this.config.depot)){this.mode='settings';this.render();throw new Error('SETTINGS_REQUIRED');}const ids=[...this.selected];for(const id of ids){const a=this.requests.find(r=>r.id===id);if(!this.available(a))throw new Error('REQUEST_RESERVED');if(!C.validPoint(a)){this.notice('Определяю координаты: '+a.text);const p=await this.locate(a.text);await this.call('edit_request',{address_id:a.id,...p});Object.assign(a,p);}}
  let snap=await this.call('snapshot',{from_day:this.from,days:this.days,address_ids:ids});let roads={};const skipped=[];
  for(let i=0;i<snap.days.length;i++){const d=snap.days[i];if(d.started_at||d.hours?.closed)continue;this.notice(`Рассчитываю дорогу · ${i+1}/${snap.days.length} · ${label(d.day)}`);try{Object.assign(roads,(await warm(this.o,d.day,ids)).roads);}catch(e){skipped.push({day:d.day,error:error(e)});}}
- snap=await this.call('snapshot',{from_day:this.from,days:this.days,address_ids:ids});this.tokens=Object.fromEntries(snap.days.map(d=>[d.day,d.token]));this.notice('Распределяю заявки вокруг договорённостей…');this.plan=await C.planBatch(snap.days,snap.requests,{...snap.config,zones:this.zones||[]},roads,(n,total)=>this.notice(`Подобрано ${n} из ${total}`));this.reserveId=crypto.randomUUID();this.mode='plan';this.render();this.notice(skipped.length?'Некоторые дни не рассчитаны: '+skipped.map(d=>label(d.day)+' — '+d.error).join(' '):this.plan.assigned.length?'Проверьте порядок и время перед сохранением.':'Подходящих мест пока нет. Измените горизонт поиска или проверьте проблемные дни.',!!skipped.length);}
+ snap=await this.call('snapshot',{from_day:this.from,days:this.days,address_ids:ids});this.tokens=Object.fromEntries(snap.days.map(d=>[d.day,d.token]));this.notice('Распределяю заявки вокруг договорённостей…');this.planRoads=roads;this.planRequests=snap.requests;this.planConfig={...snap.config,zones:this.zones||[]};
+ this.plan=await C.planBatch(snap.days,snap.requests,this.planConfig,roads,(n,total)=>this.notice(`Подобрано ${n} из ${total}`));this.reserveId=crypto.randomUUID();this.mode='plan';this.render();this.notice(skipped.length?'Некоторые дни не рассчитаны: '+skipped.map(d=>label(d.day)+' — '+d.error).join(' '):this.plan.assigned.length?'Проверьте порядок и время перед сохранением.':'Подходящих мест пока нет. Измените горизонт поиска или проверьте проблемные дни.',!!skipped.length);}
  dialog(title,body,onSave,saveLabel='Сохранить'){this.$('.od-dialog')?.remove();const wrap=document.createElement('div');wrap.className='od-dialog';wrap.innerHTML=`<section role="dialog" aria-modal="true" aria-label="${esc(title)}"><h3>${esc(title)}</h3>${body}<p class="od-dialog-error" role="alert"></p><div class="od-actions"><button class="od-dialog-cancel">Закрыть</button>${onSave?`<button class="od-dialog-save od-primary">${saveLabel}</button>`:''}</div></section>`;this.root.append(wrap);wrap.querySelector('.od-dialog-cancel').onclick=()=>{if(!this.modalBusy)wrap.remove();};if(onSave)wrap.querySelector('.od-dialog-save').onclick=async()=>{const btn=wrap.querySelector('.od-dialog-save');if(this.modalBusy)return;this.modalBusy=true;btn.disabled=true;try{await onSave(wrap);wrap.remove();}catch(e){wrap.querySelector('.od-dialog-error').textContent=error(e);btn.disabled=false;}finally{this.modalBusy=false;}};wrap.querySelector('input,textarea,button')?.focus();return wrap;}
+ /* Дружелюбное сообщение клиенту о смене времени. Английский, как все письма клиентам. */
+ moveText(node,source,day,start,end){
+  const name=(this.driver.name||'').trim(),brand=source==='subnex'?'SUBNEX':'We Recycle Clothes';
+  const when=new Intl.DateTimeFormat('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'UTC'})
+   .format(new Date(day+'T12:00:00Z'));
+  return `Hello, this is ${name?name+' from '+brand:brand}.\n\n`
+   +`Your clothing collection at ${node.text} has been moved to ${when}, between ${start} and ${end} (UK time).\n\n`
+   +`Sorry for the change, and thank you for your patience. If this no longer suits you, just reply to this message and we will arrange another day.\n\n`
+   +`Kind regards,\n${name?name+'\n':''}${brand}`;
+ }
+ /* Перенос одной остановки прямо из плана.
+    Новая заявка — двигаем в памяти, ничего никому не обещано.
+    Подтверждённый сбор — двигаем на сервере и предлагаем написать клиенту.
+    Отправленное предложение без ответа — только через Переписку. */
+ replanStop(addressId,dayNow,key){
+  const dayRow=this.plan?.days.find(d=>d.day===dayNow);
+  const node=dayRow&&dayRow.nodes.find(n=>n.key===key);
+  if(!node){this.notice('Не нашёл эту остановку. Обновите план.',true);return;}
+  const fresh=this.plan.assigned.some(a=>a.address_id===addressId);
+  if(!fresh&&node.kind!=='confirmed'){
+   this.dialog('Перенести сбор',`<p><b>${esc(node.text)}</b></p>
+    <p class="od-muted">Клиенту уже отправлено время, ответа пока нет. Пока он не ответил, менять день здесь нельзя — иначе вы и клиент будете знать разное время.</p>
+    <p class="od-muted">Дождитесь ответа в «Переписке» или снимите предложение кнопкой «Снять» в очереди заявок.</p>`,null);
+   return;
+  }
+  const full=(this.o.addresses?.()||[]).find(x=>x.id===addressId)||this.requests.find(x=>x.id===addressId)||{};
+  const source=full.collection_source||'partner_email';
+  const open=this.plan.days.filter(d=>!d.started_at&&!d.hours?.closed);
+  const slots=day=>C.slotsFor(this.plan,node,day,this.planConfig,this.planRoads);
+  const w=this.dialog('Перенести · '+node.text,`
+   <p class="od-muted">${fresh?'Заявка ещё не отправлена клиенту — перенос останется в плане до нажатия «Сохранить предложения».':'Сбор согласован с клиентом. Перенос изменит договорённость.'}</p>
+   <div class="od-grid">
+    <label>День<select id="od-rp-day">${open.map(d=>`<option value="${esc(d.day)}" ${d.day===dayNow?'selected':''}>${esc(label(d.day))}</option>`).join('')}</select></label>
+    <label>Время<select id="od-rp-time"></select></label>
+   </div>
+   <p class="od-muted" id="od-rp-note"></p>
+   ${fresh?'':`<label><input type="checkbox" id="od-rp-agreed">Клиент согласовал перенос.</label>
+    <label><input type="checkbox" id="od-rp-sms" checked>Отправить клиенту сообщение о переносе.</label>
+    <textarea id="od-rp-text" rows="7" readonly></textarea>`}`,
+   async wrap=>{
+    const day=wrap.querySelector('#od-rp-day').value;
+    let start=wrap.querySelector('#od-rp-time').value;
+    if(!start){const list=slots(day);if(!list.length)throw new Error('В этот день нет свободного места.');start=list[0].start;}
+    const end=C.hm(C.minute(start)+30);
+    if(fresh){
+     const res=C.movePlanned(this.plan,this.planRequests,addressId,day,this.planConfig,this.planRoads,start);
+     if(!res.ok)throw new Error({NO_ROOM:'В этот день места нет — дорога, часы или день выезда зоны не позволяют.',
+       NO_ROOM_AT_TIME:'На это время места нет. Выберите «Подобрать автоматически» или другое время.',
+       DAY_OUT_OF_RANGE:'Этот день вне рассчитанного горизонта.'}[res.code]||res.code);
+     this.plan={assigned:res.assigned,unassigned:res.unassigned,days:res.days,metrics:res.metrics};
+     this.render();
+     this.notice(`Перенесено на ${label(day)}, ${res.chosen.start}. Не забудьте «Сохранить предложения».`);
+     return;
+    }
+    if(!wrap.querySelector('#od-rp-agreed').checked)throw new Error('CONFIRMED_CHANGE_REQUIRES_AGREEMENT');
+    online(this.o);
+    try{await warm(this.o,day,[addressId]);}catch(e){}
+    const r=await this.sb.rpc('subnex_move_request',{p_data:{address_id:addressId,version:full.collection_version,day,start,end,agreed:true}});
+    if(r.error)throw r.error;
+    let tail='';
+    if(wrap.querySelector('#od-rp-sms').checked){
+     try{
+      if(!window.Ops?.api)throw new Error('Модуль переписки не загружен.');
+      const thread=await Ops.api(this.sb,'create',{address_id:addressId});
+      if(!thread?.thread_id)throw new Error('Не удалось открыть переписку.');
+      await Ops.api(this.sb,'send',{thread_id:thread.thread_id,kind:'reply',body:wrap.querySelector('#od-rp-text').value,request_id:crypto.randomUUID()});
+     }catch(e){tail=' Сообщение не ушло: '+error(e)+' Напишите клиенту из «Переписки».';}
+    }
+    await this.reload();
+    if(this.selected.size)await this.calculate();else{this.mode='queue';this.render();}
+    this.notice(`Сбор перенесён на ${label(day)}, ${start}.`+tail,!!tail);
+    await this.o.onChanged?.();
+   },'Перенести');
+  const fill=()=>{
+   const day=w.querySelector('#od-rp-day').value,list=slots(day);
+   const same=list.find(o=>o.start===(node.starts_at?C.hm(C.ukMinute(node.starts_at)):null));
+   w.querySelector('#od-rp-time').innerHTML='<option value="">Подобрать автоматически</option>'
+    +list.map(o=>`<option value="${esc(o.start)}">${esc(o.start)}–${esc(o.end)}${o.wait_minutes?' · простой '+o.wait_minutes+' мин':''}</option>`).join('');
+   w.querySelector('#od-rp-note').textContent=list.length
+    ?`Свободных мест в этот день: ${list.length}. «Подобрать автоматически» возьмёт лучшее по дороге.`
+    :'В этот день места нет — выберите другой день.';
+   const text=w.querySelector('#od-rp-text');
+   if(text){const start=w.querySelector('#od-rp-time').value||(list[0]&&list[0].start)||'';
+    text.value=start?this.moveText(node,source,day,start,C.hm(C.minute(start)+30)):'';}
+   void same;
+  };
+  w.querySelector('#od-rp-day').onchange=fill;
+  w.querySelector('#od-rp-time').onchange=fill;
+  fill();
+ }
  /* Перенос заявки: другая дата или возврат в очередь. Подтверждённое время
     двигается только с явной отметкой, что клиент согласовал перенос. */
  moveRequest(a){
@@ -236,6 +327,7 @@ class Dispatch{
  if(act==='remove-row'){this.syncRows();this.rows.splice(+b.dataset.index,1);this.importId=crypto.randomUUID();this.render();return;}
  if(act==='partner'){this.partner(a);return;}
  if(act==='edit'){const ok=C.validPoint(a);this.dialog('Изменить заявку',`<p><b>${esc(a.text)}</b></p><div class="od-grid">${input('not_before','Клиент доступен начиная с',a.not_before,'date')}<label>Сбор на адресе<select data-field="service_minutes"><option value="5" ${a.service_minutes!==10?'selected':''}>5 минут</option><option value="10" ${a.service_minutes===10?'selected':''}>10 минут</option></select></label></div><input data-field="estimated_kg" data-num type="hidden" value="${esc(a.estimated_kg||10)}"><p class="od-muted">Точка на карте: ${ok?`определена${a.geocode_source==='postcode'?' по почтовому индексу — это центр индекса, дом может быть в стороне':''}. <a href="https://www.openstreetmap.org/?mlat=${a.lat}&mlon=${a.lng}#map=18/${a.lat}/${a.lng}" target="_blank" rel="noopener">Проверить</a>`:'не определена — найдём автоматически перед расчётом.'}</p>`,async w=>{const data=this.fields(w);delete data.lat;delete data.lng;await this.call('edit_request',{address_id:a.id,...data});await this.reload();this.render();this.notice('Заявка обновлена.');});return;}
+ if(act==='replan'){this.replanStop(b.dataset.id,b.dataset.day,b.dataset.key);return;}
  if(act==='move'){this.moveRequest(a);return;}
  if(act==='drop'){this.dropRequest(a);return;}
  if(act==='release'){this.dialog('Снять предложение',`<p>${esc(a.text)}</p><label><input id="od-withdrawn" type="checkbox">${a.shared_at?'Я отозвал это время у партнёра.':'Предложение ещё не передано клиенту или уже отозвано.'}</label>`,async w=>{if(!w.querySelector('#od-withdrawn').checked)throw new Error('PARTNER_WITHDRAWAL_REQUIRED');await this.call('release',{address_id:a.id,acknowledged:true});await this.reload();this.render();},'Снять предложение');return;}

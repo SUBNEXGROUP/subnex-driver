@@ -222,6 +222,40 @@ async function planBatch(days,requests,config,roads,onProgress=()=>{}){
  const out={assigned,unassigned,...summarize(work,config,roads,assigned,unassigned)};
  out.metrics.shared=shared;return out;
 }
+/* Перенос одной уже распределённой заявки на другой день внутри посчитанного плана.
+   Остальные адреса не двигаются: пересчитываются только день-донор и день-получатель.
+   start — «ЧЧ:ММ», если время выбрано вручную; иначе берётся лучшее место дня.
+   Возвращает либо {ok:false,code}, либо новый план той же формы, что даёт planBatch. */
+function movePlanned(plan,requests,address_id,day,config,roads,start){
+ const r=(requests||[]).find(x=>x.id===address_id);
+ if(!r)return {ok:false,code:'NOT_A_REQUEST'};
+ if(!plan.assigned.some(a=>a.address_id===address_id))return {ok:false,code:'NOT_NEW'};
+ const work=plan.days.map(d=>{const nodes=d.nodes.filter(n=>n.address_id!==address_id);
+  const {fit,...rest}=d;return {...rest,nodes,order:ordered(nodes,d.order)};});
+ const target=work.find(d=>d.day===day);
+ if(!target)return {ok:false,code:'DAY_OUT_OF_RANGE'};
+ let options=placements(target,r,config,roads);
+ if(start)options=options.filter(o=>o.start===start);
+ if(!options.length)return {ok:false,code:start?'NO_ROOM_AT_TIME':'NO_ROOM'};
+ const chosen={...options[0],request_token:r.dispatch_token};
+ applyChoice(work,chosen);
+ const assigned=plan.assigned.filter(a=>a.address_id!==address_id).concat(chosen);
+ const unassigned=(plan.unassigned||[]).filter(u=>u.address_id!==address_id);
+ const out={ok:true,chosen,assigned,unassigned,...summarize(work,config,roads,assigned,unassigned)};
+ out.metrics.shared=sharedPairs(work);
+ return out;
+}
+/* Свободные места для адреса в конкретном дне — для переноса уже согласованных сборов,
+   которые живут в базе, а не в пачке. node — узел этого адреса из плана. */
+function slotsFor(plan,node,day,config,roads,limit=6){
+ const work=plan.days.map(d=>{const nodes=d.nodes.filter(n=>n.key!==node.key);
+  const {fit,...rest}=d;return {...rest,nodes,order:ordered(nodes,d.order)};});
+ const target=work.find(d=>d.day===day);
+ if(!target)return [];
+ const request={id:node.address_id||node.key,text:node.text,lat:node.lat,lng:node.lng,
+  service_minutes:node.service,estimated_kg:node.kg,not_before:null};
+ return placements(target,request,config,roads).slice(0,limit);
+}
 function splitDelimited(text,delimiter){const rows=[];let row=[],cell='',quoted=false;for(let i=0;i<text.length;i++){const c=text[i];if(c==='"'){if(quoted&&text[i+1]==='"'){cell+='"';i++;}else if(quoted||!cell)quoted=!quoted;else cell+=c;}else if(c===delimiter&&!quoted){row.push(cell.trim());cell='';}else if((c==='\n'||c==='\r')&&!quoted){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell.trim());if(row.some(Boolean))rows.push(row);row=[];cell='';}else cell+=c;}row.push(cell.trim());if(row.some(Boolean))rows.push(row);return rows;}
 function parseRows(text,html,source){
  let rows=[];if(html&&typeof DOMParser!=='undefined'){const doc=new DOMParser().parseFromString(html,'text/html');rows=[...doc.querySelectorAll('tr')].map(tr=>[...tr.querySelectorAll(':scope > td,:scope > th')].map(td=>td.textContent.replace(/\s+/g,' ').trim())).filter(r=>r.length>1);}
@@ -251,6 +285,6 @@ function issues(row,existing=[],previous=[]){const out=[];const pc=postcode(row.
  if(existing.some(a=>['new','planned'].includes(a.status)&&key(a.text)===key(row.text)))out.push('Адрес уже есть в действующих заявках');
  return out;
 }
-root.SubnexDispatchCore={sourceNames,sourceOf,postcode,key,phone,hm,minute,ukDay,ukMinute,pointKey,validPoint,zone,evaluate,ordered,placements,planBatch,shareSlots,parseRows,issues,PLAN_DEFAULTS,postcodeArea,zoneRule,zoneTripDay,tripZoneOf,occupiedZoneOf,postcodeNumber,sameZone,nextTripDays,zoneReason,nthWeekday};
+root.SubnexDispatchCore={sourceNames,sourceOf,postcode,key,phone,hm,minute,ukDay,ukMinute,pointKey,validPoint,zone,evaluate,ordered,placements,planBatch,shareSlots,parseRows,issues,PLAN_DEFAULTS,postcodeArea,zoneRule,zoneTripDay,tripZoneOf,occupiedZoneOf,postcodeNumber,sameZone,movePlanned,slotsFor,nextTripDays,zoneReason,nthWeekday};
 if(typeof module!=='undefined'&&module.exports)module.exports=root.SubnexDispatchCore;
 })(typeof window==='undefined'?globalThis:window);

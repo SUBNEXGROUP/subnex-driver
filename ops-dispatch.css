@@ -50,9 +50,13 @@
 .od-empty{padding:40px 10px;text-align:center;color:var(--muted)}
 .od-stops{list-style:decimal;margin:12px 0 0;padding-left:25px}
 .od-stops li{padding:10px 0 10px 4px;border-top:1px solid var(--line)}
-.od-stops li div{display:inline-block;width:calc(100% - 75px);vertical-align:top}
+
 .od-stops small{display:block;color:var(--muted);margin-top:3px;font-size:12.3px}
-.od-stops li>b{display:inline-block;width:70px;text-align:right;font-family:var(--mono);font-weight:600;color:var(--brand)}
+.od-stops li{display:flex;align-items:flex-start;gap:10px}
+.od-stops li>div:first-child{flex:1;min-width:0}
+.od-stop-act{display:flex;flex-direction:column;align-items:flex-end;gap:6px;width:auto;flex:none}
+.od-stop-act>b{font-family:var(--mono);font-weight:600;color:var(--brand);white-space:nowrap}
+.od-stop-act>button{padding:4px 10px;font-size:12.2px;white-space:nowrap}
 .od-root fieldset{border:1px solid var(--line);border-radius:var(--r-m);margin:14px 0;padding:14px 16px}
 .od-root legend{font-weight:700;padding:0 8px;font-size:13.5px;font-family:var(--display)}
 .od-root details{margin:12px 0}
@@ -72,6 +76,6 @@
   .od-content{padding:14px}.od-grid{grid-template-columns:1fr}
   .od-between{align-items:flex-start;flex-wrap:wrap}.od-card{padding:13px}.od-chip{margin-left:27px}
   .od-footer{flex-direction:column;align-items:stretch}.od-footer button{width:100%}
-  .od-notice{padding:11px 14px}.od-stops li div{width:calc(100% - 65px)}.od-stops li>b{width:60px}
+  .od-notice{padding:11px 14px}
   .od-dialog{padding:10px}.od-dialog>section{padding:18px}
 }
