@@ -23,6 +23,34 @@ function zone(address){const p=postcode(address).split(' ')[0];
  if(p.startsWith('SA'))return 'Swansea';if(p==='LD3')return 'Brecon';return 'Outside area';
 }
 const legMinutes=(a,b,config,roads)=>{if(pointKey(a)===pointKey(b))return 0;const seconds=roads[pointKey(a)+'>'+pointKey(b)];return typeof seconds==='number'&&Number.isFinite(seconds)&&seconds>=0?Math.ceil(seconds/60*config.travel_factor)+config.leg_buffer_minutes:Infinity;};
+/* ---------- зоны выезда ----------
+   Дальние районы (BS, SA) обслуживаются в назначенный день месяца.
+   Правила приходят с сервера (public.subnex_zones) и кладутся в config.zones. */
+const postcodeArea=s=>{const m=String(s||'').toUpperCase().match(/\b([A-Z]{1,2})\d[A-Z\d]?\s*\d[A-Z]{2}\b/);return m?m[1]:'';};
+const zoneRule=(config,text)=>{const a=postcodeArea(text);return a?(config.zones||[]).find(z=>z.prefix===a)||null:null;};
+/* n-й день недели месяца; week=5 — последний. Возвращает YYYY-MM-DD. */
+function nthWeekday(day,weekday,week){
+ const [y,m]=day.split('-').map(Number);const last=new Date(Date.UTC(y,m,0)).getUTCDate();const hits=[];
+ for(let d=1;d<=last;d++){const t=new Date(Date.UTC(y,m-1,d));if(t.getUTCDay()===weekday)hits.push(d);}
+ const pick=week>=5?hits[hits.length-1]:hits[week-1];
+ return pick?`${y}-${String(m).padStart(2,'0')}-${String(pick).padStart(2,'0')}`:null;
+}
+const zoneTripDay=(rule,day)=>rule&&rule.mode==='monthly'&&Number.isFinite(rule.weekday)?nthWeekday(day,rule.weekday,rule.week_of_month||5):null;
+/* Зона, чей выезд назначен на этот день: такой день занимают только её адреса. */
+const tripZoneOf=(config,day)=>(config.zones||[]).find(z=>z.mode==='monthly'&&zoneTripDay(z,day)===day)||null;
+/* Ближайшие даты выезда зоны начиная с дня. */
+function nextTripDays(rule,from,count=3){const out=[];let [y,m]=from.split('-').map(Number);
+ for(let i=0;i<14&&out.length<count;i++){const d=nthWeekday(`${y}-${String(m).padStart(2,'0')}-01`,rule.weekday,rule.week_of_month||5);
+  if(d&&d>=from)out.push(d);m++;if(m>12){m=1;y++;}}
+ return out;}
+function zoneReason(config,text,from){
+ const rule=zoneRule(config,text);
+ if(!rule)return postcodeArea(text)?`Район ${postcodeArea(text)} не настроен. Добавьте его в «Настройки → Зоны выезда» или назначьте сбор вручную.`:'В адресе нет полного почтового индекса — район определить нельзя.';
+ if(rule.mode==='off')return `Зона «${rule.name}» выключена в настройках.`;
+ if(rule.mode==='monthly'){const d=nextTripDays(rule,from,1)[0];return `Зона «${rule.name}» — выезд раз в месяц${d?': ближайший '+d:''}. Заявка ждёт этого дня.`;}
+ return null;
+}
+
 function evaluate(nodes,order,config,hours,roads,startMinute){
  if(!hours||hours.closed)return {ok:false,code:'DAY_CLOSED'};
  if(!validPoint(config.home)||!validPoint(config.depot))return {ok:false,code:'SETTINGS_REQUIRED'};
@@ -60,7 +88,14 @@ const PLAN_DEFAULTS={wait_weight:1,empty_day_penalty:45,sla_days:7,sla_penalty:9
 const planParam=(config,k)=>Number.isFinite(+config[k])?+config[k]:PLAN_DEFAULTS[k];
 const slaDeadline=(request,config)=>{const c=request.created_at?ukDay(request.created_at):null;if(!c)return null;const d=new Date(Date.parse(c+'T12:00:00Z')+planParam(config,'sla_days')*86400000);return d.toISOString().slice(0,10);};
 function placements(day,request,config,roads){
- if(day.started_at||day.hours?.closed||request.not_before&&day.day<request.not_before||zone(request.text)==='Outside area')return [];
+ if(day.started_at||day.hours?.closed||request.not_before&&day.day<request.not_before)return [];
+ const rule=zoneRule(config,request.text);
+ if(!rule||rule.mode==='off')return [];
+ // Адрес дальней зоны допускается только в её день выезда.
+ if(rule.mode==='monthly'&&zoneTripDay(rule,day.day)!==day.day)return [];
+ // День выезда зоны занимают только адреса этой зоны, иначе поездка расплывётся.
+ const trip=tripZoneOf(config,day.day);
+ if(trip&&trip.prefix!==rule.prefix)return [];
  const nodes=day.nodes.filter(n=>n.address_id!==request.id),order=ordered(nodes,day.order);
  const base=evaluate(nodes,order,config,day.hours,roads,day.start_minute);if(!base.ok)return [];
  const opens=minute(day.hours.opens),closes=minute(day.hours.closes),earliestMin=Math.max(opens,day.start_minute||0),svc=request.service_minutes??10;
@@ -125,7 +160,8 @@ async function planBatch(days,requests,config,roads,onProgress=()=>{}){
   for(const r of [...remaining]){const options=dayOptions(work,r,config,roads);if(options.length){applyChoice(work,options[0]);options[0].request_token=r.dispatch_token;assigned.push(options[0]);remaining.splice(remaining.indexOf(r),1);improved=true;}}
   await new Promise(resolve=>setTimeout(resolve,0));if(!improved)break;
  }
- for(const r of remaining)unassigned.push({address_id:r.id,reason:zone(r.text)==='Outside area'?'Адрес вне зоны автоматического распределения.':'Нет подходящего места с учётом дороги, договорённостей и рабочих часов.'});
+ const from=days[0]?.day||ukDay();
+ for(const r of remaining)unassigned.push({address_id:r.id,reason:zoneReason(config,r.text,from)||'Нет подходящего места с учётом дороги, договорённостей и рабочих часов.'});
  return {assigned,unassigned,...summarize(work,config,roads,assigned,unassigned)};
 }
 function splitDelimited(text,delimiter){const rows=[];let row=[],cell='',quoted=false;for(let i=0;i<text.length;i++){const c=text[i];if(c==='"'){if(quoted&&text[i+1]==='"'){cell+='"';i++;}else if(quoted||!cell)quoted=!quoted;else cell+=c;}else if(c===delimiter&&!quoted){row.push(cell.trim());cell='';}else if((c==='\n'||c==='\r')&&!quoted){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell.trim());if(row.some(Boolean))rows.push(row);row=[];cell='';}else cell+=c;}row.push(cell.trim());if(row.some(Boolean))rows.push(row);return rows;}
@@ -157,6 +193,6 @@ function issues(row,existing=[],previous=[]){const out=[];const pc=postcode(row.
  if(existing.some(a=>['new','planned'].includes(a.status)&&key(a.text)===key(row.text)))out.push('Адрес уже есть в действующих заявках');
  return out;
 }
-root.SubnexDispatchCore={sourceNames,sourceOf,postcode,key,phone,hm,minute,ukDay,ukMinute,pointKey,validPoint,zone,evaluate,ordered,placements,planBatch,parseRows,issues,PLAN_DEFAULTS};
+root.SubnexDispatchCore={sourceNames,sourceOf,postcode,key,phone,hm,minute,ukDay,ukMinute,pointKey,validPoint,zone,evaluate,ordered,placements,planBatch,parseRows,issues,PLAN_DEFAULTS,postcodeArea,zoneRule,zoneTripDay,tripZoneOf,nextTripDays,zoneReason,nthWeekday};
 if(typeof module!=='undefined'&&module.exports)module.exports=root.SubnexDispatchCore;
 })(typeof window==='undefined'?globalThis:window);

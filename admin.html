@@ -161,12 +161,12 @@
     <!-- ---------- КАЛЕНДАРЬ ---------- -->
     <section class="page" data-page="cal">
       <div class="phead">
-        <div><h1 id="cal-title">Календарь</h1><p>Сборы по дням выбранного водителя. Красный — bank holiday.</p></div>
+        <div><h1 id="cal-title">Календарь</h1><p>Сборы по дням выбранного водителя. Фиолетовым отмечены дни дальних выездов.</p></div>
         <div class="pactions"><button class="btn btn-sm" onclick="calShift(-1)">‹ Пред.</button><button class="btn btn-sm" onclick="calToday()">Сегодня</button><button class="btn btn-sm" onclick="calShift(1)">След. ›</button></div>
       </div>
       <div class="card"><div class="card-b">
         <div class="cal" id="cal-grid"></div>
-        <div class="legend"><span><i style="background:var(--brand)"></i>запланировано</span><span><i style="background:var(--ok)"></i>выполнено</span><span><i style="background:var(--crit-soft);border:1px solid var(--crit)"></i>bank holiday</span><span><i style="background:var(--surface-3);border:1px solid var(--line-2)"></i>воскресенье</span></div>
+        <div class="legend"><span><i style="background:var(--brand)"></i>запланировано</span><span><i style="background:var(--ok)"></i>выполнено</span><span><i style="background:var(--far-soft);border:1px solid var(--far)"></i>день дальнего выезда</span><span><i style="background:var(--crit-soft);border:1px solid var(--crit)"></i>bank holiday</span><span><i style="background:var(--surface-3);border:1px solid var(--line-2)"></i>воскресенье</span></div>
       </div></div>
     </section>
 
@@ -231,7 +231,7 @@
     <section class="page" data-page="settings">
       <div class="phead">
         <div><h1>Настройки</h1><p>Часы прибытия, доступ, старт и склад, водители, данные</p></div>
-        <div class="subtabs" id="set-tabs"><button data-sub="hours" aria-current="true">Часы и доступ</button><button data-sub="dispatch">Старт и склад</button><button data-sub="drivers">Водители</button><button data-sub="data">Данные и аккаунт</button></div>
+        <div class="subtabs" id="set-tabs"><button data-sub="hours" aria-current="true">Часы и доступ</button><button data-sub="dispatch">Старт и склад</button><button data-sub="zones">Зоны выезда</button><button data-sub="drivers">Водители</button><button data-sub="data">Данные и аккаунт</button></div>
       </div>
       <div id="set-hours" class="grid2">
         <div class="stack">
@@ -246,6 +246,24 @@
         </div>
       </div>
       <div id="set-dispatch" hidden class="inline-host"></div>
+      <div id="set-zones" hidden class="grid2">
+        <div class="card">
+          <div class="card-h"><div><h3>Районы обслуживания</h3><div class="sub">Дальние районы обслуживаются в назначенный день месяца — адреса копятся и едут одной поездкой</div></div><button class="btn btn-sm" onclick="zoneForm()">+ Район</button></div>
+          <div id="zones-list"></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><div><h3>Как это работает</h3></div></div>
+          <div class="card-b">
+            <ol class="stack" style="gap:9px;padding-left:18px;font-size:13px;color:var(--ink-2)">
+              <li><b>Обычный район</b> — адреса распределяются в любой рабочий день, как обычно.</li>
+              <li><b>Выезд раз в месяц</b> — адреса ждут своего дня. Клиентам не предлагается никакая другая дата.</li>
+              <li>В день выезда ставятся <b>только адреса этого района</b>: поездка не разбавляется ближними сборами.</li>
+              <li>Адрес с индексом, которого нет в списке, в автоматическое распределение не попадёт. Назначить его можно вручную через переписку.</li>
+            </ol>
+            <p class="muted small" style="margin-top:12px">Изменение режима не трогает уже согласованные сборы — только новые распределения.</p>
+          </div>
+        </div>
+      </div>
       <div id="set-drivers" hidden class="stack">
         <div class="row"><button class="btn btn-pri" onclick="openDrvModal()"><svg class="ic"><use href="#i-plus"/></svg> Добавить водителя</button><span class="muted small">После создания назначьте аккаунт: Настройки → Часы и доступ → Назначить доступ.</span></div>
         <div class="card"><div class="tscroll"><table class="t"><thead><tr><th>Имя</th><th>Статус</th><th>Адресов всего</th><th></th></tr></thead><tbody id="drv-tbody"></tbody></table></div></div>
@@ -334,6 +352,21 @@
     <p class="err" id="mh-err"></p>
   </div>
   <div class="modal-actions"><button class="btn btn-crit" id="mh-remove" onclick="hoursRemove()" style="display:none">Сбросить исключение</button><span class="spacer"></span><button class="btn" onclick="closeModal('m-hours-bg')">Отмена</button><button class="btn btn-pri" id="mh-save" onclick="hoursSave()">Сохранить</button></div>
+</div></div>
+
+<div class="modal-bg" id="m-zone-bg"><div class="modal">
+  <h2 id="m-zone-title">Район обслуживания</h2>
+  <div class="stack">
+    <div class="fgrid"><div class="f-group"><label class="f">Начало индекса</label><input class="field" type="text" id="mz-prefix" maxlength="2" placeholder="BS" style="text-transform:uppercase"></div><div class="f-group"><label class="f">Название</label><input class="field" type="text" id="mz-name" placeholder="Бристоль"></div></div>
+    <div class="f-group"><label class="f">Режим</label><select class="field" id="mz-mode" onchange="zoneModeChange()"><option value="regular">Обычный район — в любой рабочий день</option><option value="monthly">Выезд раз в месяц</option><option value="off">Выключен — не распределять</option></select></div>
+    <div class="fgrid" id="mz-day-wrap" hidden>
+      <div class="f-group"><label class="f">День недели</label><select class="field" id="mz-weekday"><option value="1">Понедельник</option><option value="2">Вторник</option><option value="3">Среда</option><option value="4">Четверг</option><option value="5">Пятница</option><option value="6">Суббота</option></select></div>
+      <div class="f-group"><label class="f">Какая неделя месяца</label><select class="field" id="mz-week"><option value="5">Последняя</option><option value="1">Первая</option><option value="2">Вторая</option><option value="3">Третья</option><option value="4">Четвёртая</option></select></div>
+    </div>
+    <p class="muted small" id="mz-preview"></p>
+    <p class="err" id="mz-err"></p>
+  </div>
+  <div class="modal-actions"><button class="btn btn-crit" id="mz-del" onclick="zoneDelete()" style="display:none">Удалить</button><span class="spacer"></span><button class="btn" onclick="closeModal('m-zone-bg')">Отмена</button><button class="btn btn-pri" id="mz-save" onclick="zoneSave()">Сохранить</button></div>
 </div></div>
 
 <div class="modal-bg" id="m-member-bg"><div class="modal">
@@ -442,7 +475,15 @@ const drvName=id=>{const d=DRIVERS.find(x=>x.id===id);return d?d.name:'—';};
 const drvColor=id=>{const i=DRIVERS.findIndex(x=>x.id===id);return i<0?'#6A7A71':DRIVER_COLORS[i%DRIVER_COLORS.length];};
 
 /* ---------- старт/склад водителя из Dispatch ---------- */
-let POINTS={};
+let POINTS={},ZONES=[];
+async function loadZones(){try{const {data,error}=await sb.rpc('subnex_zones',{p_action:'list',p_data:{}});if(error)throw error;ZONES=data.zones||[];}catch(e){ZONES=[];}return ZONES;}
+const zoneOf=t=>{const a=C.postcodeArea(t);return a?ZONES.find(z=>z.prefix===a)||null:null;};
+const tripZoneOn=d=>C.tripZoneOf({zones:ZONES},d);
+const WEEKDAYS=['Воскресенье','Понедельник','Вторник','Среда','Четверг','Пятница','Суббота'];
+const ORDINALS={m:{1:'первый',2:'второй',3:'третий',4:'четвёртый',5:'последний'},f:{1:'первая',2:'вторая',3:'третья',4:'четвёртая',5:'последняя'},n:{1:'первое',2:'второе',3:'третье',4:'четвёртое',5:'последнее'}};
+const WEEKGENDER=['n','m','m','f','m','f','f'];
+const weekName=(wk,wd)=>ORDINALS[WEEKGENDER[wd]||'m'][wk]||ORDINALS[WEEKGENDER[wd]||'m'][5];
+const zoneWhen=z=>z.mode==='monthly'?`${weekName(z.week_of_month,z.weekday)} ${WEEKDAYS[z.weekday].toLowerCase()} месяца`:'';
 async function driverPoints(driverId){
   if(POINTS[driverId])return POINTS[driverId];
   try{const r=await OpsDispatch.rpc(sb,'settings',{driver_id:driverId});POINTS[driverId]={home:r.config?.home||{},depot:r.config?.depot||{},enabled:!!r.enabled};}
@@ -462,6 +503,7 @@ async function enterMain(){
   document.getElementById('dash-date').value=todayStr();document.getElementById('fl-date').value='';document.getElementById('ph-date').value=todayStr();
   const first=new Date();first.setDate(1);document.getElementById('ex-from').value=first.toISOString().slice(0,10);document.getElementById('ex-to').value=todayStr();
   DAY.date=todayStr();
+  await loadZones();
   await refreshAll(true);
   go(location.hash.replace('#','')||'today');
   cleanupOldPhotos();
@@ -522,7 +564,7 @@ function go(page,opts={}){
 document.getElementById('nav').addEventListener('click',e=>{const b=e.target.closest('button[data-page]');if(b)go(b.dataset.page);});
 function subtab(group,sub){
   document.querySelectorAll('#'+group+'-tabs button').forEach(b=>b.setAttribute('aria-current',b.dataset.sub===sub?'true':'false'));
-  const map={req:['queue','all'],bank:['list','photos','reports'],set:['hours','dispatch','drivers','data']};
+  const map={req:['queue','all'],bank:['list','photos','reports'],set:['hours','dispatch','zones','drivers','data']};
   for(const s of map[group])document.getElementById(group+'-'+s).hidden=s!==sub;
   SUB[group]=sub;
   if(group==='req'&&sub==='queue')ensureQueue();
@@ -531,6 +573,7 @@ function subtab(group,sub){
   if(group==='bank'&&sub==='reports')renderReports();
   if(group==='set'&&sub==='hours')renderHours();
   if(group==='set'&&sub==='dispatch')ensureSettingsDispatch();
+  if(group==='set'&&sub==='zones')renderZones();
   if(group==='set'&&sub==='drivers')renderDrivers();
 }
 const SUB={req:'queue',bank:'list',set:'hours'};
@@ -561,7 +604,8 @@ function renderToday(){
     `<div class="tile"><div class="lab">Осталось</div><div class="val">${left}</div><div class="foot">в работе</div></div>`+
     `<div class="tile crit"><div class="lab">Не отвечает</div><div class="val">${noans.length}</div><div class="foot">повторно предложить</div></div>`+
     `<div class="tile warn"><div class="lab">Проблема</div><div class="val">${prob.length}</div><div class="foot">${prob.length?'см. заметки':'—'}</div></div>`+
-    `<div class="tile"><div class="lab">Фото за день</div><div class="val">${dayPhotoCount(ds)}</div><div class="foot">контейнеры и адреса</div></div>`;
+    `<div class="tile"><div class="lab">Фото за день</div><div class="val">${dayPhotoCount(ds)}</div><div class="foot">контейнеры и адреса</div></div>`+
+    ZONES.filter(z=>z.mode==='monthly').map(z=>{const n=ADDR.filter(a=>['new','planned'].includes(a.status)&&a.kind!=='bank'&&!a.date&&!a.collection_start&&C.postcodeArea(a.text)===z.prefix).length;const next=(z.dates||[])[0];return `<div class="tile far"><div class="lab">${esc(z.name)} · ждут</div><div class="val">${n}</div><div class="foot">${next?'выезд '+esc(dayShort(next)):'день не задан'}</div></div>`;}).join('');
   /* внимание */
   const items=[];
   const queue=ADDR.filter(a=>a.status==='new'&&!a.date&&a.kind!=='bank');
@@ -574,6 +618,13 @@ function renderToday(){
   const noPhone=queue.filter(a=>!a.phone);
   if(noPhone.length)items.push({cls:'warn',t:`${noPhone.length} ${plural(noPhone.length,'заявка без телефона','заявки без телефона','заявок без телефона')}`,p:'SMS-согласование невозможно. Нужен мобильный номер или ручное подтверждение.',go:()=>go('requests',{sub:'queue'})});
   if(isToday&&left>0&&new Date().getHours()>=15)items.push({cls:'warn',t:`Сегодня ещё ${left} ${plural(left,'сбор','сбора','сборов')} без результата`,p:'Проверьте, что водитель отмечает результат на месте.',go:()=>go('day',{date:ds})});
+  for(const z of ZONES.filter(z=>z.mode==='monthly')){
+    const list=ADDR.filter(a=>['new','planned'].includes(a.status)&&a.kind!=='bank'&&!a.date&&!a.collection_start&&C.postcodeArea(a.text)===z.prefix);
+    const next=(z.dates||[])[0];
+    if(list.length&&next&&next<=addDays(todayStr(),7))items.push({cls:'far',t:`${z.name}: ${list.length} ${plural(list.length,'адрес','адреса','адресов')} ждут выезда ${dayShort(next)}`,p:'Подберите им время заранее — до дня выезда осталась неделя или меньше.',go:()=>go('requests',{sub:'queue'})});
+  }
+  const unknownZone=ADDR.filter(a=>['new','planned'].includes(a.status)&&a.kind!=='bank'&&!a.date&&!a.collection_start&&!zoneOf(a.text));
+  if(unknownZone.length)items.push({cls:'warn',t:`${unknownZone.length} ${plural(unknownZone.length,'заявка','заявки','заявок')} вне настроенных районов`,p:'Такие адреса не попадут в автоматическое распределение. Добавьте район в настройках или назначьте сбор вручную.',go:()=>go('settings',{sub:'zones'})});
   const staleBanks=BANKS.filter(b=>b.active).map(b=>{const v=ADDR.filter(a=>a.bank_id===b.id&&a.status==='done').map(a=>a.date).sort().pop();return {b,last:v};}).filter(x=>!x.last||addDays(x.last,8)<todayStr());
   if(staleBanks.length)items.push({cls:'far',t:`${staleBanks.length} ${plural(staleBanks.length,'контейнер','контейнера','контейнеров')} без визита больше недели`,p:staleBanks.slice(0,3).map(x=>x.b.name).join(', ')+(staleBanks.length>3?'…':''),go:()=>go('banks')});
   document.getElementById('attention').innerHTML=items.length?items.map((x,i)=>`<div class="att-item"><i class="att-dot ${x.cls}"></i><div><b>${esc(x.t)}</b><p>${esc(x.p)}</p></div><button class="btn btn-sm go" data-att="${i}">Открыть</button></div>`).join(''):'<div class="empty">Всё под контролем. Ничего не требует внимания.</div>';
@@ -647,8 +698,9 @@ function renderCal(){
   let html=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(d=>'<div class="dow">'+d+'</div>').join('');
   for(let i=0;i<startDow;i++)html+='<div class="cell out"></div>';
   for(let d=1;d<=days;d++){const ds=y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');const x=by[ds];const sun=(startDow+d-1)%7===6;
-    const cls=['cell'];if(ds===td)cls.push('today');if(BH[ds])cls.push('bh');else if(sun)cls.push('rest');
-    html+=`<button class="${cls.join(' ')}" onclick="go('day',{date:'${ds}'})"><div class="n">${d}${ds===td?' <small>сегодня</small>':''}</div>${BH[ds]?'<div class="tag">bank holiday</div>':x?`<div class="cnt">${x.n} ${plural(x.n,'сбор','сбора','сборов')}${x.done?' · '+x.done+' ✓':''}</div>`:''}<div class="mini">${x?`<i style="width:${Math.min(100,x.n*5)}%" class="${x.done===x.n?'done':''}"></i>`:''}</div></button>`;}
+    const trip=tripZoneOn(ds);
+    const cls=['cell'];if(ds===td)cls.push('today');if(BH[ds])cls.push('bh');else if(sun)cls.push('rest');if(trip)cls.push('trip');
+    html+=`<button class="${cls.join(' ')}" onclick="go('day',{date:'${ds}'})"><div class="n">${d}${ds===td?' <small>сегодня</small>':''}</div>${BH[ds]?'<div class="tag">bank holiday</div>':trip?`<div class="tag trip">${esc(trip.name)}</div>`:''}${x?`<div class="cnt">${x.n} ${plural(x.n,'сбор','сбора','сборов')}${x.done?' · '+x.done+' ✓':''}</div>`:''}<div class="mini">${x?`<i style="width:${Math.min(100,x.n*5)}%" class="${x.done===x.n?'done':''}"></i>`:''}</div></button>`;}
   document.getElementById('cal-grid').innerHTML=html;
 }
 
@@ -663,7 +715,8 @@ async function renderDayPage(fresh){
   document.getElementById('day-date').value=ds;
   document.getElementById('day-title').textContent=cap(dayLabel(ds))+(ds===todayStr()?' · сегодня':'');
   const list=dayList();const done=list.filter(a=>a.status==='done').length,withTime=list.filter(a=>a.collection_start).length;
-  document.getElementById('day-sub').textContent=(drv?drv.name+' · ':'')+(list.length?`${list.length} ${plural(list.length,'сбор','сбора','сборов')}, ${withTime} с согласованным окном`:'сборов нет')+(BH[ds]?' · bank holiday':'');
+  const trip=tripZoneOn(ds);
+  document.getElementById('day-sub').textContent=(drv?drv.name+' · ':'')+(trip?'день выезда в «'+trip.name+'» · ':'')+(list.length?`${list.length} ${plural(list.length,'сбор','сбора','сборов')}, ${withTime} с согласованным окном`:'сборов нет')+(BH[ds]?' · bank holiday':'');
   if(fresh)DAY.route=null;
   const note=document.getElementById('day-note');note.hidden=true;
   let fit=null,geometry=null;
@@ -771,6 +824,58 @@ async function memberSave(){
   const btn=document.getElementById('mm-save');btn.disabled=true;
   try{await Ops.api(sb,'save_member',{email:document.getElementById('mm-email').value.trim(),role:document.getElementById('mm-role').value,driver_id:document.getElementById('mm-driver').value,active:document.getElementById('mm-active').checked});closeModal('m-member-bg');toast('Доступ сохранён');renderHours();}
   catch(e){document.getElementById('mm-err').textContent=Ops.error(e);}finally{btn.disabled=false;}
+}
+
+/* ---------- зоны выезда ---------- */
+async function renderZones(){
+  const host=document.getElementById('zones-list');host.innerHTML='<div class="empty"><span class="spin"></span> Загружаю…</div>';
+  await loadZones();
+  if(!ZONES.length){host.innerHTML='<div class="empty">Зоны не настроены. Выполните 12_far_zones.sql, затем обновите страницу.</div>';return;}
+  const waiting=p=>ADDR.filter(a=>['new','planned'].includes(a.status)&&a.kind!=='bank'&&!a.date&&!a.collection_start&&C.postcodeArea(a.text)===p).length;
+  host.innerHTML=ZONES.map(z=>{
+    const n=z.waiting??waiting(z.prefix),next=(z.dates||[])[0];
+    const badge=z.mode==='regular'?'<span class="chip st-ok">обычный район</span>':z.mode==='monthly'?'<span class="chip st-far">раз в месяц</span>':'<span class="chip st-cancelled">выключен</span>';
+    return `<div class="setrow"><div><b>${esc(z.prefix)} · ${esc(z.name)}</b><p>${badge} ${z.mode==='monthly'?esc(zoneWhen(z))+(next?' · ближайший выезд '+esc(dayShort(next)):''):''}${n?` · ждут распределения: ${n}`:''}</p></div><button class="btn btn-sm" onclick="zoneForm('${esc(z.prefix)}')">Изменить</button></div>`;
+  }).join('');
+}
+function zoneForm(prefix){
+  const z=prefix?ZONES.find(x=>x.prefix===prefix):null;
+  document.getElementById('m-zone-title').textContent=z?z.prefix+' · '+z.name:'Новый район';
+  document.getElementById('mz-prefix').value=z?z.prefix:'';document.getElementById('mz-prefix').disabled=!!z;
+  document.getElementById('mz-name').value=z?z.name:'';
+  document.getElementById('mz-mode').value=z?z.mode:'monthly';
+  document.getElementById('mz-weekday').value=z&&z.weekday!=null?z.weekday:4;
+  document.getElementById('mz-week').value=z&&z.week_of_month!=null?z.week_of_month:5;
+  document.getElementById('mz-del').style.display=z?'':'none';
+  document.getElementById('mz-err').textContent='';
+  zoneModeChange();document.getElementById('m-zone-bg').classList.add('show');
+}
+function zoneModeChange(){
+  const monthly=document.getElementById('mz-mode').value==='monthly';
+  document.getElementById('mz-day-wrap').hidden=!monthly;
+  const p=document.getElementById('mz-preview');
+  if(!monthly){p.textContent=document.getElementById('mz-mode').value==='off'?'Адреса этого района не будут распределяться автоматически.':'Адреса распределяются в любой рабочий день.';return;}
+  const wd=+document.getElementById('mz-weekday').value,wk=+document.getElementById('mz-week').value;
+  const next=C.nextTripDays({mode:'monthly',weekday:wd,week_of_month:wk},todayStr(),3);
+  p.textContent='Выезд: '+weekName(wk,wd)+' '+WEEKDAYS[wd].toLowerCase()+' месяца. Ближайшие: '+next.map(d=>dayShort(d)).join(', ')+'.';
+}
+for(const id of ['mz-weekday','mz-week'])document.getElementById(id).addEventListener('change',zoneModeChange);
+async function zoneSave(){
+  const btn=document.getElementById('mz-save');btn.disabled=true;
+  try{
+    const prefix=document.getElementById('mz-prefix').value.trim().toUpperCase();
+    if(!/^[A-Z]{1,2}$/.test(prefix))throw new Error('Начало индекса — одна или две латинские буквы, например BS.');
+    const mode=document.getElementById('mz-mode').value;
+    const {error}=await sb.rpc('subnex_zones',{p_action:'save',p_data:{prefix,name:document.getElementById('mz-name').value.trim()||prefix,mode,weekday:+document.getElementById('mz-weekday').value,week_of_month:+document.getElementById('mz-week').value}});
+    if(error)throw error;
+    closeModal('m-zone-bg');toast('Район сохранён');await renderZones();renderCal();
+  }catch(e){document.getElementById('mz-err').textContent=Ops.error(e);}finally{btn.disabled=false;}
+}
+async function zoneDelete(){
+  const prefix=document.getElementById('mz-prefix').value.trim().toUpperCase();
+  if(!confirm('Убрать район '+prefix+'? Адреса с этим индексом перестанут распределяться автоматически.'))return;
+  try{const {error}=await sb.rpc('subnex_zones',{p_action:'delete',p_data:{prefix}});if(error)throw error;closeModal('m-zone-bg');toast('Район убран');await renderZones();renderCal();}
+  catch(e){document.getElementById('mz-err').textContent=Ops.error(e);}
 }
 
 /* ---------- геокодирование ---------- */

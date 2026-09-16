@@ -187,6 +187,8 @@ table.t tr.total td{background:var(--surface-3);font-weight:700}
 .cell.rest{background:var(--surface-3)}
 .cell.rest .n{color:var(--muted)}
 .cell.bh{background:var(--crit-soft)}
+.cell.trip{background:var(--far-soft);border-color:color-mix(in srgb,var(--far) 45%,var(--line))}
+.cell .tag.trip{color:var(--far)}
 .cell .mini{height:5px;border-radius:3px;background:var(--surface-2);display:flex;overflow:hidden;margin-top:auto}
 .cell .mini i{height:100%;display:block;background:var(--brand)}
 .cell .mini i.done{background:var(--ok)}
