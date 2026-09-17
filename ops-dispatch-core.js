@@ -32,7 +32,17 @@ const postcodeArea=s=>{const m=String(s||'').toUpperCase().match(/\b([A-Z]{1,2})
 const postcodeNumber=s=>{const m=String(s||'').toUpperCase().match(/\b[A-Z]{1,2}(\d\d?)[A-Z]?\s*\d[A-Z]{2}\b/);return m?parseInt(m[1],10):null;};
 const zoneSpan=z=>((z.num_to??99)-(z.num_from??0));
 const zoneKey=z=>z&&(z.code||z.prefix);
-const sameZone=(x,y)=>!!x&&!!y&&zoneKey(x)===zoneKey(y);
+/* Одна поездка может охватывать несколько районов: Бристоль, BA и SN едут в один
+   четверг. Поэтому зоны считаются «своими» друг другу не только по коду, но и когда
+   у них совпадает день выезда — тогда день поездки открыт для всех троих.
+   Зоны с разными днями (Суонси по средам, запад по вторникам) не смешиваются. */
+const sameZone=(x,y)=>{
+ if(!x||!y)return false;
+ if(zoneKey(x)===zoneKey(y))return true;
+ return x.mode==='monthly'&&y.mode==='monthly'
+  &&Number(x.weekday)===Number(y.weekday)
+  &&Number(x.week_of_month||5)===Number(y.week_of_month||5);
+};
 /* Зона адреса: совпали буквы и номер попал в диапазон. Выигрывает самый узкий диапазон. */
 const zoneRule=(config,text)=>{const a=postcodeArea(text);if(!a)return null;const n=postcodeNumber(text)??0;
  const hits=(config.zones||[]).filter(z=>z.prefix===a&&n>=(z.num_from??0)&&n<=(z.num_to??99));
