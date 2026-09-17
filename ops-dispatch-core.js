@@ -256,6 +256,25 @@ function slotsFor(plan,node,day,config,roads,limit=6){
   service_minutes:node.service,estimated_kg:node.kg,not_before:null};
  return placements(target,request,config,roads).slice(0,limit);
 }
+/* Почему в этот день нельзя поставить адрес. Считает день БЕЗ этого адреса, то есть
+   отвечает «что мешает», а не «влезет ли». Нужна, чтобы в диалогах переноса писать
+   настоящую причину вместо бесполезного «места нет». */
+function dayIssue(plan,node,day,config,roads){
+ const work=plan.days.map(d=>{const nodes=d.nodes.filter(n=>n.key!==node.key&&!(node.address_id&&n.address_id===node.address_id));
+  const {fit,...rest}=d;return {...rest,nodes,order:ordered(nodes,d.order)};});
+ const target=work.find(d=>d.day===day);
+ if(!target)return {ok:false,code:'DAY_OUT_OF_RANGE'};
+ if(target.started_at)return {ok:false,code:'ROUTE_STARTED'};
+ if(target.hours&&target.hours.closed)return {ok:false,code:'DAY_CLOSED'};
+ const rule=zoneRule(config,node.text);
+ if(!rule||rule.mode==='off')return {ok:false,code:'ZONE_OFF'};
+ const trip=tripZoneOf(config,target.day)||occupiedZoneOf(config,target);
+ if(rule.mode==='monthly'&&!sameZone(trip,rule))return {ok:false,code:'ZONE_TRIP_DAY',zone:rule};
+ if(trip&&!sameZone(trip,rule))return {ok:false,code:'ZONE_DAY_TAKEN',zone:trip};
+ const base=evaluate(target.nodes,target.order,config,target.hours,roads,target.start_minute);
+ if(!base.ok)return base;
+ return {ok:true,free_minutes:base.free_minutes,stops:base.stops?base.stops.length:0};
+}
 function splitDelimited(text,delimiter){const rows=[];let row=[],cell='',quoted=false;for(let i=0;i<text.length;i++){const c=text[i];if(c==='"'){if(quoted&&text[i+1]==='"'){cell+='"';i++;}else if(quoted||!cell)quoted=!quoted;else cell+=c;}else if(c===delimiter&&!quoted){row.push(cell.trim());cell='';}else if((c==='\n'||c==='\r')&&!quoted){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell.trim());if(row.some(Boolean))rows.push(row);row=[];cell='';}else cell+=c;}row.push(cell.trim());if(row.some(Boolean))rows.push(row);return rows;}
 function parseRows(text,html,source){
  let rows=[];if(html&&typeof DOMParser!=='undefined'){const doc=new DOMParser().parseFromString(html,'text/html');rows=[...doc.querySelectorAll('tr')].map(tr=>[...tr.querySelectorAll(':scope > td,:scope > th')].map(td=>td.textContent.replace(/\s+/g,' ').trim())).filter(r=>r.length>1);}
@@ -273,6 +292,25 @@ function parseRows(text,html,source){
   return {row:i+1,text:address.trim(),contact_name:name,phone:phone(tel),contact_email:email,bags_text:bags,note,intake_channel:source,estimated_kg:PLAN_DEFAULTS.estimated_kg,service_minutes:PLAN_DEFAULTS.service_minutes,not_before:null,raw:all};
  });
 }
+/* Один и тот же дом партнёр пишет по-разному: «CF235JJ» и «CF23 5JJ», с городом и без.
+   Сравнение по сырому тексту такие пары пропускает — так в очередь попал второй
+   «Silver Birches». Сравниваем по индексу плюс словам адреса без индекса и города. */
+const CITY_WORDS=/\b(cardiff|newport|swansea|bridgend|barry|caerphilly|tredegar|pontypridd|merthyr|tydfil|blackwood|risca|penarth|cwmbran|abergavenny|wales|uk|unitedkingdom|england)\b/g;
+const placeKey=s=>{const pc=postcode(s);if(!pc)return null;
+ const body=String(s||'').toLowerCase()
+  .replace(new RegExp(pc.replace(' ','\\s*'),'i'),' ')
+  .replace(/[^a-z0-9]+/g,' ').replace(CITY_WORDS,' ');
+ return key(pc)+'|'+body.split(/\s+/).filter(Boolean).join('');};
+const samePlace=(a,b)=>{const ka=placeKey(a),kb=placeKey(b);return ka&&kb?ka===kb:key(a)===key(b);};
+/* Замечания, которые НЕ мешают добавить заявку: один номер на два разных дома
+   бывает по делу (заказ для себя и для матери). Показываем и пропускаем. */
+function warnings(row,existing=[],previous=[]){const out=[];const p=phone(row.phone);
+ if(!p)return out;
+ const twin=(existing||[]).find(a=>['new','planned'].includes(a.status)&&phone(a.phone)===p&&!samePlace(a.text,row.text));
+ if(twin)out.push('Этот номер уже у заявки «'+twin.text+'». Если это другой дом — всё в порядке, предложения уйдут по очереди.');
+ else if((previous||[]).some(a=>phone(a.phone)===p&&!samePlace(a.text,row.text)))out.push('Этот номер уже есть выше в этой пачке — проверьте, не один ли это дом.');
+ return out;
+}
 function issues(row,existing=[],previous=[]){const out=[];const pc=postcode(row.text);
  if(!pc||key(row.text).replace(key(pc),'').length<3)out.push('Нужны дом, улица и полный postcode');
  if(/^(?:collection from\s*)?\d+\s*,?\s*[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i.test(row.text))out.push('Не указана улица');
@@ -281,10 +319,11 @@ function issues(row,existing=[],previous=[]){const out=[];const pc=postcode(row.
  if(!sourceNames[row.intake_channel])out.push('Выберите источник');
  if(!Number.isFinite(+row.estimated_kg)||+row.estimated_kg<=0)out.push('Укажите ожидаемый вес');
  if(![5,10].includes(+row.service_minutes))out.push('Сбор: 5 или 10 минут');
- if(previous.some(a=>key(a.text)===key(row.text)))out.push('Повтор в этой пачке');
- if(existing.some(a=>['new','planned'].includes(a.status)&&key(a.text)===key(row.text)))out.push('Адрес уже есть в действующих заявках');
+ if(previous.some(a=>samePlace(a.text,row.text)))out.push('Повтор в этой пачке');
+ const twin=existing.find(a=>['new','planned'].includes(a.status)&&samePlace(a.text,row.text));
+ if(twin)out.push(key(twin.text)===key(row.text)?'Адрес уже есть в действующих заявках':'Это тот же дом, что и «'+twin.text+'» — заявка на него уже есть');
  return out;
 }
-root.SubnexDispatchCore={sourceNames,sourceOf,postcode,key,phone,hm,minute,ukDay,ukMinute,pointKey,validPoint,zone,evaluate,ordered,placements,planBatch,shareSlots,parseRows,issues,PLAN_DEFAULTS,postcodeArea,zoneRule,zoneTripDay,tripZoneOf,occupiedZoneOf,postcodeNumber,sameZone,movePlanned,slotsFor,nextTripDays,zoneReason,nthWeekday};
+root.SubnexDispatchCore={sourceNames,sourceOf,postcode,key,phone,hm,minute,ukDay,ukMinute,pointKey,validPoint,zone,evaluate,ordered,placements,planBatch,shareSlots,parseRows,issues,warnings,samePlace,placeKey,dayIssue,PLAN_DEFAULTS,postcodeArea,zoneRule,zoneTripDay,tripZoneOf,occupiedZoneOf,postcodeNumber,sameZone,movePlanned,slotsFor,nextTripDays,zoneReason,nthWeekday};
 if(typeof module!=='undefined'&&module.exports)module.exports=root.SubnexDispatchCore;
 })(typeof window==='undefined'?globalThis:window);

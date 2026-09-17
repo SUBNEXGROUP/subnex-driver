@@ -17,10 +17,10 @@
 <link rel="stylesheet" href="subnex-ui.css?v=20260916-chatfix">
 <link rel="stylesheet" href="ops-chat.css?v=20260916-console">
 <link rel="stylesheet" href="ops-dispatch.css?v=20260916-replan">
-<script src="ops-chat.js?v=20260916-move"></script>
+<script src="ops-chat.js?v=20260917-charity"></script>
 <script src="ops-route.js?v=2"></script>
-<script src="ops-dispatch-core.js?v=20260916-move"></script>
-<script src="ops-dispatch.js?v=20260916-batch"></script>
+<script src="ops-dispatch-core.js?v=20260917-charity"></script>
+<script src="ops-dispatch.js?v=20260917-charity"></script>
 <script src="ops-planner.js?v=20260915-collection-hours"></script>
 <style>
 body{font-size:15px}
@@ -602,7 +602,14 @@ async function scheduledRoad(all){
 function dispatchOptions(){return {sb,driver:ME,home:LOCAL.home,depot:LOCAL.depot,hasOutbox:()=>LOCAL.outbox.length>0};}
 async function startDispatchDay(){
  const btn=document.getElementById('btn-start-route'),note=document.getElementById('dispatch-day-note');if(btn.disabled)return;btn.disabled=true;note.textContent='Проверяю все сборы перед стартом…';
- try{await OpsDispatch.startDay(dispatchOptions(),currentDay);await showScheduledRoute(currentDay);note.textContent='Маршрут начат. Новые заявки будут ждать следующего дня.';}
+ /* Опоздание на один адрес больше не запирает день: сборы уже сделаны, а переставить
+    прошедшее окно нельзя. Решение оставляем водителю — показываем, по кому опоздание. */
+ const onLate=fit=>{const hm=OpsDispatch.core.hm;
+  return confirm('По адресу «'+(fit.to||'')+'» обещанное время уже прошло'
+   +(Number.isFinite(fit.latest)?' (до '+hm(fit.latest)+')':'')
+   +(Number.isFinite(fit.arrival)?', сейчас туда доедете к '+hm(fit.arrival):'')+'.\n\n'
+   +'Перестановка это не исправит. Начать маршрут всё равно?');};
+ try{await OpsDispatch.startDay(dispatchOptions(),currentDay,{onLate});await showScheduledRoute(currentDay);note.textContent='Маршрут начат. Новые заявки будут ждать следующего дня.';}
  catch(e){note.textContent=OpsDispatch.error(e);}finally{btn.disabled=!!LOCAL.routes[currentDay]?.started_at;}
 }
 async function showScheduledRoute(ds){

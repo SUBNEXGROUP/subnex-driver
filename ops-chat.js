@@ -21,6 +21,24 @@ const threadState=t=>t.closed_request&&!t.address_id||t.address_status==='cancel
 Object.assign(codes,{RESULT_REPLACEMENT_REQUIRED:'Подтвердите замену прежнего результата на отмену.'});
 const cancellationReasons={customer_cancelled:'Клиент отменил сбор',already_collected:'Уже забрали',no_bags:'Мешков для сбора нет',duplicate:'Повторная заявка',other:'Другая причина'};
 const errText=e=>codes[e?.code]||codes[e?.message]||codes[String(e?.message||'').replace(/^ROUTE_/,'')]||window.OpsDispatch?.error(e)||e?.message||'Не удалось выполнить действие.';
+/* База отдаёт code='P0001', а настоящий код лежит в message — та же ловушка,
+   что чинили в errText. Поэтому смотрим оба поля. */
+const isCode=(e,name)=>[e?.code,e?.message].some(v=>String(v||'').replace(/^ROUTE_/,'')===name);
+const errDetail=e=>{const d=e?.details??e?.detail;if(!d)return null;if(typeof d==='object')return d;
+ try{return JSON.parse(d);}catch{return null;}};
+/* Сегодняшний день пересчитывается от текущей минуты. Если в нём остался незакрытый
+   адрес, чьё обещанное окно уже прошло, день перестаёт сходиться целиком — и время
+   нельзя подтвердить даже на вечер. Голый TIME_CONFLICT этого не объясняет. */
+const staleDayHint=(e,day)=>{
+ const C=window.OpsDispatch?.core;if(!C||!day||day!==C.ukDay())return '';
+ if(!isCode(e,'TIME_CONFLICT'))return '';
+ const d=errDetail(e),latest=d?Number(d.latest):NaN;
+ if(!Number.isFinite(latest)||latest>=C.ukMinute(new Date()))return '';
+ return ' Дело не в выбранном времени: сегодняшний день считается от текущей минуты, а в нём остался незакрытый адрес'
+  +(d.to?' «'+d.to+'»':'')+', обещанное окно которого уже прошло — до '+C.hm(latest)
+  +'. Пока он висит, в сегодня нельзя добавить ничего, даже на вечер.'
+  +' Отметьте по нему результат в «Дне маршрута» — Выполнено, Не отвечает или Проблема — либо перенесите его на другой день.';
+};
 async function api(sb,action,data={}){
   const {data:result,error}=await sb.functions.invoke('subnex-sms',{body:{action,data}});
   if(error){let code='NETWORK';try{const j=await error.context.json();code=j.error||code;}catch{}
@@ -61,7 +79,7 @@ class Chat{
  $(s){return this.root.querySelector(s);} 
  async call(action,data={}){return api(this.sb,action,data);}
  notice(s){if(this.closed)return;const n=this.$('.oc-notice');n.textContent=s||'';n.classList.toggle('on',!!s);}
- async run(fn){try{return await fn();}catch(e){this.notice(errText(e));return null;}}
+ async run(fn,day){try{return await fn();}catch(e){this.notice(errText(e)+staleDayHint(e,day));return null;}}
  drivers(){return (this.o.drivers?.()||[]).filter(d=>d.active!==false);}
  driverOptions(selected=''){return '<option value="">Не назначен</option>'+this.drivers().map(d=>`<option value="${esc(d.id)}" ${d.id===selected?'selected':''}>${esc(d.name)}</option>`).join('');}
  async start(){
@@ -203,7 +221,8 @@ class Chat{
      :'<option value="">Свободного места нет</option>';
     note.textContent=slots.length
      ?`Свободных мест в этот день: ${slots.length}. Первое — с наименьшим крюком.`
-     :'В этот день места нет: не пускают дорога, рабочие часы или день выезда зоны. Выберите другую дату.';
+     :(D.dayIssueText(C.dayIssue({days:snap.days,assigned:[],unassigned:[]},node,day,{...snap.config,zones},roads))
+       ||'Свободного времени в этот день не осталось. Выберите другую дату.');
    }catch(e){
     sel.innerHTML='<option value="">Не удалось посчитать</option>';
     note.textContent=errText(e);
@@ -258,7 +277,7 @@ class Chat{
  }
  async confirm(){const button=this.$('#oc-confirm');if(button.disabled)return;
   const data={thread_id:this.threadId,day:this.$('#oc-day').value,start:this.$('#oc-start').value,end:this.$('#oc-end').value,version:this.formVersion,agreed:this.$('#oc-agreed').checked,change_agreed:this.$('#oc-change-agreed')?.checked||false};
-  button.disabled=true;const result=await this.run(async()=>{if(!data.agreed)throw new Error('AGREEMENT_REQUIRED');await OpsDispatch.preflight({sb:this.sb,hasOutbox:this.o.hasOutbox,address:this.data.address},this.planner,data);return this.call('confirm',data);});if(result){this.notice('Дата и время сохранены. Адрес добавлен в маршрут.');await this.loadDetail();await this.loadList();this.compose();this.o.onChanged?.();}else button.disabled=false;
+  button.disabled=true;const result=await this.run(async()=>{if(!data.agreed)throw new Error('AGREEMENT_REQUIRED');await OpsDispatch.preflight({sb:this.sb,hasOutbox:this.o.hasOutbox,address:this.data.address},this.planner,data);return this.call('confirm',data);},data.day);if(result){this.notice('Дата и время сохранены. Адрес добавлен в маршрут.');await this.loadDetail();await this.loadList();this.compose();this.o.onChanged?.();}else button.disabled=false;
  }
  modal(title,content,onSave,saveLabel='Сохранить'){
   this.$('.oc-modal-wrap')?.remove();const wrap=document.createElement('div');wrap.className='oc-modal-wrap';wrap.innerHTML=`<section class="oc-modal" role="dialog" aria-label="${esc(title)}"><h2>${esc(title)}</h2><div class="oc-form">${content}</div><p class="oc-modal-error" role="alert"></p><div class="oc-actions"><button class="oc-cancel">Отмена</button>${onSave?`<button class="oc-primary oc-save">${esc(saveLabel)}</button>`:''}</div></section>`;this.root.append(wrap);
@@ -343,5 +362,5 @@ class Chat{
  }
  hoursForm(h,title){this.modal(title,`${h.day?`<label>Дата<input id="oc-hours-day" type="date" value="${esc(h.day)}"></label>`:''}<div class="oc-slots"><label>Первое прибытие с<input id="oc-hours-open" type="time" value="${h.opens.slice(0,5)}"></label><label>Последнее прибытие до<input id="oc-hours-close" type="time" value="${h.closes.slice(0,5)}"></label></div><label><input id="oc-hours-closed" type="checkbox" ${h.closed?'checked':''}>Выходной</label>`,async(w)=>{await this.call('save_hours',{...(h.day?{day:w.querySelector('#oc-hours-day').value}:{weekday:h.weekday}),opens:w.querySelector('#oc-hours-open').value,closes:w.querySelector('#oc-hours-close').value,closed:w.querySelector('#oc-hours-closed').checked});this.notice('График сохранён.');});}
 }
-window.Ops={api,profile:sb=>api(sb,'profile'),open,close,esc,error:errText,offerText:(source,day,start,end,name)=>{const t=partnerOffer(day,start,end,name);return t&&source==='subnex'?subnexOffer(t):t;},signPhotos,photoUrl,slotLabel,ukDate,ukTime,current:()=>current,settings:()=>current?.settings(),clear:()=>{photoCache.clear();close();}};
+window.Ops={api,profile:sb=>api(sb,'profile'),open,close,esc,error:errText,dayHint:staleDayHint,offerText:(source,day,start,end,name)=>{const t=partnerOffer(day,start,end,name);return t&&source==='subnex'?subnexOffer(t):t;},signPhotos,photoUrl,slotLabel,ukDate,ukTime,current:()=>current,settings:()=>current?.settings(),clear:()=>{photoCache.clear();close();}};
 })();

@@ -17,9 +17,9 @@
 <link rel="stylesheet" href="subnex-ui.css?v=20260916-chatfix">
 <link rel="stylesheet" href="ops-chat.css?v=20260916-console">
 <link rel="stylesheet" href="ops-dispatch.css?v=20260916-replan">
-<script src="ops-chat.js?v=20260916-move"></script>
-<script src="ops-dispatch-core.js?v=20260916-move"></script>
-<script src="ops-dispatch.js?v=20260916-batch"></script>
+<script src="ops-chat.js?v=20260917-charity"></script>
+<script src="ops-dispatch-core.js?v=20260917-charity"></script>
+<script src="ops-dispatch.js?v=20260917-charity"></script>
 <script src="ops-planner.js?v=20260915-collection-hours"></script>
 <style>
 .leaflet-container{font-family:var(--body)}
@@ -348,6 +348,7 @@
       <div class="f-group"><label class="f">Водитель</label><select class="field" id="ma-driver"></select></div>
       <div class="f-group"><label class="f">Статус</label><select class="field" id="ma-status"><option value="new">Новый</option><option value="planned">Запланирован</option><option value="done">Выполнено</option><option value="noanswer">Не отвечает</option><option value="problem">Проблема</option><option value="cancelled">Отменено</option></select></div>
     </div>
+    <div class="f-group"><label class="f">Charity — для кого сбор</label><input class="field" type="text" id="ma-charity" list="ma-charities" maxlength="200" placeholder="Начните печатать или выберите"><datalist id="ma-charities"></datalist></div>
     <div class="f-group"><label class="f">Заметка</label><input class="field" type="text" id="ma-note"></div>
     <div class="f-group"><label class="f">Заметка о результате</label><input class="field" type="text" id="ma-resnote"></div>
   </div>
@@ -1008,6 +1009,13 @@ async function geocode(text){
 
 /* ---------- модалка адреса (старый сценарий) ---------- */
 function closeModal(id){document.getElementById(id).classList.remove('show');}
+/* Уже встречавшиеся charity — подсказка в поле. Список открытый: партнёр регулярно
+   присылает новые, поэтому вписать своё можно всегда. Дубли по регистру схлопываем. */
+function charityNames(){const seen=new Map();
+  for(const a of ADDR){const c=String(a.charity||'').trim();if(c&&!seen.has(c.toLowerCase()))seen.set(c.toLowerCase(),c);}
+  return [...seen.values()].sort((a,b)=>a.localeCompare(b,'en'));}
+function fillCharityList(){const dl=document.getElementById('ma-charities');if(!dl)return;
+  dl.innerHTML=charityNames().map(v=>`<option value="${esc(v)}"></option>`).join('');}
 function openAddrModal(id){
   if(!id)return openDispatchAdmin('one');
   editAddrId=id;const a=ADDR.find(x=>x.id===id);if(!a)return;const cancelled=a.status==='cancelled';
@@ -1015,6 +1023,7 @@ function openAddrModal(id){
   document.getElementById('ma-save').disabled=cancelled;document.querySelector('#ma-status option[value=cancelled]').disabled=true;
   document.getElementById('m-addr-title').textContent=a.kind==='bank'?'Визит к контейнеру':'Адрес';
   document.getElementById('ma-text').value=a.text;document.getElementById('ma-bags').value=a.bags||'';document.getElementById('ma-phone').value=a.phone||'';document.getElementById('ma-note').value=a.note||'';
+  document.getElementById('ma-charity').value=a.charity||'';fillCharityList();
   document.getElementById('ma-date').value=a.date||'';document.getElementById('ma-driver').value=a.driver_id||'';document.getElementById('ma-status').value=a.status;document.getElementById('ma-resnote').value=a.result_note||'';
   document.getElementById('ma-del').style.display=!cancelled?'':'none';
   document.getElementById('ma-chat').style.display=a.phone&&a.kind!=='bank'?'':'none';
@@ -1034,7 +1043,7 @@ async function saveAddrModal(){
     try{await Ops.api(sb,'legacy_date',{address_id:old.id,day:date||'',version:old.collection_version,agreed:true});}catch(e){toast(Ops.error(e));restore();return;}
   }
   let status=document.getElementById('ma-status').value;if(status==='new'&&date)status='planned';if(status==='planned'&&!date)status='new';
-  const row={id:editAddrId||uuid(),text,bags:parseInt(document.getElementById('ma-bags').value)||0,phone:document.getElementById('ma-phone').value.trim(),note:document.getElementById('ma-note').value.trim(),date,driver_id:document.getElementById('ma-driver').value||null,status,result_note:document.getElementById('ma-resnote').value.trim(),kind:old?(old.kind||'d2d'):'d2d',bank_id:old?(old.bank_id||null):null,fill_level:old?(old.fill_level??null):null,lat:old?old.lat:null,lng:old?old.lng:null,geocode_source:old?old.geocode_source||null:null};
+  const row={id:editAddrId||uuid(),text,bags:parseInt(document.getElementById('ma-bags').value)||0,phone:document.getElementById('ma-phone').value.trim(),note:document.getElementById('ma-note').value.trim(),charity:document.getElementById('ma-charity').value.trim()||null,date,driver_id:document.getElementById('ma-driver').value||null,status,result_note:document.getElementById('ma-resnote').value.trim(),kind:old?(old.kind||'d2d'):'d2d',bank_id:old?(old.bank_id||null):null,fill_level:old?(old.fill_level??null):null,lat:old?old.lat:null,lng:old?old.lng:null,geocode_source:old?old.geocode_source||null:null};
   if(!old||old.text!==text||row.lat==null){const g=await geocode(text);row.lat=g?g.lat:null;row.lng=g?g.lng:null;row.geocode_source=g?g.source:null;}
   const {error}=await sb.from('addresses').upsert(row);restore();
   if(error){toast(Ops.error(error));return;}
@@ -1285,6 +1294,11 @@ const BOX_L={hLineWidth:()=>0.7,vLineWidth:()=>0.7,hLineColor:()=>BRAND.line,vLi
 const tableL=n=>({hLineWidth:()=>0.4,vLineWidth:()=>0,hLineColor:()=>BRAND.line,paddingTop:()=>6,paddingBottom:()=>6,paddingLeft:()=>8,paddingRight:()=>8,fillColor:i=>i===0?BRAND.ink:(i===n-1?BRAND.soft:(i%2?null:'#FAFAF7'))});
 const bagsEN=a=>{const raw=a.bags_text?String(a.bags_text).trim():(a.bags?String(a.bags):'');return raw?raw.replace(/\s*(?:to|-|–)\s*/i,' – ')+' bags':'—';};
 const crName=a=>(a.charity||'').trim()||'Не указана';
+/* В интерфейсе группа без charity называется по-русски, но отчёт уходит партнёру
+   на английском — и русское слово в строке Charity там выглядит ошибкой.
+   Заодно чинится имя файла: кириллица вырезалась целиком. */
+const NO_CHARITY='Не указана';
+const crEN=g=>g&&g.charity===NO_CHARITY?'No charity specified':(g?g.charity:'');
 let CR_ROWS=[],CRT={},CRT_OK=true;
 
 function crGroups(ym,src){
@@ -1337,7 +1351,7 @@ async function charityPdf(g,silent){
   const kg=Number((CRT[g.charity]||{}).kg)||0;
   const body=[{text:'Monthly collection report',style:'h1'},
     {text:'Household collections carried out by Subnex Group for this charity during the period below.',margin:[0,0,0,14],color:'#3A3A38'}];
-  body.push(kvRow([['Charity',g.charity],['Period',ymLabel(ym)],['Report issued',ukDate(todayStr())]]));
+  body.push(kvRow([['Charity',crEN(g)],['Period',ymLabel(ym)],['Report issued',ukDate(todayStr())]]));
   const boxes=[{stack:[{text:'COLLECTIONS',style:'lbl'},{text:String(g.items.length),fontSize:19,bold:true,margin:[0,3,0,0]}]},
     {stack:[{text:'TOTAL COLLECTED',style:'lbl'},{text:kg?kg.toFixed(1)+' kg':'—',fontSize:19,bold:true,color:BRAND.dgreen,margin:[0,3,0,0]}]},
     {stack:[{text:'AVERAGE PER COLLECTION',style:'lbl'},{text:kg?(kg/g.items.length).toFixed(1)+' kg':'—',fontSize:19,bold:true,margin:[0,3,0,0]}]}];
@@ -1345,9 +1359,9 @@ async function charityPdf(g,silent){
   body.push({text:'Weights are recorded at our sorting facility after collection and cover the whole period shown above.',style:'note',margin:[0,10,0,0]});
   body.push({table:{widths:['*'],body:[[{stack:[{text:'Questions about this report?',bold:true,margin:[0,0,0,3]},{text:'Reply to this email or call us and we will check any collection made for you in this period.',color:'#3A3A38'}]}]]},
     layout:{hLineWidth:()=>0,vLineWidth:i=>i===0?2.5:0,vLineColor:()=>BRAND.green,paddingLeft:()=>11,paddingRight:()=>11,paddingTop:()=>10,paddingBottom:()=>10,fillColor:()=>BRAND.soft},margin:[0,10,0,0]});
-  const doc=pdfShell('Subnex Group Ltd  ·  Collection report  ·  '+g.charity+'  ·  '+ymLabel(ym));
-  doc.content=body;doc.info={title:'Subnex collection report — '+g.charity+' — '+ymLabel(ym),author:'Subnex Group Ltd'};
-  const fname='Subnex-'+g.charity.replace(/[^\w\-]+/g,'-').replace(/^-|-$/g,'')+'-'+ym+'.pdf';
+  const doc=pdfShell('Subnex Group Ltd  ·  Collection report  ·  '+crEN(g)+'  ·  '+ymLabel(ym));
+  doc.content=body;doc.info={title:'Subnex collection report — '+crEN(g)+' — '+ymLabel(ym),author:'Subnex Group Ltd'};
+  const fname='Subnex-'+(crEN(g)||'report').replace(/[^\w\-]+/g,'-').replace(/^-|-$/g,'')+'-'+ym+'.pdf';
   return new Promise(res=>pdfMake.createPdf(doc).download(fname,res));
 }
 async function allCharityPdf(){
