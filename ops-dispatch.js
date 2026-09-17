@@ -7,6 +7,20 @@ const slotOf=n=>[n.starts_at?C.ukMinute(n.starts_at):n.earliest,n.ends_at?C.ukMi
 const arrivalLabel=n=>{const [s,e]=slotOf(n);return s===e?'прибытие '+C.hm(s):'интервал '+C.hm(s)+'–'+C.hm(e);};
 const nextDay=d=>new Date(Date.parse(d+'T12:00:00Z')+86400000).toISOString().slice(0,10);
 const label=d=>new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'long',weekday:'short',timeZone:'UTC'}).format(new Date(d+'T12:00:00Z'));
+/* Код ошибки без приставки ROUTE_ — по нему решаем, беда в одном адресе или во всём сразу. */
+const codeOf=e=>String(e?.code||e?.message||e||'').replace(/^ROUTE_/,'');
+/* Общий сбой: дело не в адресе, продолжать рассылку бессмысленно и вредно. */
+const BATCH_FATAL=new Set(['ACCESS_DENIED','LOGIN_REQUIRED','NOT_CONFIGURED','RATE_LIMIT','SERVICE_UNAVAILABLE',
+ 'NETWORK','OFFLINE_PENDING','ROUTING_PROVIDER_REQUIRED','SETTINGS_REQUIRED','SETTINGS_INVALID','DATABASE_ERROR',
+ 'CREATE_AUTH_USER_FIRST','ROUTE_STARTED']);
+const batchFatal=e=>{const c=codeOf(e);
+ return BATCH_FATAL.has(c)||/^ROUTING_HTTP_|Failed to fetch|NetworkError|Нет соединения|не загружен/i.test(c);};
+/* Британские дата и время для писем клиентам и партнёру. */
+const longDate=day=>{const d=new Date(day+'T12:00:00Z'),n=d.getUTCDate();
+ const suf=n%100>=11&&n%100<=13?'th':({1:'st',2:'nd',3:'rd'}[n%10]||'th');
+ return ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getUTCDay()]+' '+n+suf+' '
+  +['January','February','March','April','May','June','July','August','September','October','November','December'][d.getUTCMonth()];};
+const clock=m=>{const h=Math.floor(m/60);return (h%12||12)+':'+String(m%60).padStart(2,'0')+(h<12?'am':'pm');};
 const errors={ACCESS_DENIED:'Нет доступа к этому водителю.',SETTINGS_REQUIRED:'Сначала сохраните старт, склад и параметры машины.',SETTINGS_INVALID:'Проверьте координаты и параметры машины.',SETTINGS_IN_USE:'В расписании уже есть договорённости. Старт, склад и параметры дороги пока сохранены; резерв можно изменить.',ROUTING_PROVIDER_REQUIRED:'Для расчёта дороги нужно подключить сервис маршрутов в настройках функции subnex-routing.',COORDINATES_REQUIRED:'Уточните координаты всех адресов этого дня.',ROADS_REQUIRED:'Не удалось получить время поездки. Повторите расчёт после восстановления сервиса.',DAY_CLOSED:'Выходной по рабочему графику.',TIME_REQUIRED:'Есть адрес без согласованного времени.',TIME_CONFLICT:'Не хватает времени на дорогу и сбор.',OUTSIDE_HOURS:'Интервал выходит за рабочий график.',OUTSIDE_WORKING_HOURS:'Время выходит за рабочий график этого дня. Продлите часы в Настройки → Часы и доступ.',DEPOT_LATE:'Проверьте обновление расчёта: время склада должно считаться отдельно.',DAY_BOUNDARY:'Поездка заканчивается на следующие сутки. Нужна отдельная проверка маршрута.',CAPACITY:'Превышена ожидаемая загрузка машины.',RESERVE_EXHAUSTED:'Для этого плана недостаточно свободного времени или запаса по загрузке.',PLAN_CHANGED:'Список заявок изменился. Пересчитайте план перед сохранением.',STALE_ADDRESS:'Заявка изменилась. Обновите список и пересчитайте план.',REQUEST_RESERVED:'Для заявки уже предложено время. Откройте согласование.',ARRIVAL_WINDOW_30:'Для нового предложения укажите интервал в 30 минут.',CONFIRMED_FIXED:'Подтверждённые дату и интервал изменять нельзя.',CONFIRMED_CHANGE_REQUIRES_AGREEMENT:'Отметьте, что клиент согласовал перенос. Подтверждённое время само не двигается.',USE_CHAT_TO_RESCHEDULE:'Клиент ещё не ответил на отправленное время. Перенос делается в разделе «Переписка».',USE_CHAT_TO_CLOSE_OFFER:'Сначала закройте или снимите предложение клиенту.',REQUEST_ALREADY_FINISHED:'Эта заявка уже завершена. Обновите список.',SLOT_IN_PAST:'Это время уже прошло. Выберите будущую дату.',SLOT_INVALID:'Проверьте дату и время.',AGREEMENT_REQUIRED:'Нужна отметка, что клиент согласовал время.',ROUTE_STARTED:'Маршрут уже начат. Новые заявки остаются в очереди на следующие дни.',PENDING_CONFIRMATIONS:'Сначала завершите согласование предложений этого дня или снимите неподтверждённые предложения.',START_TODAY_ONLY:'Начать можно маршрут на сегодняшний день.',EMPTY_ROUTE:'В этот день пока нет сборов.',DISPATCH_NOT_ENABLED:'Новая версия установлена, но ещё не включена. Завершите шаг активации.',PARTNER_WITHDRAWAL_REQUIRED:'Сначала отзовите предложение у партнёра.',USE_CHAT_TO_CLOSE_OFFER:'Закройте предложение в SMS-переписке, затем обновите очередь.',OUTSIDE_AREA:'Адрес вне зоны автоматического распределения.',SLOT_IN_PAST:'Это время уже прошло. Подберите новый интервал.',BEFORE_AVAILABILITY:'Клиент доступен позже выбранной даты.',SLOT_INVALID:'Проверьте дату, интервал 30 минут и доступность клиента.',DATE_RANGE:'Выберите дату от сегодня до 90 дней вперёд.',AGREEMENT_REQUIRED:'Отметьте подтверждение партнёра.',BATCH_LIMIT_40:'За один расчёт выберите не больше 40 заявок.',AUTH_REQUIRED:'Войдите в приложение заново.',DUPLICATE_BANK_VISIT:'Этот контейнер уже назначен на выбранный день.',OFFLINE_PENDING:'Сначала синхронизируйте изменения, сохранённые на устройстве.',REQUEST_ID_REUSED:'Состав уже сохранённого запроса отличается. Обновите очередь.'};
 function error(e){let code=String(e?.code||e?.message||e||'');if(!errors[code]&&e?.message)code=e.message;let detail=e?.details||e?.detail;try{if(typeof detail==='string')detail=JSON.parse(detail);}catch{detail=null;}let key=code.replace(/^ROUTE_/,'');if(errors[code])key=code;let text=errors[key]||(/^ROUTING_HTTP_429/.test(code)?'Сервис дорог временно ограничил запросы. Подождите минуту и повторите.':/^ROUTING_HTTP_|fetch|Failed to fetch|network/i.test(code)?'Сервис дорог недоступен. План не сохранён; повторите позже.':code);if(code.includes('DUPLICATE_ADDRESS'))text='В пачке или действующих заявках есть этот адрес. Проверьте повторы.';if(code.includes('UK_MOBILE_REQUIRED'))text='Для согласования по SMS нужен номер +447…';if(detail?.to)text+=' Участок: '+(detail.from||'Старт')+' → '+detail.to+'.';if(Number.isFinite(detail?.arrival)&&Number.isFinite(detail?.latest))text+=' Расчётное прибытие '+C.hm(detail.arrival)+', согласовано не позже '+C.hm(detail.latest)+'.';if(detail?.address)text+=' '+detail.address+'.';return text;}
 async function rpc(sb,action,data){const r=await sb.rpc('subnex_dispatch',{p_action:action,p_data:data});if(r.error)throw r.error;return r.data;}
@@ -37,11 +51,6 @@ class Dispatch{
 
  /* Готовый текст для партнёра: даты и интервалы так, как их назовут клиенту. */
  partnerList(list){
-  const longDate=day=>{const d=new Date(day+'T12:00:00Z'),n=d.getUTCDate();
-   const suf=n%100>=11&&n%100<=13?'th':({1:'st',2:'nd',3:'rd'}[n%10]||'th');
-   return ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getUTCDay()]+' '+n+suf+' '
-    +['January','February','March','April','May','June','July','August','September','October','November','December'][d.getUTCMonth()];};
-  const clock=m=>{const h=Math.floor(m/60);return (h%12||12)+':'+String(m%60).padStart(2,'0')+(h<12?'am':'pm');};
   const byDay=new Map();
   for(const a of list){const d=C.ukDay(a.held_start);if(!byDay.has(d))byDay.set(d,[]);byDay.get(d).push(a);}
   const out=['Hi, here are the collection times:',''];
@@ -53,6 +62,56 @@ class Dispatch{
   }
   out.push('All times are UK time. Please confirm with the customers and let us know if any of these do not suit. Thank you.');
   return out.join('\n');
+ }
+ /* Разбор очереди по категориям: что куда встало и откуда пришло.
+    Английский текст — партнёру в WhatsApp; русская сводка — себе, в копию не попадает. */
+ scheduleGroups(){
+  const order=['partner_email','missing','partner_whatsapp','subnex_website'];
+  const groups=new Map(order.map(k=>[k,[]]));
+  for(const a of this.requests){
+   const at=a.held_start||a.offered_start;
+   if(!at)continue;
+   const src=C.sourceOf(a);
+   if(!groups.has(src))groups.set(src,[]);
+   groups.get(src).push({...a,at,awaiting:['preparing','awaiting','manual'].includes(a.offer_state)});
+  }
+  return [...groups.entries()].filter(([,list])=>list.length);
+ }
+ scheduleText(groups){
+  const out=['SUBNEX — collection schedule','Prepared '+longDate(C.ukDay())+'.',''];
+  for(const [src,list] of groups){
+   out.push((C.sourceNames[src]||src).toUpperCase()+' — '+list.length);
+   const byDay=new Map();
+   for(const a of list){const d=C.ukDay(a.at);if(!byDay.has(d))byDay.set(d,[]);byDay.get(d).push(a);}
+   for(const day of [...byDay.keys()].sort()){
+    out.push('  '+longDate(day));
+    for(const a of byDay.get(day).sort((x,y)=>C.ukMinute(x.at)-C.ukMinute(y.at))){
+     const end=a.held_end||a.offered_end;
+     out.push('   '+clock(C.ukMinute(a.at))+(end?'–'+clock(C.ukMinute(end)):'')+'  '+a.text
+      +(a.awaiting?'  (awaiting customer reply)':''));
+    }
+   }
+   out.push('');
+  }
+  out.push('All times are UK time. Please confirm with the customers and let us know if any of these do not suit. Thank you.');
+  return out.join('\n');
+ }
+ copySchedule(){
+  const groups=this.scheduleGroups();
+  const total=groups.reduce((n,[,l])=>n+l.length,0);
+  if(!total){this.notice('Пока ни одной заявке не назначено время. Сначала распределите очередь и сохраните предложения.',true);return;}
+  const summary=groups.map(([src,l])=>`${esc(C.sourceNames[src]||src)} — ${l.length}`).join(' · ');
+  const text=this.scheduleText(groups);
+  const w=this.dialog('Разбор по категориям',
+   `<p class="od-muted">Всего с назначенным временем: <b>${total}</b>. ${summary}.</p>`
+   +`<p class="od-muted">Ниже — готовый английский текст для партнёра. Русская строка выше в копию не попадает.</p>`
+   +`<textarea id="od-sc-text" rows="16" readonly>${esc(text)}</textarea>`
+   +`<div class="od-actions" style="margin-top:8px"><button id="od-sc-copy">Скопировать</button></div>`,null);
+  w.querySelector('#od-sc-copy').onclick=async()=>{
+   const b=w.querySelector('#od-sc-copy'),f=w.querySelector('#od-sc-text');
+   try{await navigator.clipboard.writeText(f.value);b.textContent='Скопировано';}
+   catch(e){f.removeAttribute('readonly');f.select();b.textContent='Выделено — скопируйте вручную';}
+  };
  }
  copyForPartner(){
   const {direct}=this.sendable();
@@ -97,6 +156,7 @@ class Dispatch{
      +(sample?`<details><summary>Текст первой SMS</summary><textarea rows="9" readonly>${esc(sample)}</textarea></details>`:''):'')
    +(direct.length?`<p><b>${direct.length}</b> — от партнёра: сразу в маршрут, клиенту ничего не отправляется.</p><ul>${direct.map(li).join('')}</ul>`:'')
    +(blocked.length?`<p class="od-muted">Пропустим ${blocked.length}: нет британского мобильного — ${blocked.map(a=>esc(a.text)).join('; ')}</p>`:'')
+   +`<p class="od-muted">Пачка идёт до конца: сбойный адрес не остановит остальные. Если сломается что-то общее — доступ, сервис дорог, лимит — отправка остановится и покажет причину.</p>`
    +(sms.length?`<label style="margin-top:10px"><input id="od-send-agree" type="checkbox"> Да, отправить ${sms.length} SMS живым клиентам</label>`:''),
    async w=>{
     if(sms.length&&!w.querySelector('#od-send-agree').checked)throw new Error('Отметьте подтверждение отправки.');
@@ -117,24 +177,39 @@ class Dispatch{
   await Ops.api(this.sb,'send',payload);
  }
  async sendBatch(direct,sms){
-  let routed=0,sent=0;const failed=[];
-  for(let i=0;i<direct.length;i++){const a=direct[i];
-   this.notice(`Ставлю в маршрут · ${i+1} из ${direct.length}`);
-   try{await warm(this.o,C.ukDay(a.held_start),[a.id]);await this.call('confirm_partner',{address_id:a.id,agreed:true});routed++;}
-   catch(e){failed.push(esc(a.text)+' — '+esc(error(e)));}
-  }
-  for(let i=0;i<sms.length;i++){const a=sms[i];
-   this.notice(`Отправляю SMS · ${i+1} из ${sms.length}`);
-   try{await this.sendOffer(a);sent++;}
-   catch(e){failed.push(esc(a.text)+' — '+esc(error(e)));
-    // Если не прошла самая первая — дело не в адресе. Останавливаемся, не рассылая ошибку дальше.
-    if(i===0){failed.push('<b>Первая отправка не прошла — остальные не трогал.</b>');break;}}
-  }
+  let routed=0,sent=0,halt='';const failed=[],notes=[];
+  // Один проход: сбойный адрес не останавливает остальные. Останавливаемся, только если
+  // сломалось что-то общее (нет доступа, сервис молчит, лимит) или подряд упали три —
+  // тогда дело почти наверняка не в адресах, и рассылать дальше нельзя.
+  const run=async(list,title,step)=>{
+   let streak=0;
+   for(let i=0;i<list.length;i++){
+    if(halt)return;
+    const a=list[i];
+    this.notice(`${title} · ${i+1} из ${list.length}`);
+    try{await step(a);streak=0;}
+    catch(e){
+     failed.push(esc(a.text)+' — '+esc(error(e)));
+     if(batchFatal(e)){halt='Остановился: '+error(e)+' Это общий сбой, а не адрес — остальные не тронуты.';return;}
+     if(++streak>=3){notes.push('«'+title+'»: три подряд не прошли — дальше по этому списку не пошёл.');return;}
+    }
+   }
+  };
+  await run(direct,'Ставлю в маршрут',async a=>{
+   await warm(this.o,C.ukDay(a.held_start),[a.id]);
+   await this.call('confirm_partner',{address_id:a.id,agreed:true});routed++;});
+  await run(sms,'Отправляю SMS',async a=>{await this.sendOffer(a);sent++;});
   await this.reload();this.render();await this.o.onChanged?.();
   const parts=[];if(sent)parts.push('отправлено '+sent);if(routed)parts.push('в маршрут '+routed);
   if(failed.length){
    this.notice((parts.join(', ')||'ничего не отправлено')+' · не прошло '+failed.length,true);
-   this.dialog('Что не прошло','<ul>'+failed.map(f=>'<li>'+f+'</li>').join('')+'</ul>',null);
+   this.dialog('Что не прошло',
+    (parts.length?`<p>Успешно: ${esc(parts.join(', '))}.</p>`:'')
+    +(halt?`<p class="od-warning">${esc(halt)}</p>`:'')
+    +notes.map(n=>`<p class="od-warning">${esc(n)}</p>`).join('')
+    +`<p class="od-muted">Не прошло ${failed.length}:</p><ul>${failed.map(f=>'<li>'+f+'</li>').join('')}</ul>`
+    +`<p class="od-muted">Время у этих заявок сохранилось. Исправьте причину и нажмите «Отправить предложения» ещё раз — уже отправленные повторно не уйдут.</p>`,
+    null);
   }else this.notice(parts.join(', ')+'.');
  }
  available(a){return !a.hold_id&&!['preparing','awaiting','manual'].includes(a.offer_state)&&!a.date;}
@@ -151,7 +226,7 @@ class Dispatch{
   const acts=a=>{const b=[];if(a.hold_id&&['partner_whatsapp','missing'].includes(C.sourceOf(a)))b.push(`<button data-action="partner" data-id="${a.id}">Согласовать</button>`);else if(a.hold_id||a.offer_state||a.date)b.push(`<button data-action="sms" data-id="${a.id}">SMS</button>`);if(a.hold_id&&!['preparing','awaiting','manual'].includes(a.offer_state))b.push(`<button data-action="release" data-id="${a.id}">Снять</button>`);if(this.available(a))b.push(`<button data-action="edit" data-id="${a.id}">Изменить</button>`);
    if(!['preparing','awaiting','manual'].includes(a.offer_state))b.push(`<button data-action="move" data-id="${a.id}">Перенести</button>`);
    b.push(`<button data-action="drop" data-id="${a.id}">Убрать</button>`);return b.join('');};
-  return `<div class="od-intro od-between"><div><h3>Заявки без даты · ${this.requests.length}</h3><p>Отметьте адреса — приложение подберёт день и время, заполняя уже начатые дни вплотную к соседним адресам.</p></div><div class="od-actions"><button data-action="sendall" ${ready.total?'':'disabled data-locked="true"'}>Отправить предложения${ready.total?' · '+ready.total:''}</button>${ready.direct.length?`<button data-action="copypartner">Текст для WhatsApp · ${ready.direct.length}</button>`:''}<button data-action="refresh">Обновить</button></div></div>
+  return `<div class="od-intro od-between"><div><h3>Заявки без даты · ${this.requests.length}</h3><p>Отметьте адреса — приложение подберёт день и время, заполняя уже начатые дни вплотную к соседним адресам.</p></div><div class="od-actions"><button data-action="sendall" ${ready.total?'':'disabled data-locked="true"'}>Отправить предложения${ready.total?' · '+ready.total:''}</button>${ready.direct.length?`<button data-action="copypartner">Текст для WhatsApp · ${ready.direct.length}</button>`:''}<button data-action="schedule">Разбор по категориям</button><button data-action="refresh">Обновить</button></div></div>
   <details><summary>Искать места с ${label(this.from)}, на ${this.days} дней вперёд</summary><div class="od-grid"><label>Начиная с<input id="od-from" type="date" min="${C.ukDay()}" value="${this.from}"></label><label>Горизонт<select id="od-days"><option value="7" ${this.days===7?'selected':''}>7 дней</option><option value="14" ${this.days===14?'selected':''}>14 дней</option></select></label></div></details>
   ${this.requests.length>500?'<p class="od-warning">Показаны первые 500 заявок. Распределите их, затем обновите очередь.</p>':''}
   ${shown.length?`<div class="od-selection od-between"><label class="od-select"><input type="checkbox" id="od-all" ${free.length&&free.slice(0,40).every(a=>this.selected.has(a.id))?'checked':''}> Выбрать первые 40 свободных</label><b id="od-count">Выбрано: ${this.selected.size}</b></div>
@@ -334,6 +409,7 @@ class Dispatch{
  if(act==='legacy'){const p=this.legacy.find(p=>p.id===b.dataset.id);this.dialog('Подтвердить прежнее предложение',`<p>${esc(p.address)} · ${label(C.ukDay(p.starts_at))} ${C.hm(C.ukMinute(p.starts_at))}</p><label><input id="od-legacy-agreed" type="checkbox">Партнёр подтвердил эту дату и время.</label>`,async w=>{if(!w.querySelector('#od-legacy-agreed').checked)throw new Error('AGREEMENT_REQUIRED');await warm(this.o,C.ukDay(p.starts_at));await this.call('legacy_confirm',{id:p.id,agreed:true});await this.reload();this.render();await this.o.onChanged?.();},'Подтвердить');return;}
  if(act==='sendall'){this.sendAll();return;}
  if(act==='copypartner'){this.copyForPartner();return;}
+ if(act==='schedule'){this.copySchedule();return;}
  if(act==='sms'){const plan=a.held_start?{dispatch:true,driver_id:this.driver.id,address_id:a.id,day:C.ukDay(a.held_start),start:C.hm(C.ukMinute(a.held_start)),end:C.hm(C.ukMinute(a.held_end))}:null;if(!this.inline)this.close();if(this.o.onChoose&&plan)this.o.onChoose(plan);else this.o.onSms?.(a.id,plan);return;}
  this.run(async()=>{if(act==='refresh'){await this.reload();this.render();this.notice('Список обновлён.');}
  else if(act==='import'){online(this.o);this.syncRows();if(!this.rows.length)throw new Error('В списке нет заявок.');const issues=this.rows.flatMap((r,i)=>C.issues(r,this.o.addresses?.()||this.requests,this.rows.slice(0,i)).map(m=>`${i+1}: ${m}`));if(issues.length){this.updateIssues();throw new Error(issues.join('\n'));}const rows=this.rows.map(({raw,row,...r})=>r);const signature=JSON.stringify(rows);if(this.importSignature&&this.importSignature!==signature)this.importId=crypto.randomUUID();this.importSignature=signature;const r=await this.call('import',{request_id:this.importId,rows});this.selected=new Set(r.ids.slice(0,40));await this.reload();this.mode='queue';this.render();this.notice(`Добавлено: ${r.imported}. Теперь можно подобрать время.`);await this.o.onChanged?.();}
