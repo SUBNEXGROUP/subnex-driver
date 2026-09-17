@@ -259,9 +259,24 @@ class Dispatch{
  }
  available(a){return !a.hold_id&&!['preparing','awaiting','manual'].includes(a.offer_state)&&!a.date;}
  queue(){const free=this.requests.filter(a=>this.available(a)),shown=this.requests.slice(0,500),ready=this.sendable();
+  /* Три блока, чтобы новые заявки не путались с теми, где время уже занято
+     или клиенту уже написали. Порядок — по убыванию обязательств перед клиентом. */
+  const groups=[
+   {key:'wait', title:'Ждём ответ клиента', hint:'Время обещано в SMS. Трогать не нужно — ждём YES.',
+    rows:shown.filter(a=>a.offered_start)},
+   {key:'held', title:'Время занято, не отправлено', hint:'Место в маршруте есть, клиент про него ещё не знает. Отсюда идёт «Отправить предложения».',
+    rows:shown.filter(a=>!a.offered_start&&a.held_start)},
+   {key:'new', title:'Новые заявки', hint:'Без времени. Отметьте и посчитайте план.',
+    rows:shown.filter(a=>!a.offered_start&&!a.held_start)},
+  ].filter(g=>g.rows.length);
+  const groupHead=g=>groups.length<2?'':`<tr><td colspan="7" style="background:var(--soft,#F3F3EE);padding:9px 10px;border-top:1px solid var(--line,#E3E3DC)"><b>${esc(g.title)} · ${g.rows.length}</b> <span class="od-muted" style="font-weight:400">— ${esc(g.hint)}</span></td></tr>`;
+
   const zcfg={zones:this.zones||[]};
-  const state=a=>{if(a.held_start)return `<span class="od-slot">${label(C.ukDay(a.held_start))}, ${C.hm(C.ukMinute(a.held_start))}–${C.hm(C.ukMinute(a.held_end))}</span>`;
-   if(a.offered_start)return `<span class="od-chip">Ждём YES · ${label(C.ukDay(a.offered_start))}</span>`;
+  /* Отправленное проверяем ПЕРВЫМ. Раньше первым шло удержанное время, и у заявки,
+     где есть и то и другое, факт отправки прятался за зелёным временем — выглядело так,
+     будто клиенту ещё ничего не обещали. */
+  const state=a=>{if(a.offered_start)return `<span class="od-chip" style="background:var(--far-soft);color:var(--far)">Ждём ответ · ${label(C.ukDay(a.offered_start))}, ${C.hm(C.ukMinute(a.offered_start))}–${C.hm(C.ukMinute(a.offered_end||a.offered_start))}</span>`;
+   if(a.held_start)return `<span class="od-slot">Время занято · ${label(C.ukDay(a.held_start))}, ${C.hm(C.ukMinute(a.held_start))}–${C.hm(C.ukMinute(a.held_end))} · не отправлено</span>`;
    if(a.date)return '<span class="od-chip">В маршруте</span>';
    const z=C.zoneRule(zcfg,a.text);
    if(!z)return C.postcodeArea(a.text)?`<span class="od-chip" style="background:var(--crit-soft);color:var(--crit)">Район ${esc(C.postcodeArea(a.text))} не настроен</span>`:'<span class="od-chip" style="background:var(--crit-soft);color:var(--crit)">Неполный почтовый индекс</span>';
@@ -275,7 +290,7 @@ class Dispatch{
   <details><summary>Искать места с ${label(this.from)}, на ${this.days} дней вперёд</summary><div class="od-grid"><label>Начиная с<input id="od-from" type="date" min="${C.ukDay()}" value="${this.from}"></label><label>Горизонт<select id="od-days"><option value="7" ${this.days===7?'selected':''}>7 дней</option><option value="14" ${this.days===14?'selected':''}>14 дней</option></select></label></div></details>
   ${this.requests.length>500?'<p class="od-warning">Показаны первые 500 заявок. Распределите их, затем обновите очередь.</p>':''}
   ${shown.length?`<div class="od-selection od-between"><label class="od-select"><input type="checkbox" id="od-all" ${free.length&&free.slice(0,40).every(a=>this.selected.has(a.id))?'checked':''}> Выбрать первые 40 свободных</label><b id="od-count">Выбрано: ${this.selected.size}</b></div>
-  <div class="tscroll"><table class="t"><thead><tr><th style="width:34px"></th><th>Адрес</th><th>Источник</th><th>Мешки</th><th>Телефон</th><th>Состояние</th><th></th></tr></thead><tbody>${shown.map(a=>`<tr class="${this.selected.has(a.id)?'sel':''}" data-request="${esc(a.id)}"><td><input type="checkbox" data-select="${esc(a.id)}" ${this.selected.has(a.id)?'checked':''} ${this.available(a)?'':'disabled data-locked="true"'} aria-label="Выбрать заявку"></td><td class="addr"><b>${esc(a.text)}</b>${a.not_before?`<small>доступен с ${esc(label(a.not_before))}</small>`:''}${C.validPoint(a)?'':'<span class="warnrow">координаты определим перед расчётом</span>'}</td><td><span class="od-chip">${esc(C.sourceNames[C.sourceOf(a)])}</span>${a.charity?`<br><span class="od-muted" style="font-size:11.5px">${esc(a.charity)}</span>`:''}</td><td style="white-space:nowrap">${esc(a.bags_text||a.bags||'—')}</td><td class="mono" style="white-space:nowrap;font-size:12.3px">${esc(a.phone||'—')}</td><td>${state(a)}</td><td class="od-actions">${acts(a)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="od-empty">Очередь пуста. Добавьте один адрес или вставьте список из письма.</div>'}
+  <div class="tscroll"><table class="t"><thead><tr><th style="width:34px"></th><th>Адрес</th><th>Источник</th><th>Мешки</th><th>Телефон</th><th>Состояние</th><th></th></tr></thead><tbody>${groups.map(g=>groupHead(g)+g.rows.map(a=>`<tr class="${this.selected.has(a.id)?'sel':''}" data-request="${esc(a.id)}"><td><input type="checkbox" data-select="${esc(a.id)}" ${this.selected.has(a.id)?'checked':''} ${this.available(a)?'':'disabled data-locked="true"'} aria-label="Выбрать заявку"></td><td class="addr"><b>${esc(a.text)}</b>${a.not_before?`<small>доступен с ${esc(label(a.not_before))}</small>`:''}${C.validPoint(a)?'':'<span class="warnrow">координаты определим перед расчётом</span>'}</td><td><span class="od-chip">${esc(C.sourceNames[C.sourceOf(a)])}</span>${a.charity?`<br><span class="od-muted" style="font-size:11.5px">${esc(a.charity)}</span>`:''}</td><td style="white-space:nowrap">${esc(a.bags_text||a.bags||'—')}</td><td class="mono" style="white-space:nowrap;font-size:12.3px">${esc(a.phone||'—')}</td><td>${state(a)}</td><td class="od-actions">${acts(a)}</td></tr>`).join('')).join('')}</tbody></table></div>`:'<div class="od-empty">Очередь пуста. Добавьте один адрес или вставьте список из письма.</div>'}
   ${this.legacy.length?`<h3 style="margin-top:20px">Ранее переданные партнёрам</h3>${this.legacy.map(p=>`<article class="od-card od-between"><div><strong>${esc(p.address)}</strong><p class="od-muted">${label(C.ukDay(p.starts_at))} · ${C.hm(C.ukMinute(p.starts_at))}</p></div><button data-action="legacy" data-id="${p.id}">Партнёр подтвердил</button></article>`).join('')}`:''}
   <div class="od-footer"><span>Клиенту предлагается 30-минутное окно прибытия</span><button class="od-primary" data-action="calculate">Распределить по дням</button></div>`;}
  planView(){const m=this.plan.metrics,mm=v=>v>=60?Math.floor(v/60)+' ч '+(v%60?v%60+' мин':''):v+' мин';
