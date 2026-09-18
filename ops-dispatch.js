@@ -70,6 +70,19 @@ async function startDay(o,day,opts={}){online(o);await warm(o,day);const state=a
  await rpc(o.sb,'start',{driver_id:o.driver.id,day,token:state.token});return await rpc(o.sb,'day',{driver_id:o.driver.id,day});}
 const sourceOptions=selected=>Object.entries(C.sourceNames).map(([v,n])=>`<option value="${v}" ${v===selected?'selected':''}>${n}</option>`).join('');
 const input=(name,title,value='',type='text',extra='')=>`<label>${title}<input data-field="${name}" type="${type}" value="${esc(value)}" ${extra}></label>`;
+/* Напоминание тому, кто не ответил на предложение. Время НЕ пересчитывается:
+   повторяем ровно то, что уже обещали, иначе человек получит два разных
+   интервала и перестанет понимать, когда его ждать. */
+const reminderMessage=(a,driverName)=>{
+ const name=String(driverName||'').trim(),brand=C.sourceOf(a)==='subnex_website'?'SUBNEX':'We Recycle Clothes';
+ const when=new Intl.DateTimeFormat('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'UTC'})
+  .format(new Date(C.ukDay(a.offered_start)+'T12:00:00Z'));
+ const from=C.hm(C.ukMinute(a.offered_start)),to=C.hm(C.ukMinute(a.offered_end||a.offered_start));
+ return `Hello, this is ${name?name+' from '+brand:brand}.\n\n`
+  +`We are still holding your clothing collection at ${a.text} on ${when}, between ${from} and ${to} (UK time).\n\n`
+  +`Please reply YES to confirm and we will be there. If that day no longer suits you, just reply and tell us which day works better — we are happy to move it.\n\n`
+  +`Kind regards,\n${name?name+'\n':''}${brand}`;
+};
 /* Список charity — подсказка, а не ограничение: партнёр регулярно присылает новые,
    поэтому поле остаётся текстовым, а список только помогает не плодить написания. */
 const datalist=(id,items)=>`<datalist id="${id}">${items.map(v=>`<option value="${esc(v)}"></option>`).join('')}</datalist>`;
@@ -258,7 +271,17 @@ class Dispatch{
   }else this.notice(parts.join(', ')+'.');
  }
  available(a){return !a.hold_id&&!['preparing','awaiting','manual'].includes(a.offer_state)&&!a.date;}
- queue(){const free=this.requests.filter(a=>this.available(a)),shown=this.requests.slice(0,500),ready=this.sendable();
+ /* Похожие заявки в очередь не попадают вовсе: они собираются во вкладке
+    «Повторы», где видно, с чем совпало, и можно открыть двойника. Решение
+    «это не повтор» хранится в базе — колонка duplicate_ignored, — поэтому
+    держится на любом компьютере. */
+ parked(a){return !!(this.dupExtras&&this.dupExtras.has(a.id)&&this.available(a));}
+ queue(){const base=this.o.addresses?.()||[];
+  const ok=new Set(this.requests.concat(base).filter(a=>a&&a.duplicate_ignored).map(a=>a.id));
+  this.dupExtras=new Set([...C.duplicateExtras(this.requests,base)].filter(id=>!ok.has(id)));
+  const dupCount=this.requests.filter(a=>this.parked(a)).length;
+  const shown=this.requests.filter(a=>!this.parked(a)).slice(0,500),ready=this.sendable();
+  const free=this.requests.filter(a=>this.available(a)&&!this.parked(a));
   /* Три блока, чтобы новые заявки не путались с теми, где время уже занято
      или клиенту уже написали. Порядок — по убыванию обязательств перед клиентом. */
   const groups=[
@@ -283,18 +306,19 @@ class Dispatch{
    if(z.mode==='off')return `<span class="od-chip">Район «${esc(z.name)}» выключен</span>`;
    if(z.mode==='monthly'){const d=C.nextTripDays(z,C.ukDay(),1)[0];return `<span class="od-chip" style="background:var(--far-soft);color:var(--far)">${esc(z.name)} · выезд ${d?label(d):'не задан'}</span>`;}
    return '<span class="od-muted">Ждёт распределения</span>';};
-  const acts=a=>{const b=[];if(a.hold_id&&['partner_whatsapp','missing'].includes(C.sourceOf(a)))b.push(`<button data-action="partner" data-id="${a.id}">Согласовать</button>`);else if(a.hold_id||a.offer_state||a.date)b.push(`<button data-action="sms" data-id="${a.id}">SMS</button>`);if(a.hold_id&&!['preparing','awaiting','manual'].includes(a.offer_state))b.push(`<button data-action="release" data-id="${a.id}">Снять</button>`);if(this.available(a))b.push(`<button data-action="edit" data-id="${a.id}">Изменить</button>`);
+  const acts=a=>{const b=[];if(a.hold_id&&['partner_whatsapp','missing'].includes(C.sourceOf(a)))b.push(`<button data-action="partner" data-id="${a.id}">Согласовать</button>`);else if(a.hold_id||a.offer_state||a.date)b.push(`<button data-action="sms" data-id="${a.id}">SMS</button>`);if(a.hold_id&&!['preparing','awaiting','manual'].includes(a.offer_state))b.push(`<button data-action="release" data-id="${a.id}">Снять</button>`);if(a.offer_state==='awaiting'&&a.offered_start)b.push(`<button data-action="remind" data-id="${a.id}">Напомнить</button>`);if(this.available(a))b.push(`<button data-action="edit" data-id="${a.id}">Изменить</button>`);
    if(!['preparing','awaiting','manual'].includes(a.offer_state))b.push(`<button data-action="move" data-id="${a.id}">Перенести</button>`);
    b.push(`<button data-action="drop" data-id="${a.id}">Убрать</button>`);return b.join('');};
   return `<div class="od-intro od-between"><div><h3>Заявки без даты · ${this.requests.length}</h3><p>Отметьте адреса — приложение подберёт день и время, заполняя уже начатые дни вплотную к соседним адресам.</p></div><div class="od-actions"><button data-action="sendall" ${ready.total?'':'disabled data-locked="true"'}>Отправить предложения${ready.total?' · '+ready.total:''}</button>${ready.direct.length?`<button data-action="copypartner">Текст для WhatsApp · ${ready.direct.length}</button>`:''}<button data-action="schedule">Разбор по категориям</button><button data-action="refresh">Обновить</button></div></div>
   <details><summary>Искать места с ${label(this.from)}, на ${this.days} дней вперёд</summary><div class="od-grid"><label>Начиная с<input id="od-from" type="date" min="${C.ukDay()}" value="${this.from}"></label><label>Горизонт<select id="od-days"><option value="7" ${this.days===7?'selected':''}>7 дней</option><option value="14" ${this.days===14?'selected':''}>14 дней</option></select></label></div></details>
   ${this.requests.length>500?'<p class="od-warning">Показаны первые 500 заявок. Распределите их, затем обновите очередь.</p>':''}
+  ${dupCount?`<p class="od-warning">Похоже на повтор: ${dupCount}. В очередь они не попали — откройте вкладку «Повторы» слева.</p>`:''}
   ${shown.length?`<div class="od-selection od-between"><label class="od-select"><input type="checkbox" id="od-all" ${free.length&&free.slice(0,40).every(a=>this.selected.has(a.id))?'checked':''}> Выбрать первые 40 свободных</label><b id="od-count">Выбрано: ${this.selected.size}</b></div>
   <div class="tscroll"><table class="t"><thead><tr><th style="width:34px"></th><th>Адрес</th><th>Источник</th><th>Мешки</th><th>Телефон</th><th>Состояние</th><th></th></tr></thead><tbody>${groups.map(g=>groupHead(g)+g.rows.map(a=>`<tr class="${this.selected.has(a.id)?'sel':''}" data-request="${esc(a.id)}"><td><input type="checkbox" data-select="${esc(a.id)}" ${this.selected.has(a.id)?'checked':''} ${this.available(a)?'':'disabled data-locked="true"'} aria-label="Выбрать заявку"></td><td class="addr"><b>${esc(a.text)}</b>${a.not_before?`<small>доступен с ${esc(label(a.not_before))}</small>`:''}${C.validPoint(a)?'':'<span class="warnrow">координаты определим перед расчётом</span>'}</td><td><span class="od-chip">${esc(C.sourceNames[C.sourceOf(a)])}</span>${a.charity?`<br><span class="od-muted" style="font-size:11.5px">${esc(a.charity)}</span>`:''}</td><td style="white-space:nowrap">${esc(a.bags_text||a.bags||'—')}</td><td class="mono" style="font-size:12.3px">${/^\+447\d{9}$/.test(C.phone(a.phone||''))?esc(a.phone):`<span style="color:var(--crit)">${esc(a.phone||'нет телефона')}</span>${a.contact_email?`<br><span class="od-muted" style="font-size:11.5px">${esc(a.contact_email)}</span>`:''}<br><span class="od-muted" style="font-size:11.5px">SMS не уйдёт</span>`}</td><td>${state(a)}</td><td class="od-actions">${acts(a)}</td></tr>`).join('')).join('')}</tbody></table></div>`:'<div class="od-empty">Очередь пуста. Добавьте один адрес или вставьте список из письма.</div>'}
   ${this.legacy.length?`<h3 style="margin-top:20px">Ранее переданные партнёрам</h3>${this.legacy.map(p=>`<article class="od-card od-between"><div><strong>${esc(p.address)}</strong><p class="od-muted">${label(C.ukDay(p.starts_at))} · ${C.hm(C.ukMinute(p.starts_at))}</p></div><button data-action="legacy" data-id="${p.id}">Партнёр подтвердил</button></article>`).join('')}`:''}
   <div class="od-footer"><span>Клиенту предлагается 30-минутное окно прибытия</span><button class="od-primary" data-action="calculate">Распределить по дням</button></div>`;}
  planView(){const m=this.plan.metrics,mm=v=>v>=60?Math.floor(v/60)+' ч '+(v%60?v%60+' мин':''):v+' мин';
-  const days=this.plan.days.filter(d=>d.nodes.length),zcfg={zones:this.zones||[]};
+  const days=this.plan.days.filter(d=>d.nodes.length),zcfg=this.planConfig||{zones:this.zones||[]};
   return `<div class="od-intro"><h3>Предложенный план</h3><p>Подтверждённые сборы не сдвигаются. При сохранении новые интервалы займут место до ответа клиента.</p>${m?`<div class="daystats" style="margin-top:12px"><div><div class="k">Распределено</div><div class="v">${m.assigned} <small>из ${m.assigned+m.unassigned}</small></div></div><div><div class="k">Дней занято</div><div class="v">${m.days_used}</div></div><div><div class="k">Дорога с запасом</div><div class="v">${mm(m.drive)}</div></div><div><div class="k">Простой в днях</div><div class="v">${mm(m.wait)}</div></div><div><div class="k">Общий интервал</div><div class="v">${m.shared||0} <small>соседних</small></div></div>${m.late?`<div><div class="k">Позже 7 дней</div><div class="v" style="color:var(--warn)">${m.late}</div></div>`:''}</div>`:''}</div>
   ${days.map(d=>{const trip=C.tripZoneOf(zcfg,d.day)||C.occupiedZoneOf(zcfg,d);return `<article class="od-card"><div class="od-between"><h3>${label(d.day)}${trip?` <span class="od-chip" style="background:var(--far-soft);color:var(--far)">выезд · ${esc(trip.name)}</span>`:''}</h3><b>${d.started_at?'Маршрут начат':d.fit.ok?d.fit.stops.length+' остановок'+(added=>added?' (+'+added+' новых)':'')(this.plan.assigned.filter(a=>a.day===d.day).length)+' · выезд '+C.hm(d.fit.departure)+', склад '+C.hm(d.fit.finish):'Требует внимания'}</b></div>${d.fit.ok?`<p class="od-muted">Дорога с запасом ${d.fit.drive} мин · сборы ${d.fit.service} мин · простой ${d.fit.wait??0} мин</p><ol class="od-stops">${d.fit.stops.map((stop,si)=>{const n=d.nodes.find(n=>n.key===stop.key),fresh=this.plan.assigned.some(a=>a.address_id===stop.address_id);const p=si?d.nodes.find(x=>x.key===d.fit.stops[si-1].key):null,together=p&&String(slotOf(p))===String(slotOf(n));return `<li><div><strong>${esc(stop.text)}</strong><small>${fresh?'<span class="od-slot">Новая заявка</span> · ':n.kind==='confirmed'?'Подтверждено · ':'Ожидаем ответ · '}${arrivalLabel(n)}${together?' · <span class="od-slot">вместе с предыдущим</span>':''}${stop.wait?' · простой '+stop.wait+' мин':''}</small></div><div class="od-stop-act"><b>≈ ${C.hm(stop.arrival)}</b><button data-action="replan" data-id="${esc(stop.address_id||'')}" data-key="${esc(stop.key)}" data-day="${esc(d.day)}">Перенести</button></div></li>`;}).join('')}</ol>`:`<p class="od-warning">${esc(error({code:d.fit.code,detail:d.fit}))}</p>`}</article>`;}).join('')}
   ${this.plan.unassigned.length?`<article class="od-card"><h3>Останутся в очереди · ${this.plan.unassigned.length}</h3>${this.plan.unassigned.map(a=>`<p><b>${esc(this.requests.find(r=>r.id===a.address_id)?.text||'')}</b><br><span class="od-muted">${esc(a.reason)}</span></p>`).join('')}</article>`:''}
@@ -306,7 +330,7 @@ class Dispatch{
   <div id="od-config" hidden>${['capacity_kg','reserve_kg','reserve_minutes','travel_factor','leg_buffer_minutes','zone_penalty_minutes','day_penalty_minutes'].map(k=>`<input type="hidden" data-field="${k}" data-num value="${c[k]}">`).join('')}</div>
   <p class="od-muted">Ограничений по весу и свободному времени нет: день заполняется полностью, пока успевают дорога, сборы и рабочие часы. К расчётному времени в пути добавляется 20% и 5 минут на каждый переезд.</p>
   <div class="od-actions"><button class="od-primary" data-action="save-settings">Сохранить</button><button data-action="health">Проверить сервис дорог</button></div>`;}
- bind(){this.$('#od-paste')?.addEventListener('paste',e=>{this.pasteHtml=e.clipboardData?.getData('text/html')||'';});this.$('#od-paste')?.addEventListener('input',e=>{if(e.inputType!=='insertFromPaste')this.pasteHtml='';});this.$('#od-source')?.addEventListener('change',e=>this.source=e.target.value);this.$('#od-from')?.addEventListener('change',e=>this.from=e.target.value);this.$('#od-days')?.addEventListener('change',e=>this.days=+e.target.value);this.root.querySelectorAll('[data-select]').forEach(el=>el.onchange=()=>{if(el.checked&&this.selected.size>=40){el.checked=false;this.notice(errors.BATCH_LIMIT_40,true);return;}el.checked?this.selected.add(el.dataset.select):this.selected.delete(el.dataset.select);this.$('#od-count').textContent='Выбрано: '+this.selected.size;});this.$('#od-all')?.addEventListener('change',e=>{this.selected=new Set(e.target.checked?this.requests.filter(a=>this.available(a)).slice(0,40).map(a=>a.id):[]);this.render();});this.root.querySelectorAll('[data-row] [data-field]').forEach(el=>el.onchange=()=>{this.syncRows();this.updateIssues();});}
+ bind(){this.$('#od-paste')?.addEventListener('paste',e=>{this.pasteHtml=e.clipboardData?.getData('text/html')||'';});this.$('#od-paste')?.addEventListener('input',e=>{if(e.inputType!=='insertFromPaste')this.pasteHtml='';});this.$('#od-source')?.addEventListener('change',e=>this.source=e.target.value);this.$('#od-from')?.addEventListener('change',e=>this.from=e.target.value);this.$('#od-days')?.addEventListener('change',e=>this.days=+e.target.value);this.root.querySelectorAll('[data-select]').forEach(el=>el.onchange=()=>{if(el.checked&&this.selected.size>=40){el.checked=false;this.notice(errors.BATCH_LIMIT_40,true);return;}el.checked?this.selected.add(el.dataset.select):this.selected.delete(el.dataset.select);this.$('#od-count').textContent='Выбрано: '+this.selected.size;});this.$('#od-all')?.addEventListener('change',e=>{this.selected=new Set(e.target.checked?this.requests.filter(a=>this.available(a)&&!this.parked(a)).slice(0,40).map(a=>a.id):[]);this.render();});this.root.querySelectorAll('[data-row] [data-field]').forEach(el=>el.onchange=()=>{this.syncRows();this.updateIssues();});}
  fields(parent){return Object.fromEntries([...parent.querySelectorAll('[data-field]')].map(el=>[el.dataset.field,el.type==='number'||el.dataset.num!==undefined||el.dataset.field==='service_minutes'?Number(el.value):el.value]));}
  syncRows(){this.root.querySelectorAll('[data-row]').forEach(box=>Object.assign(this.rows[+box.dataset.row],this.fields(box)));}
  updateIssues(){this.root.querySelectorAll('[data-row]').forEach(box=>{const i=+box.dataset.row,issues=C.issues(this.rows[i],this.o.addresses?.()||this.requests,this.rows.slice(0,i));box.classList.toggle('od-invalid',issues.length>0);box.querySelector('.od-row-issues').textContent=issues.join(' · ');});}
@@ -318,6 +342,30 @@ class Dispatch{
  this.plan=await C.planBatch(snap.days,snap.requests,this.planConfig,roads,(n,total)=>this.notice(`Подобрано ${n} из ${total}`));this.reserveId=crypto.randomUUID();this.mode='plan';this.render();this.notice(skipped.length?'Некоторые дни не рассчитаны: '+skipped.map(d=>label(d.day)+' — '+d.error).join(' '):this.plan.assigned.length?'Проверьте порядок и время перед сохранением.':'Подходящих мест пока нет. Измените горизонт поиска или проверьте проблемные дни.',!!skipped.length);}
  dialog(title,body,onSave,saveLabel='Сохранить'){this.$('.od-dialog')?.remove();const wrap=document.createElement('div');wrap.className='od-dialog';wrap.innerHTML=`<section role="dialog" aria-modal="true" aria-label="${esc(title)}"><h3>${esc(title)}</h3>${body}<p class="od-dialog-error" role="alert"></p><div class="od-actions"><button class="od-dialog-cancel">Закрыть</button>${onSave?`<button class="od-dialog-save od-primary">${saveLabel}</button>`:''}</div></section>`;this.root.append(wrap);wrap.querySelector('.od-dialog-cancel').onclick=()=>{if(!this.modalBusy)wrap.remove();};if(onSave)wrap.querySelector('.od-dialog-save').onclick=async()=>{const btn=wrap.querySelector('.od-dialog-save');if(this.modalBusy)return;this.modalBusy=true;btn.disabled=true;try{await onSave(wrap);wrap.remove();}catch(e){wrap.querySelector('.od-dialog-error').textContent=error(e);btn.disabled=false;}finally{this.modalBusy=false;}};wrap.querySelector('input,textarea,button')?.focus();return wrap;}
  /* Дружелюбное сообщение клиенту о смене времени. Английский, как все письма клиентам. */
+ /* Напоминание тому, кто не ответил на предложение. Время НЕ пересчитывается:
+    повторяем ровно то, что уже обещали, иначе человек получит два разных
+    интервала и перестанет понимать, когда его ждать. */
+ remindText(a){return reminderMessage(a,this.driver.name);}
+ remind(a){
+  if(!a.offered_start){this.notice('Этому адресу предложение не отправлялось.',true);return;}
+  const text=this.remindText(a);
+  this.dialog('Напомнить о сборе',
+   `<p><b>${esc(a.text)}</b></p>`
+   +`<p class="od-muted">Предложение ушло на ${label(C.ukDay(a.offered_start))}, ${C.hm(C.ukMinute(a.offered_start))}–${C.hm(C.ukMinute(a.offered_end||a.offered_start))}, ответа нет. Время не меняется — повторяем то же самое.</p>`
+   +`<textarea id="od-rm-text" rows="9">${esc(text)}</textarea>`
+   +`<label><input id="od-rm-send" type="checkbox" checked>Отправить клиенту это сообщение.</label>`,
+   async w=>{
+    if(!w.querySelector('#od-rm-send').checked)throw new Error('Отметьте отправку или закройте окно.');
+    online(this.o);
+    if(!window.Ops?.api)throw new Error('Модуль переписки не загружен.');
+    const thread=await Ops.api(this.sb,'create',{address_id:a.id});
+    if(!thread?.thread_id)throw new Error('Не удалось открыть переписку.');
+    await Ops.api(this.sb,'send',{thread_id:thread.thread_id,kind:'reply',
+     body:w.querySelector('#od-rm-text').value,request_id:crypto.randomUUID()});
+    await this.reload();this.render();this.notice('Напоминание отправлено.');
+    await this.o.onChanged?.();
+   },'Отправить напоминание');
+ }
  moveText(node,source,day,start,end){
   const name=(this.driver.name||'').trim(),brand=source==='subnex'?'SUBNEX':'We Recycle Clothes';
   const when=new Intl.DateTimeFormat('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'UTC'})
@@ -465,6 +513,7 @@ class Dispatch{
  if(act==='edit'){const ok=C.validPoint(a);this.dialog('Изменить заявку',`<p><b>${esc(a.text)}</b></p><div class="od-grid">${input('not_before','Клиент доступен начиная с',a.not_before,'date')}${charityInput(a.charity)}${datalist('od-charities',this.charities())}<label>Сбор на адресе<select data-field="service_minutes"><option value="5" ${a.service_minutes!==10?'selected':''}>5 минут</option><option value="10" ${a.service_minutes===10?'selected':''}>10 минут</option></select></label></div><input data-field="estimated_kg" data-num type="hidden" value="${esc(a.estimated_kg||10)}"><p class="od-muted">Точка на карте: ${ok?`определена${a.geocode_source==='postcode'?' по почтовому индексу — это центр индекса, дом может быть в стороне':''}. <a href="https://www.openstreetmap.org/?mlat=${a.lat}&mlon=${a.lng}#map=18/${a.lat}/${a.lng}" target="_blank" rel="noopener">Проверить</a>`:'не определена — найдём автоматически перед расчётом.'}</p>`,async w=>{const data=this.fields(w);delete data.lat;delete data.lng;await this.call('edit_request',{address_id:a.id,...data});await this.reload();this.render();this.notice('Заявка обновлена.');});return;}
  if(act==='replan'){this.replanStop(b.dataset.id,b.dataset.day,b.dataset.key);return;}
  if(act==='move'){this.moveRequest(a);return;}
+ if(act==='remind'){this.remind(a);return;}
  if(act==='drop'){this.dropRequest(a);return;}
  if(act==='release'){this.dialog('Снять предложение',`<p>${esc(a.text)}</p><label><input id="od-withdrawn" type="checkbox">${a.shared_at?'Я отозвал это время у партнёра.':'Предложение ещё не передано клиенту или уже отозвано.'}</label>`,async w=>{if(!w.querySelector('#od-withdrawn').checked)throw new Error('PARTNER_WITHDRAWAL_REQUIRED');await this.call('release',{address_id:a.id,acknowledged:true});await this.reload();this.render();},'Снять предложение');return;}
  if(act==='legacy'){const p=this.legacy.find(p=>p.id===b.dataset.id);this.dialog('Подтвердить прежнее предложение',`<p>${esc(p.address)} · ${label(C.ukDay(p.starts_at))} ${C.hm(C.ukMinute(p.starts_at))}</p><label><input id="od-legacy-agreed" type="checkbox">Партнёр подтвердил эту дату и время.</label>`,async w=>{if(!w.querySelector('#od-legacy-agreed').checked)throw new Error('AGREEMENT_REQUIRED');await warm(this.o,C.ukDay(p.starts_at));await this.call('legacy_confirm',{id:p.id,agreed:true});await this.reload();this.render();await this.o.onChanged?.();},'Подтвердить');return;}
@@ -483,5 +532,5 @@ class Dispatch{
  else if(act==='health'){const r=await edge(this.sb,{action:'health',driver_id:this.driver.id});this.notice('Сервис дорог подключён: '+r.provider+'.');}
  },act==='calculate'?'Начинаю расчёт…':'Выполняю…');}
 }
-root.OpsDispatch={open:async o=>{if(!o.driver?.id)throw new Error('Выберите водителя.');if(o.mount){const d=new Dispatch(o);await d.start();return d;}if(instance)instance.close();if(instance)return;instance=new Dispatch(o);await instance.start();return instance;},close:()=>instance?.close(),rpc,edge,warm,preflight,routeDay,startDay,lateOnly,dayIssueText,error,core:C};
+root.OpsDispatch={open:async o=>{if(!o.driver?.id)throw new Error('Выберите водителя.');if(o.mount){const d=new Dispatch(o);await d.start();return d;}if(instance)instance.close();if(instance)return;instance=new Dispatch(o);await instance.start();return instance;},close:()=>instance?.close(),rpc,edge,warm,preflight,routeDay,startDay,lateOnly,dayIssueText,reminderMessage,error,core:C};
 })(window);

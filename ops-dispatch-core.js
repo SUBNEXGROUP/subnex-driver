@@ -55,11 +55,32 @@ function nthWeekday(day,weekday,week){
  return pick?`${y}-${String(m).padStart(2,'0')}-${String(pick).padStart(2,'0')}`:null;
 }
 const zoneTripDay=(rule,day)=>rule&&rule.mode==='monthly'&&Number.isFinite(rule.weekday)?nthWeekday(day,rule.weekday,rule.week_of_month||5):null;
-/* Зона, чей выезд назначен на этот день: такой день занимают только её адреса. */
-const tripZoneOf=(config,day)=>(config.zones||[]).find(z=>z.mode==='monthly'&&zoneTripDay(z,day)===day)||null;
+/* Зона, чей выезд назначен на этот день: такой день занимают только её адреса.
+   Но день держится за зоной ТОЛЬКО пока в ней есть заявки. Иначе каждый месяц
+   один рабочий день пропадал бы впустую ради зоны, из которой ничего не пришло.
+   Список зон с заявками приходит в config.active_zones; если его нет — правило
+   работает по-старому. */
+const tripZoneOf=(config,day)=>{
+ const on=(config.zones||[]).filter(z=>z.mode==='monthly'&&zoneTripDay(z,day)===day);
+ if(!on.length)return null;
+ const active=config.active_zones;
+ if(!Array.isArray(active))return on[0];
+ /* В один день может выезжать несколько зон (Бристоль, BA, SN). Берём ту,
+    у которой есть заявки, иначе день освобождается под обычные адреса. */
+ return on.find(z=>active.includes(zoneKey(z)))||null;
+};
 /* Зона, чей адрес уже стоит в дне (подтверждённый или удержанный): такой день считается
    днём поездки в эту зону, даже если это не назначенная дата выезда. */
 const occupiedZoneOf=(config,day)=>{for(const n of day.nodes||[]){const z=zoneRule(config,n.text);if(z&&z.mode==='monthly')return z;}return null;};
+/* Зоны, задействованные в этом расчёте: есть заявка в очереди или уже стоящий
+   в дне адрес. Кладётся в config.active_zones перед планированием. */
+const activeZones=(config,requests,days)=>{
+ const out=new Set();
+ const add=t=>{const z=zoneRule(config,t);if(z&&z.mode==='monthly')out.add(zoneKey(z));};
+ (requests||[]).forEach(r=>add(r&&r.text));
+ (days||[]).forEach(d=>(d.nodes||[]).forEach(n=>add(n&&n.text)));
+ return [...out];
+};
 /* Ближайшие даты выезда зоны начиная с дня. */
 function nextTripDays(rule,from,count=3){const out=[];let [y,m]=from.split('-').map(Number);
  for(let i=0;i<14&&out.length<count;i++){const d=nthWeekday(`${y}-${String(m).padStart(2,'0')}-01`,rule.weekday,rule.week_of_month||5);
@@ -312,9 +333,71 @@ const placeKey=s=>{const pc=postcode(s);if(!pc)return null;
   .replace(/[^a-z0-9]+/g,' ').replace(CITY_WORDS,' ');
  return key(pc)+'|'+body.split(/\s+/).filter(Boolean).join('');};
 const samePlace=(a,b)=>{const ka=placeKey(a),kb=placeKey(b);return ka&&kb?ka===kb:key(a)===key(b);};
+/* ---------- похоже на дубль ----------
+   Два партнёра присылают один и тот же дом, написанный по-разному:
+   «15 Joyce Close, Gaer Newport NP203JD» и «15 Joyce Close, NP203JD».
+   Для сервера это разные адреса, и обе заявки честно встают в очередь.
+   Ничего не блокируем — помечаем, чтобы человек увидел пару и решил сам. */
+const houseNumber=s=>{const pc=postcode(s);
+ const body=pc?String(s||'').replace(new RegExp(pc.replace(' ','\\s*'),'i'),' '):String(s||'');
+ const m=body.match(/\b(\d{1,4})\s*[a-z]?\b/i);return m?m[1]:'';};
+const DUP_WHY={house:'тот же дом',tel:'тот же телефон'};
+/* Порядок важен: если пара совпала и по дому, и по телефону, показываем
+   более сильную причину — дом.
+   Только индекс приметой НЕ считаем: в одном индексе живёт полтора десятка
+   домов, и такая пометка была бы шумом, а шуму перестают верить. */
+const DUP_ORDER=['house','tel'];
+const dupKeys=a=>{const out=[];
+ const p=phone(a&&a.phone||'');if(p.replace(/\D/g,'').length>=10)out.push('tel|'+p);
+ const pc=postcode(a&&a.text||''),n=pc?houseNumber(a&&a.text||''):'';
+ if(pc&&n)out.push('house|'+key(pc)+'|'+n);
+ return out;};
+/* Какая из пары лишняя. В очереди остаётся та, что пришла первой. Если двойник
+   уже в работе — в плане или в маршруте, — то лишней считается та, что в очереди:
+   ехать второй раз некуда. */
+function duplicateExtras(requests,existing){
+ const notes=duplicateNotes(requests,existing);
+ const all=new Map();
+ (requests||[]).concat(existing||[]).forEach(a=>{if(a&&a.id&&!all.has(a.id))all.set(a.id,a);});
+ const inQueue=new Set((requests||[]).filter(Boolean).map(a=>a.id));
+ const older=(x,y)=>{const a=String(x.created_at||''),b=String(y.created_at||'');
+  return a===b?String(x.id)<String(y.id):a<b;};
+ const out=new Set();
+ (requests||[]).forEach(r=>{
+  if(!r||!r.id)return;
+  const twins=(notes.get(r.id)||[]).map(t=>all.get(t.id)).filter(Boolean);
+  if(twins.some(t=>!inQueue.has(t.id)||older(t,r)))out.add(r.id);
+ });
+ return out;
+}
+function duplicateNotes(requests,existing){
+ const pool=[],seen=new Set();
+ const take=a=>{if(!a||!a.id||seen.has(a.id))return;
+  if(['cancelled','done'].includes(a.status))return;seen.add(a.id);pool.push(a);};
+ (requests||[]).forEach(take);(existing||[]).forEach(take);
+ const buckets=new Map();
+ pool.forEach(a=>dupKeys(a).forEach(k=>{if(!buckets.has(k))buckets.set(k,[]);buckets.get(k).push(a);}));
+ const out=new Map();
+ DUP_ORDER.forEach(kind=>buckets.forEach((rows,k)=>{
+  if(k.split('|')[0]!==kind||rows.length<2)return;
+  rows.forEach(a=>rows.forEach(b=>{
+   if(a.id===b.id)return;
+   const list=out.get(a.id)||[];
+   if(list.some(x=>x.id===b.id))return;
+   list.push({id:b.id,text:b.text,status:b.status,why:DUP_WHY[kind]});
+   out.set(a.id,list);
+  }));
+ }));
+ return out;
+}
 /* Замечания, которые НЕ мешают добавить заявку: один номер на два разных дома
    бывает по делу (заказ для себя и для матери). Показываем и пропускаем. */
 function warnings(row,existing=[],previous=[]){const out=[];const p=phone(row.phone);
+ /* Нет мобильного — не причина выбросить заявку: у партнёра попадаются
+    стационарные номера и строки с одной только почтой. Раньше такие терялись. */
+ if(['subnex_website','partner_email'].includes(row.intake_channel)&&!/^\+447\d{9}$/.test(p))
+  out.push(p?'Это не британский мобильный — SMS не уйдёт, связывайтесь по email.'
+            :'Телефона нет — SMS не уйдёт, связывайтесь по email.');
  if(!p)return out;
  const twin=(existing||[]).find(a=>['new','planned'].includes(a.status)&&phone(a.phone)===p&&!samePlace(a.text,row.text));
  if(twin)out.push('Этот номер уже у заявки «'+twin.text+'». Если это другой дом — всё в порядке, предложения уйдут по очереди.');
@@ -324,7 +407,6 @@ function warnings(row,existing=[],previous=[]){const out=[];const p=phone(row.ph
 function issues(row,existing=[],previous=[]){const out=[];const pc=postcode(row.text);
  if(!pc||key(row.text).replace(key(pc),'').length<3)out.push('Нужны дом, улица и полный postcode');
  if(/^(?:collection from\s*)?\d+\s*,?\s*[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i.test(row.text))out.push('Не указана улица');
- if(['subnex_website','partner_email'].includes(row.intake_channel)&&!/^\+447\d{9}$/.test(phone(row.phone)))out.push('Для SMS нужен мобильный номер Великобритании');
  if(/^\d+[a-z]?\s*,?\s*(?:Cardiff|Newport|Barry|Bridgend|Caerphilly|Tredegar|Pontypridd|Wales)\s*,?\s*[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i.test(row.text))out.push('Не указана улица');
  if(!sourceNames[row.intake_channel])out.push('Выберите источник');
  if(!Number.isFinite(+row.estimated_kg)||+row.estimated_kg<=0)out.push('Укажите ожидаемый вес');
@@ -334,6 +416,6 @@ function issues(row,existing=[],previous=[]){const out=[];const pc=postcode(row.
  if(twin)out.push(key(twin.text)===key(row.text)?'Адрес уже есть в действующих заявках':'Это тот же дом, что и «'+twin.text+'» — заявка на него уже есть');
  return out;
 }
-root.SubnexDispatchCore={sourceNames,sourceOf,postcode,key,phone,hm,minute,ukDay,ukMinute,pointKey,validPoint,zone,evaluate,ordered,placements,planBatch,shareSlots,parseRows,issues,warnings,samePlace,placeKey,dayIssue,PLAN_DEFAULTS,postcodeArea,zoneRule,zoneTripDay,tripZoneOf,occupiedZoneOf,postcodeNumber,sameZone,movePlanned,slotsFor,nextTripDays,zoneReason,nthWeekday};
+root.SubnexDispatchCore={sourceNames,sourceOf,postcode,key,phone,hm,minute,ukDay,ukMinute,pointKey,validPoint,zone,evaluate,ordered,placements,planBatch,shareSlots,parseRows,issues,warnings,samePlace,placeKey,duplicateNotes,duplicateExtras,houseNumber,dayIssue,PLAN_DEFAULTS,postcodeArea,zoneRule,zoneKey,zoneTripDay,tripZoneOf,occupiedZoneOf,activeZones,postcodeNumber,sameZone,movePlanned,slotsFor,nextTripDays,zoneReason,nthWeekday};
 if(typeof module!=='undefined'&&module.exports)module.exports=root.SubnexDispatchCore;
 })(typeof window==='undefined'?globalThis:window);

@@ -18,8 +18,8 @@
 <link rel="stylesheet" href="ops-chat.css?v=20260916-console">
 <link rel="stylesheet" href="ops-dispatch.css?v=20260916-replan">
 <script src="ops-chat.js?v=20260917-charity"></script>
-<script src="ops-dispatch-core.js?v=20260917-trip"></script>
-<script src="ops-dispatch.js?v=20260918-intake"></script>
+<script src="ops-dispatch-core.js?v=20260919-dup3"></script>
+<script src="ops-dispatch.js?v=20260919-dup3"></script>
 <script src="ops-planner.js?v=20260915-collection-hours"></script>
 <style>
 .leaflet-container{font-family:var(--body)}
@@ -83,6 +83,7 @@
     <nav id="nav">
       <button data-page="today"><svg class="ic"><use href="#i-today"/></svg>Сегодня</button>
       <button data-page="requests"><svg class="ic"><use href="#i-inbox"/></svg>Заявки<span class="badge" id="nb-requests" hidden></span></button>
+      <button data-page="dups"><svg class="ic"><use href="#i-inbox"/></svg>Повторы<span class="badge" id="nb-dups" hidden></span></button>
       <button data-page="cal"><svg class="ic"><use href="#i-cal"/></svg>Календарь</button>
       <button data-page="day"><svg class="ic"><use href="#i-route"/></svg>День маршрута</button>
       <button data-page="chat"><svg class="ic"><use href="#i-chat"/></svg>Переписка<span class="badge" id="nb-chat" hidden></span></button>
@@ -160,6 +161,14 @@
       </div>
     </section>
 
+    <!-- ---------- ПОВТОРЫ ---------- -->
+    <section class="page" data-page="dups">
+      <div class="phead">
+        <div><h1>Повторы</h1><p>Заявки, которые похожи на уже существующие. В очередь они не попадают.</p></div>
+      </div>
+      <div id="dup-host" class="stack"></div>
+    </section>
+
     <!-- ---------- КАЛЕНДАРЬ ---------- -->
     <section class="page" data-page="cal">
       <div class="phead">
@@ -227,7 +236,7 @@
     <section class="page" data-page="reports">
       <div class="phead">
         <div><h1>Отчёты</h1><p>Месяц работы: сборы по charity для партнёров и вывозы для хостов контейнеров</p></div>
-        <div class="subtabs" id="rp-tabs"><button data-sub="charity" aria-current="true">Партнёрам</button><button data-sub="hosts">Хостам</button></div>
+        <div class="subtabs" id="rp-tabs"><button data-sub="charity" aria-current="true">Партнёрам</button><button data-sub="events">Что случилось</button><button data-sub="hosts">Хостам</button></div>
       </div>
       <div id="rp-charity" class="stack">
         <div class="note warn" id="cr-warn" hidden></div>
@@ -245,6 +254,24 @@
         </div>
         <div class="card"><div class="tscroll"><table class="t"><thead><tr><th>Charity</th><th>Источник</th><th>Сборов</th><th style="width:150px">Вес за месяц</th><th></th></tr></thead><tbody id="cr-tbody"></tbody></table></div>
         <div class="tfoot"><span class="muted">Считаются только выполненные сборы за выбранный месяц. Вес вписываете вы — он сохраняется сразу и попадает в отчёт партнёру.</span></div></div>
+      </div>
+      <div id="rp-events" hidden class="stack">
+        <div class="row">
+          <input type="month" class="field" id="ev-month" style="width:auto" onchange="renderEvents()">
+          <select class="field" id="ev-source" style="width:auto" onchange="renderEvents()">
+            <option value="">Все источники</option>
+            <option value="partner_email">Partner Email</option>
+            <option value="partner_whatsapp">Partner WhatsApp</option>
+            <option value="missing">Missing Collections</option>
+            <option value="subnex_website">SUBNEX Collections</option>
+          </select>
+          <label class="row" style="gap:6px"><input type="checkbox" id="ev-problems" onchange="renderEvents()"> Только проблемы</label>
+          <button class="btn" onclick="renderEvents()"><svg class="ic"><use href="#i-refresh"/></svg> Обновить</button>
+          <button class="btn" onclick="eventsPdf()"><svg class="ic"><use href="#i-dl"/></svg> Список (PDF)</button>
+        </div>
+        <div class="card"><div id="ev-counts" class="row" style="gap:8px;flex-wrap:wrap;padding:11px 12px"></div></div>
+        <div class="card"><div class="tscroll"><table class="t"><thead><tr><th>Адрес</th><th>Charity</th><th>Источник</th><th>Дата</th><th>Что произошло</th><th>Заметка</th></tr></thead><tbody id="ev-tbody"></tbody></table></div>
+        <div class="tfoot"><span class="muted">Сверху то, что требует внимания. Ждущие ответа берутся из текущей очереди и от месяца не зависят, остальное — за выбранный месяц.</span></div></div>
       </div>
       <div id="rp-hosts" hidden class="stack">
         <div class="note warn" id="rep-warn" hidden></div>
@@ -622,13 +649,97 @@ async function refreshAll(silent){
   finally{refreshing=false;}
 }
 function renderBadges(){
-  const q=ADDR.filter(a=>a.status==='new'&&!a.date&&a.kind!=='bank').length;
+  const q=ADDR.filter(a=>a.status==='new'&&!a.date&&a.kind!=='bank'&&!dupExtras().has(a.id)).length;
   const b=document.getElementById('nb-requests');b.textContent=q;b.hidden=!q;
+  const d=dupExtras().size,db=document.getElementById('nb-dups');
+  if(db){db.textContent=d;db.hidden=!d;}
+}
+
+/* ---------- ПОВТОРЫ ----------
+   Заявка, похожая на уже существующую, из очереди убирается, но НЕ теряется:
+   она здесь, со ссылкой на своего двойника. Решение «это не повтор» пишется
+   в базу (addresses.duplicate_ignored), поэтому держится на любом компьютере. */
+function dupOk(){return new Set(ADDR.filter(a=>a.duplicate_ignored).map(a=>a.id));}
+async function dupMark(id,value){
+  const {error}=await sb.from('addresses').update({duplicate_ignored:value}).eq('id',id);
+  if(error)throw error;
+  const a=ADDR.find(x=>x.id===id);if(a)a.duplicate_ignored=value;
+}
+function dupPool(){
+  const live=ADDR.filter(a=>a.kind!=='bank'&&!['cancelled','done'].includes(a.status));
+  const queue=live.filter(a=>a.status==='new'&&!a.date);
+  const rest=live.filter(a=>!(a.status==='new'&&!a.date));
+  return {queue,rest};
+}
+function dupExtras(){
+  const {queue,rest}=dupPool(),ok=dupOk();
+  return new Set([...C.duplicateExtras(queue,rest)].filter(id=>!ok.has(id)));
+}
+function dupState(a){
+  if(a.status==='done')return 'собрана';
+  if(a.status==='cancelled')return 'отменена';
+  if(a.collection_start)return 'согласована на '+dayShort(C.ukDay(a.collection_start))+', '+C.hm(C.ukMinute(a.collection_start));
+  if(a.date)return 'в маршруте на '+dayShort(a.date);
+  return 'в очереди';
+}
+function renderDups(){
+  const host=document.getElementById('dup-host');if(!host)return;
+  const {queue,rest}=dupPool(),extras=dupExtras();
+  const notes=C.duplicateNotes(queue,rest);
+  const byId=new Map(queue.concat(rest).map(a=>[a.id,a]));
+  const rows=queue.filter(a=>extras.has(a.id))
+    .sort((x,y)=>String(y.created_at).localeCompare(String(x.created_at)));
+  const kept=[...dupOk()].map(id=>byId.get(id)).filter(Boolean);
+  if(!rows.length&&!kept.length){
+    host.innerHTML='<div class="card"><div class="empty">Повторов нет. Сюда попадают заявки, у которых совпал телефон или дом с уже существующей.</div></div>';
+    return;
+  }
+  const card=a=>{
+    const twins=(notes.get(a.id)||[]).map(t=>({...t,row:byId.get(t.id)})).filter(t=>t.row);
+    return `<div class="card">
+      <div class="setrow">
+        <div>
+          <b>${esc(a.text)}</b>
+          <small class="muted">${esc(a.phone||'телефона нет')}${a.charity?' · '+esc(a.charity):''} · пришла ${esc(dayShort(String(a.created_at||'').slice(0,10)))}</small>
+          <p class="muted" style="margin-top:6px">Совпадает с:</p>
+          ${twins.map(t=>`<p style="margin:4px 0"><a href="#" onclick="openAddrModal('${t.row.id}');return false;"><b>${esc(t.row.text)}</b></a>
+            <br><span class="muted">${esc(t.why)} · ${esc(dupState(t.row))}</span></p>`).join('')||'<p class="muted">совпадение больше не найдено</p>'}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;min-width:190px">
+          <button class="btn btn-sm" onclick="openAddrModal('${a.id}')">Открыть эту заявку</button>
+          <button class="btn btn-sm" onclick="dupKeep('${a.id}')">Это не повтор — в очередь</button>
+          <button class="btn btn-sm btn-crit" onclick="dupDrop('${a.id}')">Убрать как повтор</button>
+        </div>
+      </div>
+    </div>`;};
+  host.innerHTML=(rows.length?rows.map(card).join(''):'<div class="card"><div class="empty">Новых повторов нет.</div></div>')
+    +(kept.length?`<div class="card"><b>Отмечены как «не повтор»</b><p class="muted">Эти заявки стоят в общей очереди, хотя похожи на другие.</p>${kept.map(a=>`<div class="setrow"><div><b>${esc(a.text)}</b><small class="muted">${esc(dupState(a))}</small></div><button class="btn btn-sm" onclick="dupUnkeep('${a.id}')">Вернуть в повторы</button></div>`).join('')}</div>`:'');
+}
+async function dupKeep(id){
+  try{await dupMark(id,true);renderDups();renderBadges();
+    QUEUE?.reload().then(()=>QUEUE.render()).catch(()=>{});
+    toast('Заявка вернулась в очередь');}
+  catch(e){toast(Ops.error(e));}
+}
+async function dupUnkeep(id){
+  try{await dupMark(id,false);renderDups();renderBadges();
+    QUEUE?.reload().then(()=>QUEUE.render()).catch(()=>{});
+    toast('Заявка снова в повторах');}
+  catch(e){toast(Ops.error(e));}
+}
+async function dupDrop(id){
+  const a=ADDR.find(x=>x.id===id);if(!a)return;
+  if(!confirm('Убрать «'+a.text+'» как повтор?'))return;
+  try{
+    const {error}=await sb.from('addresses').update({status:'cancelled'}).eq('id',id);
+    if(error)throw error;
+    toast('Убрано');await refreshAll(true);renderDups();
+  }catch(e){toast(Ops.error(e));}
 }
 
 /* ---------- навигация ---------- */
 let PAGE='today';
-const PAGES=['today','requests','cal','day','chat','banks','reports','settings'];
+const PAGES=['today','requests','dups','cal','day','chat','banks','reports','settings'];
 function go(page,opts={}){
   if(!PAGES.includes(page))page='today';
   PAGE=page;location.hash=page;
@@ -642,7 +753,7 @@ function go(page,opts={}){
 document.getElementById('nav').addEventListener('click',e=>{const b=e.target.closest('button[data-page]');if(b)go(b.dataset.page);});
 function subtab(group,sub){
   document.querySelectorAll('#'+group+'-tabs button').forEach(b=>b.setAttribute('aria-current',b.dataset.sub===sub?'true':'false'));
-  const map={req:['queue','all'],bank:['list','photos'],rp:['charity','hosts'],set:['hours','dispatch','zones','intake','drivers','data']};
+  const map={req:['queue','all'],bank:['list','photos'],rp:['charity','hosts','events'],set:['hours','dispatch','zones','intake','drivers','data']};
   for(const s of map[group])document.getElementById(group+'-'+s).hidden=s!==sub;
   SUB[group]=sub;
   if(group==='req'&&sub==='queue')ensureQueue();
@@ -650,6 +761,7 @@ function subtab(group,sub){
   if(group==='bank'&&sub==='photos')renderPhotos();
   if(group==='rp'&&sub==='hosts')renderReports();
   if(group==='rp'&&sub==='charity')renderCharity();
+  if(group==='rp'&&sub==='events')renderEvents();
   if(group==='set'&&sub==='hours')renderHours();
   if(group==='set'&&sub==='dispatch')ensureSettingsDispatch();
   if(group==='set'&&sub==='zones')renderZones();
@@ -661,6 +773,7 @@ for(const g of ['req','bank','rp','set'])document.getElementById(g+'-tabs').addE
 function renderPage(page,fresh,opts={}){
   if(page==='today')renderToday();
   else if(page==='requests'){if(opts.sub)subtab('req',opts.sub);else subtab('req',SUB.req);if(fresh&&opts.tab&&QUEUE)QUEUE.action(opts.tab);if(!fresh&&QUEUE&&!QUEUE.busy&&!QUEUE.closed&&QUEUE.mode==='queue')QUEUE.reload().then(()=>{if(!QUEUE.busy&&QUEUE.mode==='queue')QUEUE.render();}).catch(()=>{});}
+  else if(page==='dups')renderDups();
   else if(page==='cal')renderCal();
   else if(page==='day')renderDayPage(fresh);
   else if(page==='chat'){if(!opts.skipChat)ensureChat();}
@@ -1288,6 +1401,100 @@ async function internalPdf(){
 }
 
 
+/* ---------- рабочий список: что случилось с адресами ----------
+   Отдельно от партнёрских отчётов: тут по-русски, с адресами и заметками,
+   и сюда попадает то, что требует действия. */
+const EV_LABEL={done:'Выполнено',noanswer:'Не открыли дверь',problem:'Проблема на адресе',
+  cancelled:'Заявка закрыта',planned:'Запланировано',new:'Ждёт распределения'};
+const EV_PROBLEM=new Set(['noanswer','problem']);
+const EV_WAIT='Не ответил на предложение';
+let EV_ROWS=[];
+
+/* Ждущие ответа живут не в addresses, а в очереди планировщика — берём оттуда. */
+async function pendingOffers(){
+  const d=currentDriver();if(!d)return [];
+  try{const q=await OpsDispatch.rpc(sb,'queue',{driver_id:d.id});
+    return (q.requests||[]).filter(a=>a.offer_state==='awaiting'&&a.offered_start);
+  }catch(e){return [];}
+}
+
+async function renderEvents(){
+  const mEl=document.getElementById('ev-month');if(!mEl.value)mEl.value=ymNow();
+  const ym=mEl.value,src=document.getElementById('ev-source').value;
+  const only=document.getElementById('ev-problems').checked;
+  const tb=document.getElementById('ev-tbody');
+  tb.innerHTML='<tr><td colspan="6" class="empty"><span class="spin"></span> Собираю…</td></tr>';
+
+  const waiting=await pendingOffers();
+  const waitingIds=new Set(waiting.map(a=>a.id));
+  const rows=[];
+  for(const a of waiting){
+    if(src&&C.sourceOf(a)!==src)continue;
+    const day=C.ukDay(a.offered_start);
+    rows.push({text:a.text,charity:(a.charity||'').trim(),src:C.sourceOf(a),date:day,
+      what:EV_WAIT,note:'Предложено '+dayShort(day)+', ответа нет',problem:true,order:0});
+  }
+  for(const a of ADDR){
+    if(a.kind==='bank'||waitingIds.has(a.id))continue;
+    if((a.date||'').slice(0,7)!==ym)continue;
+    if(src&&C.sourceOf(a)!==src)continue;
+    const problem=EV_PROBLEM.has(a.status);
+    rows.push({text:a.text,charity:(a.charity||'').trim(),src:C.sourceOf(a),date:a.date,
+      what:EV_LABEL[a.status]||a.status,
+      note:(a.result_note||'').trim()||(a.cancellation_reason?'Причина: '+a.cancellation_reason:''),
+      problem,order:problem?1:2});
+  }
+  EV_ROWS=rows.filter(r=>!only||r.problem)
+    .sort((x,y)=>x.order-y.order||(y.date||'').localeCompare(x.date||'')||x.text.localeCompare(y.text));
+
+  const n=w=>rows.filter(r=>r.what===w).length;
+  const chips=[['Всего',rows.length,''],[EV_WAIT,n(EV_WAIT),'crit'],
+    ['Не открыли дверь',n('Не открыли дверь'),'crit'],['Проблема на адресе',n('Проблема на адресе'),'crit'],
+    ['Выполнено',n('Выполнено'),'ok'],['Запланировано',n('Запланировано'),''],['Заявка закрыта',n('Заявка закрыта'),'']];
+  document.getElementById('ev-counts').innerHTML=chips.filter(c=>c[1])
+    .map(c=>`<span class="chip ${c[2]==='crit'?'st-bad':c[2]==='ok'?'st-done':'ghost'}">${esc(c[0])}: <b>${c[1]}</b></span>`).join('');
+
+  if(!EV_ROWS.length){tb.innerHTML='<tr><td colspan="6" class="empty">За этот месяц записей нет</td></tr>';return;}
+  tb.innerHTML=EV_ROWS.map(r=>`<tr>`
+    +`<td><b>${esc(r.text)}</b></td>`
+    +`<td style="font-size:12.5px">${r.charity?esc(r.charity):'<span class="muted">—</span>'}</td>`
+    +`<td style="font-size:12.5px">${esc(C.sourceNames[r.src]||r.src)}</td>`
+    +`<td class="mono" style="white-space:nowrap;font-size:12.3px">${r.date?esc(dayShort(r.date)):'—'}</td>`
+    +`<td><span class="chip ${r.problem?'st-bad':r.what==='Выполнено'?'st-done':'ghost'}">${esc(r.what)}</span></td>`
+    +`<td style="font-size:12.5px">${r.note?esc(r.note):'<span class="muted">—</span>'}</td></tr>`).join('');
+}
+
+async function eventsPdf(){
+  if(!EV_ROWS.length){toast('Нечего выгружать');return;}
+  const ym=document.getElementById('ev-month').value||ymNow();toast('Готовлю PDF…');
+  const probs=EV_ROWS.filter(r=>r.problem);
+  const body=[{text:'Что случилось с адресами — '+ymLabel(ym),style:'h1'},
+    {text:'Рабочий список для себя. Партнёрам не отправляется.',margin:[0,0,0,14],color:'#3A3A38'}];
+  body.push({table:{widths:['*','*','*'],body:[[
+    {stack:[{text:'ВСЕГО',style:'lbl'},{text:String(EV_ROWS.length),fontSize:19,bold:true,margin:[0,3,0,0]}]},
+    {stack:[{text:'ТРЕБУЮТ ВНИМАНИЯ',style:'lbl'},{text:String(probs.length),fontSize:19,bold:true,color:'#B3261E',margin:[0,3,0,0]}]},
+    {stack:[{text:'ВЫПОЛНЕНО',style:'lbl'},{text:String(EV_ROWS.filter(r=>r.what==='Выполнено').length),fontSize:19,bold:true,color:BRAND.dgreen,margin:[0,3,0,0]}]}]]},layout:BOX_L});
+  const rows=[[{text:'АДРЕС',style:'th'},{text:'CHARITY',style:'th'},{text:'ДАТА',style:'th'},{text:'ЧТО ПРОИЗОШЛО',style:'th'},{text:'ЗАМЕТКА',style:'th'}]];
+  EV_ROWS.forEach(r=>rows.push([r.text,r.charity||'—',r.date?dayShort(r.date):'—',r.what,r.note||'—']));
+  body.push({text:'Адреса',style:'sec'});
+  body.push({table:{headerRows:1,widths:['*','auto','auto','auto','*'],body:rows},layout:tableL(rows.length),fontSize:9});
+  const doc=pdfShell('Subnex Group Ltd  ·  Что случилось с адресами  ·  '+ymLabel(ym));
+  doc.content=body;doc.info={title:'Subnex — что случилось с адресами — '+ymLabel(ym),author:'Subnex Group Ltd'};
+  return new Promise(res=>pdfMake.createPdf(doc).download('Subnex-events-'+ym+'.pdf',res));
+}
+
+/* Незавершённые сборы charity за месяц — ТОЛЬКО счётчики.
+   Партнёрский отчёт по договорённости идёт без перечня адресов. */
+function crProblems(ym,charity){
+  const src=document.getElementById('cr-source').value;
+  const list=ADDR.filter(a=>a.kind!=='bank'&&(a.date||'').slice(0,7)===ym
+    &&crName(a)===charity&&(!src||C.sourceOf(a)===src));
+  const noanswer=list.filter(a=>a.status==='noanswer').length;
+  const problem=list.filter(a=>a.status==='problem').length;
+  const cancelled=list.filter(a=>a.status==='cancelled').length;
+  return {noanswer,problem,cancelled,total:noanswer+problem+cancelled};
+}
+
 /* ---------- отчёты партнёру по charity ---------- */
 const SRC_EN={subnex_website:'Subnex website',partner_email:'Partner email',partner_whatsapp:'Partner WhatsApp',missing:'Missing collections'};
 const BOX_L={hLineWidth:()=>0.7,vLineWidth:()=>0.7,hLineColor:()=>BRAND.line,vLineColor:()=>BRAND.line,paddingLeft:()=>11,paddingRight:()=>11,paddingTop:()=>9,paddingBottom:()=>10,fillColor:()=>BRAND.soft};
@@ -1357,6 +1564,17 @@ async function charityPdf(g,silent){
     {stack:[{text:'AVERAGE PER COLLECTION',style:'lbl'},{text:kg?(kg/g.items.length).toFixed(1)+' kg':'—',fontSize:19,bold:true,margin:[0,3,0,0]}]}];
   body.push({table:{widths:boxes.map(()=>'*'),body:[boxes]},layout:BOX_L,margin:[0,4,0,0]});
   body.push({text:'Weights are recorded at our sorting facility after collection and cover the whole period shown above.',style:'note',margin:[0,10,0,0]});
+  const pb=crProblems(ym,g.charity);
+  if(pb.total){
+    body.push({text:'Collections not completed',style:'sec'});
+    const pr=[[{text:'REASON',style:'th'},{text:'COUNT',style:'th',alignment:'right'}]];
+    if(pb.noanswer)pr.push(['No one home at the agreed time',{text:String(pb.noanswer),alignment:'right'}]);
+    if(pb.problem)pr.push(['Could not collect — problem at the address',{text:String(pb.problem),alignment:'right'}]);
+    if(pb.cancelled)pr.push(['Cancelled before collection',{text:String(pb.cancelled),alignment:'right'}]);
+    pr.push([{text:'Total',bold:true},{text:String(pb.total),alignment:'right',bold:true}]);
+    body.push({table:{widths:['*','auto'],body:pr},layout:tableL(pr.length),margin:[0,4,0,0]});
+    body.push({text:'Individual addresses are not listed in this report. Ask us and we will confirm any single collection.',style:'note',margin:[0,6,0,0]});
+  }
   body.push({table:{widths:['*'],body:[[{stack:[{text:'Questions about this report?',bold:true,margin:[0,0,0,3]},{text:'Reply to this email or call us and we will check any collection made for you in this period.',color:'#3A3A38'}]}]]},
     layout:{hLineWidth:()=>0,vLineWidth:i=>i===0?2.5:0,vLineColor:()=>BRAND.green,paddingLeft:()=>11,paddingRight:()=>11,paddingTop:()=>10,paddingBottom:()=>10,fillColor:()=>BRAND.soft},margin:[0,10,0,0]});
   const doc=pdfShell('Subnex Group Ltd  ·  Collection report  ·  '+crEN(g)+'  ·  '+ymLabel(ym));
