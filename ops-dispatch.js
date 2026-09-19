@@ -298,7 +298,7 @@ class Dispatch{
   const groups=[
    {key:'dead', title:'Время прошло, ответа нет', hint:'Обещанный день уже позади, клиент так и не подтвердил. Подберите новое время и предложите ещё раз.',
     rows:shown.filter(a=>C.offerExpired(a))},
-   {key:'wait', title:'Ждём ответ клиента', hint:'Время обещано в SMS. Трогать не нужно — ждём YES.',
+   {key:'wait', title:'Ждём ответ клиента', hint:'Время обещано в SMS, срок ещё не вышел. Если написано «ответил не YES» или «предложение не ушло» — загляните в переписку.',
     rows:shown.filter(a=>a.offered_start&&!C.offerExpired(a))},
    {key:'held', title:'Время занято, не отправлено', hint:'Место в маршруте есть, клиент про него ещё не знает. Отсюда идёт «Отправить предложения».',
     rows:shown.filter(a=>!a.offered_start&&a.held_start)},
@@ -311,7 +311,17 @@ class Dispatch{
   /* Отправленное проверяем ПЕРВЫМ. Раньше первым шло удержанное время, и у заявки,
      где есть и то и другое, факт отправки прятался за зелёным временем — выглядело так,
      будто клиенту ещё ничего не обещали. */
-  const state=a=>{if(a.offered_start)return `<span class="od-chip" style="background:var(--far-soft);color:var(--far)">Ждём ответ · ${label(C.ukDay(a.offered_start))}, ${C.hm(C.ukMinute(a.offered_start))}–${C.hm(C.ukMinute(a.offered_end||a.offered_start))}</span>`;
+  /* Раньше любая заявка с отправленным временем подписывалась «Ждём ответ»,
+     даже если клиент уже ответил не то или письмо вообще не ушло. Теперь пишем,
+     что происходит на самом деле, и отдельно — что срок вышел. */
+  const when=a=>label(C.ukDay(a.offered_start))+', '+C.hm(C.ukMinute(a.offered_start))
+   +(a.offered_end&&a.offered_end!==a.offered_start?'–'+C.hm(C.ukMinute(a.offered_end)):'');
+  const state=a=>{if(a.offered_start){
+    const dead=C.offerExpired(a),tail=dead?' · срок вышел':'';
+    if(a.offer_state==='manual')return `<span class="od-chip" style="background:var(--warn-soft);color:var(--warn)">Ответил не YES · ${esc(when(a))}${tail}</span>`;
+    if(a.offer_state==='preparing')return `<span class="od-chip" style="background:var(--warn-soft);color:var(--warn)">Предложение не ушло · ${esc(when(a))}${tail}</span>`;
+    if(dead)return `<span class="od-chip" style="background:var(--crit-soft);color:var(--crit)">Время прошло · ${esc(when(a))}</span>`;
+    return `<span class="od-chip" style="background:var(--far-soft);color:var(--far)">Ждём ответ · ${esc(when(a))}</span>`;}
    if(a.held_start)return `<span class="od-slot">Время занято · ${label(C.ukDay(a.held_start))}, ${C.hm(C.ukMinute(a.held_start))}–${C.hm(C.ukMinute(a.held_end))} · не отправлено</span>`;
    if(a.date)return '<span class="od-chip">В маршруте</span>';
    const z=C.zoneRule(zcfg,a.text);
@@ -319,7 +329,7 @@ class Dispatch{
    if(z.mode==='off')return `<span class="od-chip">Район «${esc(z.name)}» выключен</span>`;
    if(z.mode==='monthly'){const d=C.nextTripDays(z,C.ukDay(),1)[0];return `<span class="od-chip" style="background:var(--far-soft);color:var(--far)">${esc(z.name)} · выезд ${d?label(d):'не задан'}</span>`;}
    return '<span class="od-muted">Ждёт распределения</span>';};
-  const acts=a=>{const b=[];if(a.hold_id&&['partner_whatsapp','missing'].includes(C.sourceOf(a)))b.push(`<button data-action="partner" data-id="${a.id}">Согласовать</button>`);else if(a.hold_id||a.offer_state||a.date)b.push(`<button data-action="sms" data-id="${a.id}">SMS</button>`);if(a.hold_id&&!['preparing','awaiting','manual'].includes(a.offer_state))b.push(`<button data-action="release" data-id="${a.id}">Снять</button>`);if(C.offerExpired(a))b.push(`<button data-action="renew" data-id="${a.id}">Предложить новое время</button>`);else if(a.offer_state==='awaiting'&&a.offered_start)b.push(`<button data-action="remind" data-id="${a.id}">Напомнить</button>`);if(this.available(a))b.push(`<button data-action="edit" data-id="${a.id}">Изменить</button>`);
+  const acts=a=>{const b=[];if(a.hold_id&&['partner_whatsapp','missing'].includes(C.sourceOf(a)))b.push(`<button data-action="partner" data-id="${a.id}">Согласовать</button>`);else if(a.hold_id||a.offer_state||a.date)b.push(`<button data-action="sms" data-id="${a.id}">SMS</button>`);if(a.hold_id&&!['preparing','awaiting','manual'].includes(a.offer_state))b.push(`<button data-action="release" data-id="${a.id}">Снять</button>`);if(C.offerExpired(a))b.push(`<button data-action="renew" data-id="${a.id}">Предложить новое время</button>`);else if(a.offer_state==='awaiting'&&a.offered_start)b.push(`<button data-action="remind" data-id="${a.id}">Напомнить</button>`);else if(C.offerLive(a)&&a.offered_start)b.push(`<button data-action="renew" data-id="${a.id}">Предложить новое время</button>`);if(this.available(a))b.push(`<button data-action="edit" data-id="${a.id}">Изменить</button>`);
    if(!['preparing','awaiting','manual'].includes(a.offer_state))b.push(`<button data-action="move" data-id="${a.id}">Перенести</button>`);
    b.push(`<button data-action="drop" data-id="${a.id}">Убрать</button>`);return b.join('');};
   return `<div class="od-intro od-between"><div><h3>Заявки без даты · ${this.requests.length}</h3><p>Отметьте адреса — приложение подберёт день и время, заполняя уже начатые дни вплотную к соседним адресам.</p></div><div class="od-actions"><button data-action="sendall" ${ready.total?'':'disabled data-locked="true"'}>Отправить предложения${ready.total?' · '+ready.total:''}</button>${ready.direct.length?`<button data-action="copypartner">Текст для WhatsApp · ${ready.direct.length}</button>`:''}<button data-action="schedule">Разбор по категориям</button><button data-action="refresh">Обновить</button></div></div>
@@ -348,7 +358,10 @@ class Dispatch{
  syncRows(){this.root.querySelectorAll('[data-row]').forEach(box=>Object.assign(this.rows[+box.dataset.row],this.fields(box)));}
  updateIssues(){this.root.querySelectorAll('[data-row]').forEach(box=>{const i=+box.dataset.row,issues=C.issues(this.rows[i],this.o.addresses?.()||this.requests,this.rows.slice(0,i));box.classList.toggle('od-invalid',issues.length>0);box.querySelector('.od-row-issues').textContent=issues.join(' · ');});}
  async locate(text){const pc=C.postcode(text);if(!pc)throw new Error('Нужен полный postcode.');const r=await fetch('https://api.postcodes.io/postcodes/'+encodeURIComponent(pc),{signal:AbortSignal.timeout(12000)});const j=await r.json();if(!r.ok||!j.result)throw new Error('Индекс не найден. Проверьте адрес или введите координаты вручную.');return {lat:j.result.latitude,lng:j.result.longitude,geocode_source:'postcode'};}
- async calculate(){online(this.o);if(!this.selected.size)throw new Error('Выберите хотя бы одну свободную заявку.');if(!C.validPoint(this.config.home)||!C.validPoint(this.config.depot)){this.mode='settings';this.render();throw new Error('SETTINGS_REQUIRED');}const ids=[...this.selected];for(const id of ids){const a=this.requests.find(r=>r.id===id);if(!this.available(a))throw new Error('REQUEST_RESERVED');if(!C.validPoint(a)){this.notice('Определяю координаты: '+a.text);const p=await this.locate(a.text);await this.call('edit_request',{address_id:a.id,...p});Object.assign(a,p);}}
+ async calculate(){online(this.o);if(!this.selected.size)throw new Error('Выберите хотя бы одну свободную заявку.');if(!C.validPoint(this.config.home)||!C.validPoint(this.config.depot)){this.mode='settings';this.render();throw new Error('SETTINGS_REQUIRED');}const ids=[...this.selected];for(const id of ids){const a=this.requests.find(r=>r.id===id);
+  /* Раньше любая занятая заявка роняла весь расчёт кодом REQUEST_RESERVED, и было
+     непонятно, какая именно из сорока и почему. Теперь называем адрес и причину. */
+  if(!this.available(a))throw new Error(`${a?a.text:'Заявка'} — ${a&&a.offer_state==='manual'?'идёт ручное согласование в переписке: клиент ответил не YES. Снимите её из выбора, а время предложите кнопкой «Предложить новое время».':a&&a.offer_state?'клиенту уже отправлено предложение. Снимите её из выбора или дождитесь ответа.':a&&a.date?'уже стоит в маршруте.':'время уже занято.'}`);if(!C.validPoint(a)){this.notice('Определяю координаты: '+a.text);const p=await this.locate(a.text);await this.call('edit_request',{address_id:a.id,...p});Object.assign(a,p);}}
  let snap=await this.call('snapshot',{from_day:this.from,days:this.days,address_ids:ids});let roads={};const skipped=[];
  for(let i=0;i<snap.days.length;i++){const d=snap.days[i];if(d.started_at||d.hours?.closed)continue;this.notice(`Рассчитываю дорогу · ${i+1}/${snap.days.length} · ${label(d.day)}`);try{Object.assign(roads,(await warm(this.o,d.day,ids)).roads);}catch(e){skipped.push({day:d.day,error:error(e)});}}
  snap=await this.call('snapshot',{from_day:this.from,days:this.days,address_ids:ids});this.tokens=Object.fromEntries(snap.days.map(d=>[d.day,d.token]));this.notice('Распределяю заявки вокруг договорённостей…');this.planRoads=roads;this.planRequests=snap.requests;this.planConfig={...snap.config,zones:this.zones||[]};
