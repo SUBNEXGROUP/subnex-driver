@@ -597,6 +597,9 @@
               <button class="btn" onclick="eventsPdf()">
                 <svg class="ic"><use href="#i-dl" /></svg> Список (PDF)
               </button>
+              <button class="btn" onclick="eventsCsv()">
+                <svg class="ic"><use href="#i-dl" /></svg> Таблица (CSV для Excel)
+              </button>
             </div>
             <div class="card"><div id="ev-counts" class="row" style="gap: 8px; flex-wrap: wrap; padding: 11px 12px"></div></div>
             <div class="card">
@@ -605,11 +608,18 @@
                   <thead>
                     <tr>
                       <th>Адрес</th>
-                      <th>Charity</th>
                       <th>Источник</th>
+                      <th>Charity</th>
+                      <th>Мешки</th>
                       <th>Дата</th>
+                      <th>Окно</th>
+                      <th>Согласование с клиентом</th>
                       <th>Что произошло</th>
-                      <th>Заметка</th>
+                      <th>Когда</th>
+                      <th>Причина / заметка</th>
+                      <th>Телефон</th>
+                      <th>Получена</th>
+                      <th>Фото</th>
                     </tr>
                   </thead>
                   <tbody id="ev-tbody"></tbody>
@@ -618,7 +628,7 @@
               <div class="tfoot">
                 <span class="muted"
                   >Сверху то, что требует внимания. Ждущие ответа берутся из текущей очереди и от месяца не зависят, остальное — за
-                  выбранный месяц.</span
+                  выбранный месяц: дата сбора, а у закрытых — дата закрытия. Полная таблица со всеми полями — кнопка «CSV».</span
                 >
               </div>
             </div>
@@ -3350,16 +3360,18 @@
           return null;
         }
       }
-      function pdfShell(subtitle) {
+      function pdfShell(subtitle, landscape = false) {
+        const pageW = landscape ? 841.89 : 595.28;
         return {
           pageSize: 'A4',
+          pageOrientation: landscape ? 'landscape' : 'portrait',
           pageMargins: [40, 98, 40, 46],
           defaultStyle: { font: 'Roboto', fontSize: 9.5, color: '#1A1A18', lineHeight: 1.25 },
           background: function () {
             return {
               canvas: [
-                { type: 'rect', x: 0, y: 0, w: 595.28, h: 80, color: BRAND.ink },
-                { type: 'rect', x: 0, y: 80, w: 595.28, h: 4.5, color: BRAND.green },
+                { type: 'rect', x: 0, y: 0, w: pageW, h: 80, color: BRAND.ink },
+                { type: 'rect', x: 0, y: 80, w: pageW, h: 4.5, color: BRAND.green },
               ],
             };
           },
@@ -3761,6 +3773,57 @@
           return [];
         }
       }
+      /* Полный журнал месяца с сервера (subnex_reports 'log', миграция 45): адрес, окно,
+         согласование, итог, время, SMS, фото. Если функции ещё нет — собираем из ADDR. */
+      async function monthLog(ym) {
+        const d = currentDriver();
+        try {
+          const { data, error } = await sb.rpc('subnex_reports', { p_action: 'log', p_data: { ym, driver_id: d ? d.id : null } });
+          if (error) throw error;
+          return data.rows || [];
+        } catch (e) {
+          return ADDR.filter((a) => a.kind !== 'bank' && ((a.date || a.cancelled_date || '').slice(0, 7) === ym)).map((a) => ({
+            ...a,
+            day: a.date || a.cancelled_date,
+            source: C.sourceOf(a),
+            bags: a.bags_text || (a.bags ? String(a.bags) : ''),
+            received_at: a.created_at,
+            driver: (DRIVERS.find((x) => x.id === a.driver_id) || {}).name || '',
+            zone: (C.zoneRule({ zones: ZONES || [] }, a.text) || {}).name || '',
+          }));
+        }
+      }
+      const tsShort = (iso) => {
+        if (!iso) return '';
+        const d = new Date(iso);
+        return dayShort(C.ukDay(d)) + ' ' + C.hm(C.ukMinute(d));
+      };
+      const evOutcome = (r) => {
+        if (r.status === 'cancelled') return T('Заявка закрыта');
+        return EV_LABEL[r.status] || r.status;
+      };
+      const evReason = (r) => {
+        const parts = [];
+        if (r.status === 'cancelled') parts.push(Ops.reasonLabel(r.cancellation_reason || r.closed_reason));
+        if ((r.result_note || '').trim()) parts.push(r.result_note.trim());
+        return parts.join(' · ');
+      };
+      const evWindow = (r) => {
+        if (Number.isFinite(r.eta_from) && Number.isFinite(r.eta_to)) return T('SMS: ') + C.hm(r.eta_from) + '–' + C.hm(r.eta_to);
+        if (!r.collection_start) return '';
+        if (r.arrival_mode === 'day' || C.isDaySpan(r.collection_start, r.collection_end)) return T('в течение дня');
+        return C.hm(C.ukMinute(r.collection_start)) + '–' + C.hm(C.ukMinute(r.collection_end));
+      };
+      const evAgreement = (r) => {
+        const parts = [];
+        if (r.offered_at) parts.push((r.offer_auto ? T('дата предложена автоматически') : T('предложено')) + ' ' + tsShort(r.offered_at));
+        if (r.reminded_at) parts.push(T('напоминание') + ' ' + tsShort(r.reminded_at));
+        if (r.confirmed_by === 'yes') parts.push('YES ' + tsShort(r.collection_confirmed_at));
+        else if (r.confirmed_by === 'manual') parts.push(T('подтверждено вручную') + ' ' + tsShort(r.collection_confirmed_at));
+        else if (r.collection_confirmed_at && !r.offered_at) parts.push(T('подтверждено') + ' ' + tsShort(r.collection_confirmed_at));
+        if (!parts.length && r.offer_state === 'awaiting') parts.push(T('ждём YES'));
+        return parts.join(' · ');
+      };
 
       async function renderEvents() {
         const mEl = document.getElementById('ev-month');
@@ -3769,44 +3832,50 @@
           src = document.getElementById('ev-source').value;
         const only = document.getElementById('ev-problems').checked;
         const tb = document.getElementById('ev-tbody');
-        tb.innerHTML = `<tr><td colspan="6" class="empty"><span class="spin"></span> ${T('Собираю…')}</td></tr>`;
+        tb.innerHTML = `<tr><td colspan="13" class="empty"><span class="spin"></span> ${T('Собираю…')}</td></tr>`;
 
-        const waiting = await pendingOffers();
-        const waitingIds = new Set(waiting.map((a) => a.id));
+        const [waiting, log] = await Promise.all([pendingOffers(), monthLog(ym)]);
         const rows = [];
+        const seen = new Set();
         for (const a of waiting) {
           if (src && C.sourceOf(a) !== src) continue;
+          seen.add(a.id);
           const day = C.ukDay(a.offered_start);
           rows.push({
-            text: a.text,
-            charity: (a.charity || '').trim(),
-            src: C.sourceOf(a),
-            date: day,
+            ...a,
+            day,
+            source: C.sourceOf(a),
+            bags: a.bags_text || (a.bags ? String(a.bags) : ''),
+            received_at: a.created_at,
+            offered_at: a.offer_first_at || null,
+            offer_auto: a.offer_auto,
+            offer_state: 'awaiting',
+            reminded_at: a.reminded_at,
+            windowText: C.isDaySpan(a.offered_start, a.offered_end) ? T('в течение дня') : C.hm(C.ukMinute(a.offered_start)) + '–' + C.hm(C.ukMinute(a.offered_end || a.offered_start)),
             what: EV_WAIT,
-            note: T('Предложено ') + dayShort(day) + T(', ответа нет'),
+            when: '',
+            reason: T('Предложено ') + dayShort(day) + T(', ответа нет'),
             problem: true,
             order: 0,
           });
         }
-        for (const a of ADDR) {
-          if (a.kind === 'bank' || waitingIds.has(a.id)) continue;
-          if ((a.date || '').slice(0, 7) !== ym) continue;
-          if (src && C.sourceOf(a) !== src) continue;
-          const problem = EV_PROBLEM.has(a.status);
+        for (const r of log) {
+          if (seen.has(r.id)) continue;
+          if (src && r.source !== src) continue;
+          const problem = EV_PROBLEM.has(r.status);
           rows.push({
-            text: a.text,
-            charity: (a.charity || '').trim(),
-            src: C.sourceOf(a),
-            date: a.date,
-            what: EV_LABEL[a.status] || a.status,
-            note: (a.result_note || '').trim() || (a.cancellation_reason ? T('Причина: ') + a.cancellation_reason : ''),
+            ...r,
+            windowText: evWindow(r),
+            what: evOutcome(r),
+            when: r.status === 'cancelled' ? tsShort(r.closed_at || r.collection_cancelled_at) : ['done', 'noanswer', 'problem'].includes(r.status) ? tsShort(r.done_at) : '',
+            reason: evReason(r),
             problem,
             order: problem ? 1 : 2,
           });
         }
         EV_ROWS = rows
           .filter((r) => !only || r.problem)
-          .sort((x, y) => x.order - y.order || (y.date || '').localeCompare(x.date || '') || x.text.localeCompare(y.text));
+          .sort((x, y) => x.order - y.order || (y.day || '').localeCompare(x.day || '') || x.text.localeCompare(y.text));
 
         const n = (w) => rows.filter((r) => r.what === w).length;
         const chips = [
@@ -3827,19 +3896,82 @@
           .join('');
 
         if (!EV_ROWS.length) {
-          tb.innerHTML = `<tr><td colspan="6" class="empty">${T('За этот месяц записей нет')}</td></tr>`;
+          tb.innerHTML = `<tr><td colspan="13" class="empty">${T('За этот месяц записей нет')}</td></tr>`;
           return;
         }
+        const dash = '<span class="muted">—</span>';
         tb.innerHTML = EV_ROWS.map(
           (r) =>
             `<tr>` +
-            `<td><b>${esc(r.text)}</b></td>` +
-            `<td style="font-size:12.5px">${r.charity ? esc(r.charity) : '<span class="muted">—</span>'}</td>` +
-            `<td style="font-size:12.5px">${esc(C.sourceNames[r.src] || r.src)}</td>` +
-            `<td class="mono" style="white-space:nowrap;font-size:12.3px">${r.date ? esc(dayShort(r.date)) : '—'}</td>` +
+            `<td style="min-width:220px"><b>${esc(r.text)}</b>${r.zone ? `<br><span class="muted" style="font-size:11.5px">${esc(r.zone)}</span>` : ''}</td>` +
+            `<td style="font-size:12.5px">${esc(C.sourceNames[r.source] || r.source || '')}</td>` +
+            `<td style="font-size:12.5px">${r.charity ? esc(r.charity) : dash}</td>` +
+            `<td style="font-size:12.5px;white-space:nowrap">${r.bags ? esc(r.bags) : dash}</td>` +
+            `<td class="mono" style="white-space:nowrap;font-size:12.3px">${r.day ? esc(dayShort(r.day)) : dash}</td>` +
+            `<td style="font-size:12.3px;white-space:nowrap">${r.windowText ? esc(r.windowText) : dash}</td>` +
+            `<td style="font-size:12px">${esc(evAgreement(r)) || dash}</td>` +
             `<td><span class="chip ${r.problem ? 'st-bad' : r.what === T('Выполнено') ? 'st-done' : 'ghost'}">${esc(r.what)}</span></td>` +
-            `<td style="font-size:12.5px">${r.note ? esc(r.note) : '<span class="muted">—</span>'}</td></tr>`,
+            `<td class="mono" style="white-space:nowrap;font-size:12px">${r.when ? esc(r.when) : dash}</td>` +
+            `<td style="font-size:12.5px">${r.reason ? esc(r.reason) : dash}</td>` +
+            `<td class="mono" style="font-size:12px;white-space:nowrap">${r.phone ? esc(r.phone) : dash}${r.contact_name ? `<br><span class="muted" style="font-size:11.5px">${esc(r.contact_name)}</span>` : ''}</td>` +
+            `<td class="mono" style="white-space:nowrap;font-size:12px">${r.received_at ? esc(tsShort(r.received_at)) : dash}</td>` +
+            `<td style="font-size:12.5px">${r.photos ? esc(String(r.photos)) : dash}</td></tr>`,
         ).join('');
+      }
+
+      /* Все поля — в таблицу для Excel. Разделитель — точка с запятой, кодировка UTF-8 с BOM. */
+      function eventsCsv() {
+        if (!EV_ROWS.length) {
+          toast(T('Нечего выгружать'));
+          return;
+        }
+        const ym = document.getElementById('ev-month').value || ymNow();
+        const cols = [
+          [T('Адрес'), (r) => r.text],
+          [T('Район'), (r) => r.zone],
+          [T('Источник'), (r) => C.sourceNames[r.source] || r.source],
+          ['Charity', (r) => r.charity],
+          [T('Мешки'), (r) => r.bags],
+          [T('Телефон'), (r) => r.phone],
+          [T('Контакт'), (r) => r.contact_name],
+          ['Email', (r) => r.contact_email],
+          [T('Заявка получена'), (r) => r.received_at],
+          [T('Дата сбора'), (r) => r.day],
+          [T('Окно'), (r) => r.windowText],
+          [T('Режим'), (r) => r.arrival_mode],
+          [T('Предложение отправлено'), (r) => r.offered_at],
+          [T('Автопредложение'), (r) => (r.offer_auto === true ? T('да') : r.offer_auto === false ? T('нет') : '')],
+          [T('Напоминание'), (r) => r.reminded_at],
+          [T('Подтверждено'), (r) => r.collection_confirmed_at],
+          [T('Как подтверждено'), (r) => (r.confirmed_by === 'yes' ? 'YES' : r.confirmed_by === 'manual' ? T('вручную') : '')],
+          [T('Окно из утренней SMS'), (r) => (Number.isFinite(r.eta_from) ? C.hm(r.eta_from) + '–' + C.hm(r.eta_to) : '')],
+          [T('Что произошло'), (r) => r.what],
+          [T('Когда'), (r) => (r.status === 'cancelled' ? r.closed_at || r.collection_cancelled_at : r.done_at)],
+          [T('Причина закрытия'), (r) => (r.status === 'cancelled' ? Ops.reasonLabel(r.cancellation_reason || r.closed_reason) : '')],
+          [T('Заметка о результате'), (r) => r.result_note],
+          [T('Примечание'), (r) => r.note],
+          [T('Водитель'), (r) => r.driver],
+          [T('SMS исходящих'), (r) => r.sms_out],
+          [T('SMS входящих'), (r) => r.sms_in],
+          [T('Фото'), (r) => r.photos],
+          ['id', (r) => r.id],
+        ];
+        const cell = (v) => {
+          const s = v == null ? '' : String(v);
+          return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+        };
+        const lines = [cols.map((c) => cell(c[0])).join(';')];
+        EV_ROWS.forEach((r) => lines.push(cols.map((c) => cell(c[1](r))).join(';')));
+        const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'Subnex-log-' + ym + '.csv';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          URL.revokeObjectURL(a.href);
+          a.remove();
+        }, 1000);
       }
 
       async function eventsPdf() {
@@ -3891,20 +4023,40 @@
         const rows = [
           [
             { text: T('АДРЕС'), style: 'th' },
+            { text: T('ИСТОЧНИК'), style: 'th' },
             { text: 'CHARITY', style: 'th' },
+            { text: T('МЕШКИ'), style: 'th' },
             { text: T('ДАТА'), style: 'th' },
+            { text: T('ОКНО'), style: 'th' },
+            { text: T('СОГЛАСОВАНИЕ'), style: 'th' },
             { text: T('ЧТО ПРОИЗОШЛО'), style: 'th' },
-            { text: T('ЗАМЕТКА'), style: 'th' },
+            { text: T('КОГДА'), style: 'th' },
+            { text: T('ПРИЧИНА / ЗАМЕТКА'), style: 'th' },
+            { text: T('ТЕЛЕФОН'), style: 'th' },
           ],
         ];
-        EV_ROWS.forEach((r) => rows.push([r.text, r.charity || '—', r.date ? dayShort(r.date) : '—', r.what, r.note || '—']));
+        EV_ROWS.forEach((r) =>
+          rows.push([
+            { text: r.text + (r.zone ? '\n' + r.zone : ''), bold: true },
+            C.sourceNames[r.source] || r.source || '—',
+            r.charity || '—',
+            r.bags || '—',
+            r.day ? dayShort(r.day) : '—',
+            r.windowText || '—',
+            evAgreement(r) || '—',
+            { text: r.what, color: r.problem ? '#B3261E' : r.what === T('Выполнено') ? BRAND.dgreen : '#1A1A18' },
+            r.when || '—',
+            r.reason || '—',
+            (r.phone || '—') + (r.contact_name ? '\n' + r.contact_name : ''),
+          ]),
+        );
         body.push({ text: T('Адреса'), style: 'sec' });
         body.push({
-          table: { headerRows: 1, widths: ['*', 'auto', 'auto', 'auto', '*'], body: rows },
+          table: { headerRows: 1, widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', '*', 'auto'], body: rows },
           layout: tableL(rows.length),
-          fontSize: 9,
+          fontSize: 7.5,
         });
-        const doc = pdfShell(T('Subnex Group Ltd  ·  Что случилось с адресами  ·  ') + ymLabel(ym));
+        const doc = pdfShell(T('Subnex Group Ltd  ·  Что случилось с адресами  ·  ') + ymLabel(ym), true);
         doc.content = body;
         doc.info = { title: T('Subnex — что случилось с адресами — ') + ymLabel(ym), author: 'Subnex Group Ltd' };
         return new Promise((res) => pdfMake.createPdf(doc).download('Subnex-events-' + ym + '.pdf', res));

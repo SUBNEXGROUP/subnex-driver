@@ -84,6 +84,8 @@
     duplicate: T('Повторная заявка'),
     other: T('Другая причина'),
   };
+  /* Причина автоматического закрытия (планировщик): в списке выбора её нет, в отчётах — есть. */
+  const reasonLabel = (code) => cancellationReasons[code] || (code === 'no_reply' ? T('Не ответил на предложение') : code || '');
   const errText = (e) =>
     codes[e?.code] ||
     codes[e?.message] ||
@@ -1314,6 +1316,7 @@
     esc,
     error: errText,
     dayHint: staleDayHint,
+    reasonLabel,
     offerText: (source, day, start, end, name) => {
       const t = partnerOffer(day, start, end, name);
       return t && source === 'subnex' ? subnexOffer(t) : t;
