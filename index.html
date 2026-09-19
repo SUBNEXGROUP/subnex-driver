@@ -1,734 +1,2267 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#0B1813">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>SUBNEX Driver</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="subnex-ui.css?v=20260916-chatfix">
-<link rel="stylesheet" href="ops-chat.css?v=20260916-console">
-<link rel="stylesheet" href="ops-dispatch.css?v=20260916-replan">
-<script src="ops-chat.js?v=20260917-charity"></script>
-<script src="ops-route.js?v=2"></script>
-<script src="ops-dispatch-core.js?v=20260919-states2"></script>
-<script src="ops-dispatch.js?v=20260919-states2"></script>
-<script src="ops-planner.js?v=20260915-collection-hours"></script>
-<style>
-body{font-size:15px}
-.leaflet-container{font-family:var(--body)}
-.mk{width:28px;height:28px;border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-family:var(--display);font-size:12px;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)}
-.mk.sq{border-radius:7px;background:var(--accent);color:var(--accent-ink);border-color:var(--ink)}
-.addrbox{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;font-size:15px;line-height:1.5;overflow-wrap:anywhere}
-.addrbox .lbl{font-weight:700;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px}
-.sign{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:11px 13px;display:none;font-size:13px}
-.sign.show{display:block}
-.sign .vals{display:flex;flex-wrap:wrap;gap:4px 16px;font-family:var(--mono);font-size:13px}
-.sign .vals b{font-weight:600}
-.sign .src{font-size:12px;color:var(--muted);margin-top:5px}
-#v-addr [hidden]{display:none!important}
-.fld{display:flex;flex-direction:column;gap:5px}
-.fld label{font-size:12.5px;font-weight:600;color:var(--ink-2)}
-</style>
-</head>
-<body>
-<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
-<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
-<symbol id="i-check" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></symbol>
-<symbol id="i-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></symbol>
-<symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12L13 2z"/></symbol>
-<symbol id="i-nav" viewBox="0 0 24 24"><path d="M3 11l18-8-8 18-2.4-7.6L3 11z"/></symbol>
-<symbol id="i-cam" viewBox="0 0 24 24"><path d="M4 8h3.2L9 5h6l1.8 3H20a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.6"/></symbol>
-<symbol id="i-pen" viewBox="0 0 24 24"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></symbol>
-<symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
-<symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5"/></symbol>
-<symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.9-6.6M21 3v6h-6"/></symbol>
-<symbol id="i-out" viewBox="0 0 24 24"><path d="M14 3h7v18h-7M15 12H3m0 0 4-4m-4 4 4 4"/></symbol>
-<symbol id="i-today" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4M8 14h4"/></symbol>
-<symbol id="i-box" viewBox="0 0 24 24"><path d="M3 7l9-4 9 4v10l-9 4-9-4V7zM3 7l9 4 9-4M12 11v10"/></symbol>
-<symbol id="i-more" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
-<symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
-<symbol id="i-phone" viewBox="0 0 24 24"><path d="M22 16.9v2a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 3 5.2 2 2 0 0 1 5 3h2a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 11a16 16 0 0 0 6 6l1.4-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 1.9z"/></symbol>
-<symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4V5z"/></symbol>
-<symbol id="i-bin" viewBox="0 0 24 24"><path d="M4 8h16v12H4zM4 8l2.2-4h11.6L20 8M9 12v4M15 12v4"/></symbol>
-</svg>
-<div class="offline" id="offline" data-i18n="offlineMsg">Offline — изменения отправятся при появлении сети</div>
-<div class="ph-app" id="app">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#0B1813" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>SUBNEX Driver</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+    />
+    <link rel="stylesheet" href="subnex-ui.css?v=20260916-chatfix" />
+    <link rel="stylesheet" href="ops-chat.css?v=20260916-console" />
+    <link rel="stylesheet" href="ops-dispatch.css?v=20260916-replan" />
+    <script src="ops-chat.js?v=20260919-stage1"></script>
+    <script src="ops-dispatch-core.js?v=20260919-stage1"></script>
+    <script src="ops-dispatch.js?v=20260919-stage1"></script>
+    <style>
+      body {
+        font-size: 15px;
+      }
+      .leaflet-container {
+        font-family: var(--body);
+      }
+      .mk {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        font-family: var(--display);
+        font-size: 12px;
+        border: 2px solid #fff;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+      }
+      .mk.sq {
+        border-radius: 7px;
+        background: var(--accent);
+        color: var(--accent-ink);
+        border-color: var(--ink);
+      }
+      .addrbox {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 14px;
+        font-size: 15px;
+        line-height: 1.5;
+        overflow-wrap: anywhere;
+      }
+      .addrbox .lbl {
+        font-weight: 700;
+        font-size: 11px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 5px;
+      }
+      .sign {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 11px 13px;
+        display: none;
+        font-size: 13px;
+      }
+      .sign.show {
+        display: block;
+      }
+      .sign .vals {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 16px;
+        font-family: var(--mono);
+        font-size: 13px;
+      }
+      .sign .vals b {
+        font-weight: 600;
+      }
+      .sign .src {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 5px;
+      }
+      #v-addr [hidden] {
+        display: none !important;
+      }
+      .fld {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+      .fld label {
+        font-size: 12.5px;
+        font-weight: 600;
+        color: var(--ink-2);
+      }
+    </style>
+  </head>
+  <body>
+    <svg xmlns="http://www.w3.org/2000/svg" style="display: none" aria-hidden="true">
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5" /></symbol>
+      <symbol id="i-save" viewBox="0 0 24 24">
+        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+        <path d="M17 21v-8H7v8M7 3v5h8" />
+      </symbol>
+      <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12L13 2z" /></symbol>
+      <symbol id="i-nav" viewBox="0 0 24 24"><path d="M3 11l18-8-8 18-2.4-7.6L3 11z" /></symbol>
+      <symbol id="i-cam" viewBox="0 0 24 24">
+        <path d="M4 8h3.2L9 5h6l1.8 3H20a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
+        <circle cx="12" cy="13.5" r="3.6" />
+      </symbol>
+      <symbol id="i-pen" viewBox="0 0 24 24"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z" /></symbol>
+      <symbol id="i-cal" viewBox="0 0 24 24">
+        <rect x="3" y="5" width="18" height="16" rx="2" />
+        <path d="M3 10h18M8 3v4M16 3v4" />
+      </symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5" /></symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.9-6.6M21 3v6h-6" /></symbol>
+      <symbol id="i-out" viewBox="0 0 24 24"><path d="M14 3h7v18h-7M15 12H3m0 0 4-4m-4 4 4 4" /></symbol>
+      <symbol id="i-today" viewBox="0 0 24 24">
+        <rect x="3" y="4" width="18" height="17" rx="2" />
+        <path d="M3 9h18M8 2v4M16 2v4M8 14h4" />
+      </symbol>
+      <symbol id="i-box" viewBox="0 0 24 24"><path d="M3 7l9-4 9 4v10l-9 4-9-4V7zM3 7l9 4 9-4M12 11v10" /></symbol>
+      <symbol id="i-more" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" /></symbol>
+      <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" /></symbol>
+      <symbol id="i-phone" viewBox="0 0 24 24">
+        <path
+          d="M22 16.9v2a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 3 5.2 2 2 0 0 1 5 3h2a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 11a16 16 0 0 0 6 6l1.4-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 1.9z"
+        />
+      </symbol>
+      <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4V5z" /></symbol>
+      <symbol id="i-bin" viewBox="0 0 24 24"><path d="M4 8h16v12H4zM4 8l2.2-4h11.6L20 8M9 12v4M15 12v4" /></symbol>
+    </svg>
+    <div class="offline" id="offline" data-i18n="offlineMsg">Offline — изменения отправятся при появлении сети</div>
+    <div class="ph-app" id="app">
+      <!-- ===== ПОДКЛЮЧЕНИЕ (первый запуск) ===== -->
+      <section class="ph-view" id="v-config">
+        <div class="ph-login">
+          <div class="card">
+            <div class="card-b stack">
+              <div class="brand">
+                <div class="logo">S</div>
+                <div><b>SUBNEX</b><small data-i18n="driverApp">Приложение водителя</small></div>
+              </div>
+              <div class="fld">
+                <label>Supabase URL</label><input class="field" type="text" id="cfg-url" placeholder="https://xxxx.supabase.co" />
+              </div>
+              <div class="fld">
+                <label>Supabase anon key</label><input class="field" type="text" id="cfg-key" placeholder="eyJhbGciOi..." />
+              </div>
+              <button class="btn btn-pri btn-lg" onclick="saveConfig()" data-i18n="connect">Подключить</button>
+            </div>
+          </div>
+        </div>
+      </section>
 
-<!-- ===== ПОДКЛЮЧЕНИЕ (первый запуск) ===== -->
-<section class="ph-view" id="v-config">
-  <div class="ph-login"><div class="card"><div class="card-b stack">
-    <div class="brand"><div class="logo">S</div><div><b>SUBNEX</b><small>Приложение водителя</small></div></div>
-    <div class="fld"><label>Supabase URL</label><input class="field" type="text" id="cfg-url" placeholder="https://xxxx.supabase.co"></div>
-    <div class="fld"><label>Supabase anon key</label><input class="field" type="text" id="cfg-key" placeholder="eyJhbGciOi..."></div>
-    <button class="btn btn-pri btn-lg" onclick="saveConfig()">Подключить</button>
-  </div></div></div>
-</section>
+      <!-- ===== ВХОД ===== -->
+      <section class="ph-view" id="v-login">
+        <div class="ph-login">
+          <div class="card">
+            <div class="card-b stack">
+              <div class="brand">
+                <div class="logo">S</div>
+                <div><b>SUBNEX</b><small data-i18n="driverLogin">Вход водителя</small></div>
+              </div>
+              <div class="fld"><label>Email</label><input class="field" id="driver-email" type="email" autocomplete="username" /></div>
+              <div class="fld">
+                <label data-i18n="password">Пароль</label><input class="field" id="driver-password" type="password" autocomplete="current-password" />
+              </div>
+              <button class="btn btn-acc btn-lg" id="driver-login" onclick="tryLogin()" data-i18n="login">Войти</button>
+              <div class="err" id="pinerr" role="alert"></div>
+              <p class="muted small" data-i18n="accessNote">Доступ выдаёт администратор компании.</p>
+            </div>
+          </div>
+        </div>
+      </section>
 
-<!-- ===== ВХОД ===== -->
-<section class="ph-view" id="v-login">
-  <div class="ph-login"><div class="card"><div class="card-b stack">
-    <div class="brand"><div class="logo">S</div><div><b>SUBNEX</b><small>Вход водителя</small></div></div>
-    <div class="fld"><label>Email</label><input class="field" id="driver-email" type="email" autocomplete="username"></div>
-    <div class="fld"><label>Пароль</label><input class="field" id="driver-password" type="password" autocomplete="current-password"></div>
-    <button class="btn btn-acc btn-lg" id="driver-login" onclick="tryLogin()">Войти</button>
-    <div class="err" id="pinerr" role="alert"></div>
-    <p class="muted small">Доступ выдаёт администратор компании.</p>
-  </div></div></div>
-</section>
+      <!-- ===== ДЕНЬ (главный экран) ===== -->
+      <section class="ph-view" id="v-day">
+        <div class="ph-top">
+          <div class="r1">
+            <button class="backbtn" id="day-back" onclick="goToday()" hidden aria-label="Сегодня">‹</button><span id="h-driver"></span
+            ><span id="day-flag"></span>
+          </div>
+          <h1 id="day-title"></h1>
+          <div class="sum" id="day-sum"></div>
+        </div>
+        <div class="ph-hero" id="day-hero" hidden>
+          <div>
+            <div class="big" id="cnt-today-left">0</div>
+            <div class="lab">
+              <span data-i18n="left">Осталось</span> <span class="muted">из <span id="cnt-today">0</span></span>
+            </div>
+          </div>
+          <div class="bar"><i id="today-progress" style="width: 0%"></i></div>
+        </div>
+        <button class="ph-cta" id="btn-start-route" onclick="startDispatchDay()" hidden data-i18n="startRoute">Начать маршрут</button>
+        <p id="dispatch-day-note" role="status" class="small muted" style="white-space: pre-wrap"></p>
+        <div id="map" class="ph-map"></div>
+        <button class="ph-cta ghost" id="btn-opt" onclick="optimizeDay()">
+          <svg class="ic" style="fill: currentColor; stroke: none"><use href="#i-bolt" /></svg>
+          <span data-i18n="optimize">Оптимизировать маршрут</span>
+        </button>
+        <div class="sign" id="signstrip">
+          <div class="vals" id="sign-vals"></div>
+          <div class="src" id="sign-src"></div>
+        </div>
+        <div class="ph-sec" data-i18n="stops">Остановки</div>
+        <div id="day-list" class="stack" style="gap: 8px"></div>
+      </section>
 
-<!-- ===== ДЕНЬ (главный экран) ===== -->
-<section class="ph-view" id="v-day">
-  <div class="ph-top">
-    <div class="r1"><button class="backbtn" id="day-back" onclick="goToday()" hidden aria-label="Сегодня">‹</button><span id="h-driver"></span><span id="day-flag"></span></div>
-    <h1 id="day-title"></h1>
-    <div class="sum" id="day-sum"></div>
-  </div>
-  <div class="ph-hero" id="day-hero" hidden><div><div class="big" id="cnt-today-left">0</div><div class="lab"><span data-i18n="left">Осталось</span> <span class="muted">из <span id="cnt-today">0</span></span></div></div><div class="bar"><i id="today-progress" style="width:0%"></i></div></div>
-  <button class="ph-cta" id="btn-start-route" onclick="startDispatchDay()" hidden>Начать маршрут</button>
-  <p id="dispatch-day-note" role="status" class="small muted" style="white-space:pre-wrap"></p>
-  <div id="map" class="ph-map"></div>
-  <button class="ph-cta ghost" id="btn-opt" onclick="optimizeDay()"><svg class="ic" style="fill:currentColor;stroke:none"><use href="#i-bolt"/></svg> <span data-i18n="optimize">Оптимизировать маршрут</span></button>
-  <div class="sign" id="signstrip"><div class="vals" id="sign-vals"></div><div class="src" id="sign-src"></div></div>
-  <div class="ph-sec" data-i18n="stops">Остановки</div>
-  <div id="day-list" class="stack" style="gap:8px"></div>
-</section>
+      <!-- ===== РЕДАКТИРОВАНИЕ АДРЕСА ===== -->
+      <section class="ph-view" id="v-add">
+        <div class="ph-top">
+          <div class="r1"><button class="backbtn" onclick="goBack()" aria-label="Назад">‹</button></div>
+          <h1 id="add-title" data-i18n="editAddress">Редактировать адрес</h1>
+        </div>
+        <div class="card">
+          <div class="card-b stack">
+            <div class="fld"><label data-i18n="addressLbl">Адрес</label><div class="addrbox" id="f-addr-text"></div></div>
+            <div class="fld">
+              <label data-i18n="bagsLbl">Мешков</label
+              ><input class="field" type="number" id="f-bags" min="0" inputmode="numeric" placeholder="0" />
+            </div>
+            <div class="fld">
+              <label data-i18n="phoneLbl">Телефон</label
+              ><input class="field" type="text" id="f-phone" inputmode="tel" placeholder="07xxxxxxxxx" />
+            </div>
+            <div class="fld"><label data-i18n="noteLbl">Заметка</label><input class="field" type="text" id="f-note" /></div>
+            <p class="muted small" data-i18n="editNote">Адрес, дату и время меняют в Пульте — так заявка не разойдётся с планом и перепиской.</p>
+            <button class="btn btn-pri btn-lg" id="btn-save-addr" onclick="saveAddress()">
+              <svg class="ic"><use href="#i-save" /></svg> <span data-i18n="save">Сохранить</span>
+            </button>
+          </div>
+        </div>
+      </section>
 
-<!-- ===== РЕДАКТИРОВАНИЕ АДРЕСА ===== -->
-<section class="ph-view" id="v-add">
-  <div class="ph-top"><div class="r1"><button class="backbtn" onclick="goBack()" aria-label="Назад">‹</button></div><h1 id="add-title" data-i18n="editAddress">Редактировать адрес</h1></div>
-  <div class="card"><div class="card-b stack">
-    <div class="fld"><label data-i18n="addressLbl">Адрес</label><textarea class="field" id="f-addr" placeholder="7 Schofield Way, Cardiff, CF11 6HQ"></textarea></div>
-    <div class="fld"><label data-i18n="bagsLbl">Мешков</label><input class="field" type="number" id="f-bags" min="0" inputmode="numeric" placeholder="0"></div>
-    <div class="fld"><label data-i18n="phoneLbl">Телефон</label><input class="field" type="text" id="f-phone" inputmode="tel" placeholder="07xxxxxxxxx"></div>
-    <div class="fld"><label data-i18n="noteLbl">Заметка</label><input class="field" type="text" id="f-note"></div>
-    <div class="fld"><label data-i18n="dateLbl">Дата выезда</label><input class="field" type="date" id="f-date"></div>
-    <button class="btn btn-pri btn-lg" id="btn-save-addr" onclick="saveAddress()"><svg class="ic"><use href="#i-save"/></svg> <span data-i18n="save">Сохранить</span></button>
-  </div></div>
-</section>
+      <!-- ===== КАЛЕНДАРЬ ===== -->
+      <section class="ph-view" id="v-cal">
+        <div class="ph-top">
+          <div class="r1"><span data-i18n="calendar">Календарь</span></div>
+          <div class="ph-title">
+            <button class="backbtn" onclick="calShift(-1)" aria-label="Предыдущий месяц">‹</button>
+            <h1 id="cal-title" style="flex: 1; text-align: center"></h1>
+            <button class="backbtn" onclick="calShift(1)" aria-label="Следующий месяц">›</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-b">
+            <div class="cal" id="cal-grid"></div>
+            <p class="legend" id="cal-legend"></p>
+          </div>
+        </div>
+        <div class="ph-sec" data-i18n="newAddresses">Новые адреса без даты</div>
+        <div id="new-list" class="stack" style="gap: 8px"></div>
+      </section>
 
-<!-- ===== КАЛЕНДАРЬ ===== -->
-<section class="ph-view" id="v-cal">
-  <div class="ph-top"><div class="r1"><span data-i18n="calendar">Календарь</span></div><div class="ph-title"><button class="backbtn" onclick="calShift(-1)" aria-label="Предыдущий месяц">‹</button><h1 id="cal-title" style="flex:1;text-align:center"></h1><button class="backbtn" onclick="calShift(1)" aria-label="Следующий месяц">›</button></div></div>
-  <div class="card"><div class="card-b"><div class="cal" id="cal-grid"></div><p class="legend" id="cal-legend"></p></div></div>
-  <div class="ph-sec" data-i18n="newAddresses">Новые адреса без даты</div>
-  <div id="new-list" class="stack" style="gap:8px"></div>
-</section>
+      <!-- ===== ОСТАНОВКА ===== -->
+      <section class="ph-view" id="v-addr">
+        <div class="ph-top">
+          <div class="r1"><button class="backbtn" onclick="goBack()" aria-label="Назад">‹</button><span id="ai-pos"></span></div>
+          <h1 id="ai-head"></h1>
+          <div class="sum" id="ai-sum"></div>
+        </div>
+        <button class="ph-cta brand" onclick="navToCurrent()">
+          <svg class="ic" style="fill: currentColor; stroke: none"><use href="#i-nav" /></svg> <span data-i18n="navigate">Навигация</span>
+        </button>
+        <div class="addrbox">
+          <div class="lbl" data-i18n="addressShort">Адрес</div>
+          <div id="ai-text"></div>
+          <div id="ai-geo" style="margin-top: 6px"></div>
+        </div>
+        <div id="bank-sec" style="display: none" class="stack" style="gap: 8px">
+          <div class="ph-sec"><span data-i18n="fillLbl">Вес собранного</span> <span style="color: var(--crit)">*</span></div>
+          <div class="fillsel" id="fillsel"></div>
+          <div class="ph-sec">
+            <span data-i18n="phOpen">Фото: открытый бин + содержимое</span> <span style="color: var(--crit)">*</span>
+          </div>
+          <div class="photostrip" id="ph-open"></div>
+          <button class="btn btn-lg" onclick="takePhoto('open')">
+            <svg class="ic"><use href="#i-cam" /></svg> <span data-i18n="takePhoto">Сделать фото</span>
+          </button>
+          <div class="ph-sec">
+            <span data-i18n="phEmpty">Фото: пустой бин перед закрытием</span> <span style="color: var(--crit)">*</span>
+          </div>
+          <div class="photostrip" id="ph-empty"></div>
+          <button class="btn btn-lg" onclick="takePhoto('empty')">
+            <svg class="ic"><use href="#i-cam" /></svg> <span data-i18n="takePhoto">Сделать фото</span>
+          </button>
+          <div class="ph-sec" data-i18n="phRubbish">Мусор рядом (по желанию)</div>
+          <div class="photostrip" id="ph-rubbish"></div>
+          <button class="btn btn-lg" onclick="takePhoto('rubbish')">
+            <svg class="ic"><use href="#i-cam" /></svg> <span data-i18n="addRubbish">Фото мусора + комментарий</span>
+          </button>
+        </div>
+        <div id="d2d-photo-sec" class="stack" style="gap: 8px">
+          <div class="ph-sec" data-i18n="photos">Фото</div>
+          <div class="photostrip" id="ai-photos"></div>
+          <button class="btn btn-lg" onclick="takePhoto('photo')">
+            <svg class="ic"><use href="#i-cam" /></svg> <span data-i18n="takePhoto">Сделать фото</span>
+          </button>
+        </div>
+        <input type="file" id="photo-input" accept="image/*" capture="environment" hidden onchange="onPhotoPicked(this.files)" />
+        <div class="ph-sec" data-i18n="result">Результат</div>
+        <div class="ph-btns" id="result-btns">
+          <button class="ok" onclick="setResult('done')">
+            <svg class="ic"><use href="#i-check" /></svg> <span data-i18n="visited">Выполнено</span>
+          </button>
+          <button class="bad" id="btn-noanswer" onclick="setResult('noanswer')"><span data-i18n="noAnswer">Не отвечает</span></button>
+          <button class="warn" onclick="setResult('problem')"><span data-i18n="problem">Проблема</span></button>
+        </div>
+        <div class="ph-sec" data-i18n="actions">Действия</div>
+        <div class="ph-btns" id="action-btns">
+          <button class="full" id="btn-sms" onclick="openSMS(currentAddrId)">
+            <svg class="ic"><use href="#i-chat" /></svg> <span id="btn-sms-label">SMS · согласовать сбор</span>
+          </button>
+          <button id="btn-edit" onclick="editCurrent()">
+            <svg class="ic"><use href="#i-pen" /></svg> <span data-i18n="edit">Редактировать</span>
+          </button>
+          <button onclick="rescheduleCurrent()">
+            <svg class="ic"><use href="#i-cal" /></svg> <span data-i18n="reschedule">Перенести</span>
+          </button>
+        </div>
+      </section>
 
-<!-- ===== ОСТАНОВКА ===== -->
-<section class="ph-view" id="v-addr">
-  <div class="ph-top"><div class="r1"><button class="backbtn" onclick="goBack()" aria-label="Назад">‹</button><span id="ai-pos"></span></div><h1 id="ai-head"></h1><div class="sum" id="ai-sum"></div></div>
-  <button class="ph-cta brand" onclick="navToCurrent()"><svg class="ic" style="fill:currentColor;stroke:none"><use href="#i-nav"/></svg> <span data-i18n="navigate">Навигация</span></button>
-  <div class="addrbox"><div class="lbl" data-i18n="addressShort">Адрес</div><div id="ai-text"></div><div id="ai-geo" style="margin-top:6px"></div></div>
-  <div id="bank-sec" style="display:none" class="stack" style="gap:8px">
-    <div class="ph-sec"><span data-i18n="fillLbl">Вес собранного</span> <span style="color:var(--crit)">*</span></div>
-    <div class="fillsel" id="fillsel"></div>
-    <div class="ph-sec"><span data-i18n="phOpen">Фото: открытый бин + содержимое</span> <span style="color:var(--crit)">*</span></div>
-    <div class="photostrip" id="ph-open"></div>
-    <button class="btn btn-lg" onclick="takePhoto('open')"><svg class="ic"><use href="#i-cam"/></svg> <span data-i18n="takePhoto">Сделать фото</span></button>
-    <div class="ph-sec"><span data-i18n="phEmpty">Фото: пустой бин перед закрытием</span> <span style="color:var(--crit)">*</span></div>
-    <div class="photostrip" id="ph-empty"></div>
-    <button class="btn btn-lg" onclick="takePhoto('empty')"><svg class="ic"><use href="#i-cam"/></svg> <span data-i18n="takePhoto">Сделать фото</span></button>
-    <div class="ph-sec" data-i18n="phRubbish">Мусор рядом (по желанию)</div>
-    <div class="photostrip" id="ph-rubbish"></div>
-    <button class="btn btn-lg" onclick="takePhoto('rubbish')"><svg class="ic"><use href="#i-cam"/></svg> <span data-i18n="addRubbish">Фото мусора + комментарий</span></button>
-  </div>
-  <div id="d2d-photo-sec" class="stack" style="gap:8px">
-    <div class="ph-sec" data-i18n="photos">Фото</div>
-    <div class="photostrip" id="ai-photos"></div>
-    <button class="btn btn-lg" onclick="takePhoto('photo')"><svg class="ic"><use href="#i-cam"/></svg> <span data-i18n="takePhoto">Сделать фото</span></button>
-  </div>
-  <input type="file" id="photo-input" accept="image/*" capture="environment" hidden onchange="onPhotoPicked(this.files)">
-  <div class="ph-sec" data-i18n="result">Результат</div>
-  <div class="ph-btns" id="result-btns">
-    <button class="ok" onclick="setResult('done')"><svg class="ic"><use href="#i-check"/></svg> <span data-i18n="visited">Выполнено</span></button>
-    <button class="bad" id="btn-noanswer" onclick="setResult('noanswer')"><span data-i18n="noAnswer">Не отвечает</span></button>
-    <button class="warn" onclick="setResult('problem')"><span data-i18n="problem">Проблема</span></button>
-  </div>
-  <div class="ph-sec" data-i18n="actions">Действия</div>
-  <div class="ph-btns" id="action-btns">
-    <button class="full" id="btn-sms" onclick="openSMS(currentAddrId)"><svg class="ic"><use href="#i-chat"/></svg> <span id="btn-sms-label">SMS · согласовать сбор</span></button>
-    <button id="btn-edit" onclick="editCurrent()"><svg class="ic"><use href="#i-pen"/></svg> <span data-i18n="edit">Редактировать</span></button>
-    <button onclick="rescheduleCurrent()"><svg class="ic"><use href="#i-cal"/></svg> <span data-i18n="reschedule">Перенести</span></button>
-    <button class="full bad" id="btn-del" onclick="deleteCurrent()"><svg class="ic"><use href="#i-trash"/></svg> <span data-i18n="delete">Удалить</span></button>
-  </div>
-</section>
+      <!-- ===== АРХИВ ===== -->
+      <section class="ph-view" id="v-archive">
+        <div class="ph-top">
+          <div class="r1"><span data-i18n="archive">Архив</span></div>
+          <h1 data-i18n="archSub">Выполненные работы</h1>
+        </div>
+        <div class="subtabs" style="overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none">
+          <button id="tab-all" aria-current="true" onclick="setArcTab('all')" data-i18n="tabAll">Все</button>
+          <button id="tab-done" onclick="setArcTab('done')" data-i18n="tabDone">Выполнено</button>
+          <button id="tab-noanswer" onclick="setArcTab('noanswer')" data-i18n="tabNoAnswer">Не отвечает</button>
+          <button id="tab-problem" onclick="setArcTab('problem')" data-i18n="tabProblem">Проблема</button>
+          <button id="tab-cancelled" onclick="setArcTab('cancelled')" data-i18n="cancelledWord">Отменено</button>
+        </div>
+        <div id="arc-list" class="stack" style="gap: 8px"></div>
+      </section>
 
-<!-- ===== АРХИВ ===== -->
-<section class="ph-view" id="v-archive">
-  <div class="ph-top"><div class="r1"><span data-i18n="archive">Архив</span></div><h1 data-i18n="archSub">Выполненные работы</h1></div>
-  <div class="subtabs" style="overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none">
-    <button id="tab-all" aria-current="true" onclick="setArcTab('all')" data-i18n="tabAll">Все</button>
-    <button id="tab-done" onclick="setArcTab('done')" data-i18n="tabDone">Выполнено</button>
-    <button id="tab-noanswer" onclick="setArcTab('noanswer')" data-i18n="tabNoAnswer">Не отвечает</button>
-    <button id="tab-problem" onclick="setArcTab('problem')" data-i18n="tabProblem">Проблема</button>
-    <button id="tab-cancelled" onclick="setArcTab('cancelled')">Отменено</button>
-  </div>
-  <div id="arc-list" class="stack" style="gap:8px"></div>
-</section>
-
-<!-- ===== ЕЩЁ ===== -->
-<section class="ph-view" id="v-set">
-  <div class="ph-top"><div class="r1"><span data-i18n="settings">Настройки</span></div><h1 id="set-driver"></h1></div>
-  <button class="ph-cta ghost" onclick="openSMS()"><svg class="ic"><use href="#i-chat"/></svg> SMS · переписка с клиентами</button>
-  <button class="ph-cta ghost" onclick="openAdd()"><svg class="ic"><use href="#i-plus"/></svg> <span data-i18n="addAddress">Добавить адрес</span></button>
-  <div class="card"><div class="card-b stack">
-    <div class="fld"><label data-i18n="homeLbl">Дом (старт маршрута)</label><input class="field" type="text" id="s-home" placeholder="Abertillery NP13 1DF"><div id="s-home-geo"></div></div>
-    <div class="fld"><label data-i18n="depotLbl">Склад (финиш маршрута)</label><input class="field" type="text" id="s-depot" placeholder="CF43 4SX"><div id="s-depot-geo"></div></div>
-    <div class="fgrid">
-      <div class="fld"><label data-i18n="fuelLbl">Расход, л/100 км</label><input class="field" type="number" id="s-fuel" step="0.1" inputmode="decimal"></div>
-      <div class="fld"><label data-i18n="priceLbl">Топливо, £/л</label><input class="field" type="number" id="s-price" step="0.01" inputmode="decimal"></div>
+      <!-- ===== ЕЩЁ ===== -->
+      <section class="ph-view" id="v-set">
+        <div class="ph-top">
+          <div class="r1"><span data-i18n="settings">Настройки</span></div>
+          <h1 id="set-driver"></h1>
+        </div>
+        <button class="ph-cta ghost" onclick="openSMS()">
+          <svg class="ic"><use href="#i-chat" /></svg> <span data-i18n="smsChats">SMS · переписка с клиентами</span>
+        </button>
+        <button class="ph-cta ghost" onclick="openAdd()">
+          <svg class="ic"><use href="#i-plus" /></svg> <span data-i18n="addAddress">Добавить адрес</span>
+        </button>
+        <div class="card">
+          <div class="card-b stack">
+            <div class="fld"><label data-i18n="pointsLbl">Старт и склад</label><div class="addrbox" id="s-points"></div></div>
+            <div class="fld">
+              <label data-i18n="navAppLbl">Навигатор</label
+              ><select class="field" id="s-nav">
+                <option value="ask" data-i18n="navAsk">Спрашивать каждый раз</option>
+                <option value="google">Google Maps</option>
+                <option value="waze">Waze</option>
+              </select>
+            </div>
+            <div class="fld">
+              <label data-i18n="langLbl">Язык / Language</label
+              ><select class="field" id="s-lang">
+                <option value="ru">Русский</option>
+                <option value="en">English</option>
+              </select>
+            </div>
+            <button class="btn btn-pri btn-lg" onclick="saveSettings()">
+              <svg class="ic"><use href="#i-save" /></svg> <span data-i18n="save">Сохранить</span>
+            </button>
+            <p class="muted small" data-i18n="syncNote">Адреса и результаты синхронизируются с общей базой. Старт и склад задаются в Пульте.</p>
+          </div>
+        </div>
+        <div class="ph-btns">
+          <button onclick="syncNow()">
+            <svg class="ic"><use href="#i-refresh" /></svg> <span data-i18n="syncNow">Обновить данные</span>
+          </button>
+          <button class="bad" onclick="logout()">
+            <svg class="ic"><use href="#i-out" /></svg> <span data-i18n="logout">Выйти</span>
+          </button>
+        </div>
+      </section>
     </div>
-    <div class="fld"><label data-i18n="navAppLbl">Навигатор</label><select class="field" id="s-nav"><option value="ask" data-i18n="navAsk">Спрашивать каждый раз</option><option value="google">Google Maps</option><option value="waze">Waze</option></select></div>
-    <div class="fld"><label data-i18n="langLbl">Язык / Language</label><select class="field" id="s-lang"><option value="ru">Русский</option><option value="en">English</option></select></div>
-    <button class="btn btn-pri btn-lg" onclick="saveSettings()"><svg class="ic"><use href="#i-save"/></svg> <span data-i18n="save">Сохранить</span></button>
-    <p class="muted small" data-i18n="syncNote">Адреса и результаты синхронизируются с общей базой. Настройки маршрута — локальные для этого телефона.</p>
-  </div></div>
-  <div class="ph-btns">
-    <button onclick="syncNow()"><svg class="ic"><use href="#i-refresh"/></svg> <span data-i18n="syncNow">Обновить данные</span></button>
-    <button class="bad" onclick="logout()"><svg class="ic"><use href="#i-out"/></svg> <span data-i18n="logout">Выйти</span></button>
-  </div>
-</section>
 
-</div>
+    <nav class="ph-nav" id="mainnav" style="display: none">
+      <div class="inner">
+        <button id="nav-home" onclick="goToday()">
+          <svg class="ic"><use href="#i-today" /></svg><span data-i18n="navHome">Сегодня</span>
+        </button>
+        <button id="nav-cal" onclick="showView('v-cal')">
+          <svg class="ic"><use href="#i-cal" /></svg><span data-i18n="navCal">Календарь</span>
+        </button>
+        <button id="nav-arch" onclick="showView('v-archive')">
+          <svg class="ic"><use href="#i-box" /></svg><span data-i18n="navArch">Архив</span>
+        </button>
+        <button id="nav-set" onclick="showView('v-set')">
+          <svg class="ic"><use href="#i-more" /></svg><span data-i18n="navSet">Ещё</span>
+        </button>
+      </div>
+    </nav>
 
-<nav class="ph-nav" id="mainnav" style="display:none"><div class="inner">
-  <button id="nav-home" onclick="goToday()"><svg class="ic"><use href="#i-today"/></svg><span data-i18n="navHome">Сегодня</span></button>
-  <button id="nav-cal" onclick="showView('v-cal')"><svg class="ic"><use href="#i-cal"/></svg><span data-i18n="navCal">Календарь</span></button>
-  <button id="nav-arch" onclick="showView('v-archive')"><svg class="ic"><use href="#i-box"/></svg><span data-i18n="navArch">Архив</span></button>
-  <button id="nav-set" onclick="showView('v-set')"><svg class="ic"><use href="#i-more"/></svg><span data-i18n="navSet">Ещё</span></button>
-</div></nav>
+    <div class="navpick" id="nav-chooser" onclick="if (event.target === this) navCancel();">
+      <div class="navpick-in">
+        <div class="ph-sec" style="padding-top: 0" data-i18n="navWith">Открыть маршрут в</div>
+        <button class="ph-cta brand" onclick="navGo('google')">Google Maps</button>
+        <button class="ph-cta" onclick="navGo('waze')">Waze</button>
+        <button class="ph-cta ghost" onclick="navCancel()" data-i18n="cancelWord">Отмена</button>
+      </div>
+    </div>
 
-<div class="navpick" id="nav-chooser" onclick="if(event.target===this)navCancel()">
-  <div class="navpick-in">
-    <div class="ph-sec" style="padding-top:0" data-i18n="navWith">Открыть маршрут в</div>
-    <button class="ph-cta brand" onclick="navGo('google')">Google Maps</button>
-    <button class="ph-cta" onclick="navGo('waze')">Waze</button>
-    <button class="ph-cta ghost" onclick="navCancel()" data-i18n="cancelWord">Отмена</button>
-  </div>
-</div>
+    <div class="toast" id="toast"></div>
 
-<div class="toast" id="toast"></div>
+    <div class="photo-lb" id="photo-lb">
+      <img id="lb-img" alt="photo" onclick="lbClose()" />
+      <div class="lb-bar">
+        <button onclick="lbClose()"><span data-i18n="close">Закрыть</span></button>
+        <button class="crit" onclick="lbDelete()"><span data-i18n="delete">Удалить</span></button>
+      </div>
+    </div>
+    <script src="config.js"></script>
+    <script>
+      /* ============ SUBNEX Driver — Supabase sync, offline outbox, photos. Оболочка новая, логика прежняя. ============ */
+      'use strict';
+      const CFG = typeof window !== 'undefined' && window.SUBNEX_CONFIG ? window.SUBNEX_CONFIG : {};
+      const CFG_URL = CFG.url || '',
+        CFG_KEY = CFG.key || '';
 
-<div class="photo-lb" id="photo-lb">
-  <img id="lb-img" alt="photo" onclick="lbClose()">
-  <div class="lb-bar">
-    <button onclick="lbClose()"><span data-i18n="close">Закрыть</span></button>
-    <button class="crit" onclick="lbDelete()"><span data-i18n="delete">Удалить</span></button>
-  </div>
-</div>
-<script src="config.js"></script>
-<script>
-/* ============ SUBNEX Driver — Supabase sync, offline outbox, photos. Оболочка новая, логика прежняя. ============ */
-'use strict';
-const CFG=(typeof window!=='undefined'&&window.SUBNEX_CONFIG)?window.SUBNEX_CONFIG:{};
-const CFG_URL=CFG.url||'', CFG_KEY=CFG.key||'';
+      /* ---------- i18n ---------- */
+      const STR = {
+        ru: {
+          home: 'Сегодня',
+          addAddress: 'Добавить адрес',
+          todayAddresses: 'Адреса на сегодня',
+          left: 'Осталось',
+          newAddresses: 'Новые адреса без даты',
+          calendar: 'Календарь',
+          archive: 'Архив',
+          archSub: 'Выполненные работы',
+          addressLbl: 'Адрес',
+          bagsLbl: 'Мешков',
+          phoneLbl: 'Телефон',
+          noteLbl: 'Заметка',
+          dateLbl: 'Дата выезда',
+          save: 'Сохранить',
+          optimize: 'Оптимизировать маршрут',
+          showRoute: 'Показать маршрут',
+          buildingRoute: 'Строю маршрут…',
+          drivingTime: 'В пути',
+          routeStart: 'Старт',
+          routeFinish: 'Склад',
+          scheduledRoute: 'По согласованному времени · в пути: без ожидания, сборов и прогноза пробок',
+          scheduledLines: 'Дорожный расчёт недоступен. Пунктир соединяет точки по времени и не показывает дорогу.',
+          routeNoTime: 'Адреса без согласованного времени показаны в конце.',
+          routeApprox: 'Часть точек приблизительная, по почтовому индексу.',
+          routeMissingCoords: 'Нужны координаты всех адресов. Без координат: ',
+          routeMissingEnds: 'Укажите координаты старта и склада в настройках.',
+          routeChanged: 'Адреса или настройки изменились. Нажмите «Показать маршрут» ещё раз.',
+          addrInfo: 'Остановка',
+          addressShort: 'Адрес',
+          result: 'Результат',
+          visited: 'Выполнено',
+          noAnswer: 'Не отвечает',
+          problem: 'Проблема',
+          actions: 'Действия',
+          edit: 'Редактировать',
+          reschedule: 'Перенести',
+          delete: 'Удалить',
+          navigate: 'Навигация',
+          tabAll: 'Все',
+          tabDone: 'Выполнено',
+          tabNoAnswer: 'Не отвечает',
+          tabProblem: 'Проблема',
+          settings: 'Настройки',
+          homeLbl: 'Дом (старт маршрута)',
+          depotLbl: 'Склад (финиш маршрута)',
+          fuelLbl: 'Расход, л/100 км',
+          priceLbl: 'Топливо, £/л',
+          langLbl: 'Язык / Language',
+          navHome: 'Сегодня',
+          navCal: 'Календарь',
+          navArch: 'Архив',
+          navSet: 'Ещё',
+          editAddress: 'Редактировать адрес',
+          bags: 'мешк.',
+          noCoords: 'координаты не найдены',
+          coordsOk: 'координаты найдены',
+          postcodeCoords: 'точка по индексу',
+          saved: 'Сохранено',
+          geocoding: 'Ищу координаты…',
+          emptyDay: 'На эту дату сборов нет',
+          emptyNew: 'Новых адресов нет',
+          emptyArc: 'Пока пусто',
+          problemPrompt: 'Что случилось? (короткая заметка)',
+          reschedulePrompt: 'Новая дата (ГГГГ-ММ-ДД):',
+          confirmDelete: 'Удалить этот адрес?',
+          optimizing: 'Оптимизирую…',
+          optOSRM: 'Реальные дороги (OSRM)',
+          optFallback: 'Оценка по прямой (fallback)',
+          dist: 'Дистанция',
+          time: 'Время',
+          fuel: 'Топливо',
+          cost: 'Цена',
+          stops: 'Остановки',
+          needTwo: 'Нужен минимум 1 адрес с координатами',
+          noCoordAddr: 'Без координат (не попадёт в маршрут)',
+          setSaved: 'Настройки сохранены',
+          geoFail: 'Адрес не найден, проверьте текст',
+          bh: 'Bank holiday',
+          movedTo: 'Перенесено на',
+          todayWord: 'Сегодня',
+          connErr: 'Нет связи с базой',
+          syncNow: 'Обновить данные',
+          logout: 'Выйти',
+          synced: 'Данные обновлены',
+          syncNote: 'Адреса и результаты синхронизируются с общей базой. Настройки маршрута — локальные для этого телефона.',
+          queued: 'Сохранено локально, отправится при появлении сети',
+          photos: 'Фото',
+          takePhoto: 'Сделать фото',
+          close: 'Закрыть',
+          photoQueued: 'Фото сохранено, отправится при появлении сети',
+          offlineMsg: 'Offline — изменения отправятся при появлении сети',
+          fillLbl: 'Вес собранного',
+          phOpen: 'Фото: открытый бин + содержимое',
+          phEmpty: 'Фото: пустой бин перед закрытием',
+          phRubbish: 'Мусор рядом (по желанию)',
+          addRubbish: 'Фото мусора + комментарий',
+          needPhotos: 'Нужно фото открытого бина И пустого перед закрытием',
+          needFill: 'Укажите вес собранного',
+          rubbishCmt: 'Комментарий к мусору (необязательно):',
+          fillWord: 'Собрано',
+          kgUnit: 'кг',
+          emptyBin: 'Пусто — ничего не собрано',
+          photoErr: 'Фото не обработано',
+          photoUpErr: 'Фото пока не отправились',
+          navAppLbl: 'Навигатор',
+          navAsk: 'Спрашивать каждый раз',
+          navWith: 'Открыть маршрут в',
+          cancelWord: 'Отмена',
+          photoDelQ: 'Удалить это фото?',
+          collections: 'Сборов',
+          doneWord: 'Выполнено',
+          departure: 'Выезд',
+          depotWord: 'Склад',
+          window: 'окно до',
+          windowLbl: 'Окно',
+          noTime: 'время не согласовано',
+          anyTime: 'в течение дня',
+          smsWindow: 'SMS: {from}–{to}',
+          smsPending: 'SMS отправляется',
+          smsFailed: 'SMS не ушла',
+          windowAtStart: 'окно уйдёт при старте',
+          etaSent: 'Клиентам отправлено окно прибытия: {n}.',
+          gapWord: 'Не заполнено',
+          tomorrow: 'Завтра',
+          yesterday: 'Вчера',
+          cancelledWord: 'Отменено',
+          driverApp: 'Приложение водителя',
+          driverLogin: 'Вход водителя',
+          password: 'Пароль',
+          login: 'Войти',
+          connect: 'Подключить',
+          accessNote: 'Доступ выдаёт администратор компании.',
+          badLogin: 'Проверьте email и пароль.',
+          noDriver: 'Назначьте аккаунту водителя: Пульт → Настройки → Часы и доступ.',
+          driverOff: 'Водитель отключён или не назначен.',
+          loginAgain: 'Войдите заново.',
+          changeRejected: 'Изменение не принято: ',
+          rowChanged: 'Адрес уже изменён, удалён или передан другому водителю. Обновите данные.',
+          startRoute: 'Начать маршрут',
+          routeStarted: 'Маршрут начат · план зафиксирован',
+          checkingRoute: 'Проверяю все сборы перед стартом…',
+          routeStartedNote: 'Маршрут начат. Новые заявки будут ждать следующего дня.',
+          lateAt: 'По адресу «{addr}» обещанное время уже прошло{until}{eta}.\n\nПерестановка это не исправит. Начать маршрут всё равно?',
+          lateUntil: ' (до {t})',
+          lateEta: ', сейчас туда доедете к {t}',
+          planNote: 'Выезд: {dep} · склад: {fin}. Часы работы относятся к прибытиям к клиентам.',
+          planChecked: 'План проверен: дорога, интервалы, сборы и возврат на склад.',
+          smsChats: 'SMS · переписка с клиентами',
+          smsArrange: 'SMS · согласовать сбор',
+          smsChat: 'SMS · переписка с клиентом',
+          smsHistory: 'SMS · история и новая заявка',
+          editNote: 'Адрес, дату и время меняют в Пульте — так заявка не разойдётся с планом и перепиской.',
+          pointsLbl: 'Старт и склад',
+          pointsMissing: 'Не заданы. Пульт → Настройки → Старт и склад.',
+          useChatToMove: 'Для переноса согласованного времени используйте переписку.',
+          confirmMove: 'Клиент согласовал перенос на {d}?',
+          bankWord: 'Контейнер',
+          hourShort: 'ч',
+          minShort: 'мин',
+        },
+        en: {
+          home: 'Today',
+          addAddress: 'Add address',
+          todayAddresses: "Today's addresses",
+          left: 'Left',
+          newAddresses: 'New addresses without a date',
+          calendar: 'Calendar',
+          archive: 'Archive',
+          archSub: 'Completed jobs',
+          addressLbl: 'Address',
+          bagsLbl: 'Bags',
+          phoneLbl: 'Phone',
+          noteLbl: 'Note',
+          dateLbl: 'Collection date',
+          save: 'Save',
+          optimize: 'Optimize route',
+          showRoute: 'Show route',
+          buildingRoute: 'Building route…',
+          drivingTime: 'Driving',
+          routeStart: 'Start',
+          routeFinish: 'Depot',
+          scheduledRoute: 'In appointment order · driving time excludes waiting, collections and traffic forecasts',
+          scheduledLines: 'Road routing is unavailable. Dashed lines join stops in appointment order; they do not show roads.',
+          routeNoTime: 'Stops without an agreed time are shown at the end.',
+          routeApprox: 'Some positions are approximate, based on postcodes.',
+          routeMissingCoords: 'Coordinates are needed for every stop. Missing: ',
+          routeMissingEnds: 'Set the start and depot coordinates in Settings.',
+          routeChanged: 'Stops or settings changed. Press Show route again.',
+          addrInfo: 'Stop',
+          addressShort: 'Address',
+          result: 'Result',
+          visited: 'Visited',
+          noAnswer: 'No answer',
+          problem: 'Problem',
+          actions: 'Actions',
+          edit: 'Edit',
+          reschedule: 'Move',
+          delete: 'Delete',
+          navigate: 'Navigate',
+          tabAll: 'All',
+          tabDone: 'Done',
+          tabNoAnswer: 'No answer',
+          tabProblem: 'Problem',
+          settings: 'Settings',
+          homeLbl: 'Home (route start)',
+          depotLbl: 'Depot (route end)',
+          fuelLbl: 'Fuel use, L/100 km',
+          priceLbl: 'Fuel price, £/L',
+          langLbl: 'Язык / Language',
+          navHome: 'Today',
+          navCal: 'Calendar',
+          navArch: 'Archive',
+          navSet: 'More',
+          editAddress: 'Edit address',
+          bags: 'bags',
+          noCoords: 'coordinates not found',
+          coordsOk: 'coordinates found',
+          postcodeCoords: 'postcode position',
+          saved: 'Saved',
+          geocoding: 'Geocoding…',
+          emptyDay: 'No collections for this date',
+          emptyNew: 'No new addresses',
+          emptyArc: 'Nothing here yet',
+          problemPrompt: 'What happened? (short note)',
+          reschedulePrompt: 'New date (YYYY-MM-DD):',
+          confirmDelete: 'Delete this address?',
+          optimizing: 'Optimizing…',
+          optOSRM: 'Real roads (OSRM)',
+          optFallback: 'Straight-line estimate (fallback)',
+          dist: 'Distance',
+          time: 'Time',
+          fuel: 'Fuel',
+          cost: 'Cost',
+          stops: 'Stops',
+          needTwo: 'Need at least 1 address with coordinates',
+          noCoordAddr: 'No coordinates (excluded from route)',
+          setSaved: 'Settings saved',
+          geoFail: 'Address not found, check the text',
+          bh: 'Bank holiday',
+          movedTo: 'Moved to',
+          todayWord: 'Today',
+          connErr: 'No connection to database',
+          syncNow: 'Refresh data',
+          logout: 'Log out',
+          synced: 'Data refreshed',
+          syncNote: 'Addresses and results sync with the shared database. Route settings are local to this phone.',
+          queued: 'Saved locally, will sync when back online',
+          photos: 'Photos',
+          takePhoto: 'Take photo',
+          close: 'Close',
+          photoQueued: 'Photo saved, will upload when back online',
+          photoDelQ: 'Delete this photo?',
+          offlineMsg: 'Offline — changes will sync when back online',
+          fillLbl: 'Collected weight',
+          phOpen: 'Photo: open bin + contents',
+          phEmpty: 'Photo: empty bin before closing',
+          phRubbish: 'Rubbish nearby (optional)',
+          addRubbish: 'Rubbish photo + comment',
+          needPhotos: 'Required: photo of open bin AND empty bin before closing',
+          needFill: 'Select the collected weight',
+          rubbishCmt: 'Comment about the rubbish (optional):',
+          fillWord: 'Collected',
+          kgUnit: 'kg',
+          emptyBin: 'Empty — nothing collected',
+          photoErr: 'Photo could not be processed',
+          photoUpErr: 'Photos not uploaded yet',
+          navAppLbl: 'Navigation app',
+          navAsk: 'Ask every time',
+          navWith: 'Navigate with',
+          cancelWord: 'Cancel',
+          collections: 'Collections',
+          doneWord: 'Done',
+          departure: 'Depart',
+          depotWord: 'Depot',
+          window: 'window until',
+          windowLbl: 'Window',
+          noTime: 'time not agreed',
+          anyTime: 'any time today',
+          smsWindow: 'SMS: {from}–{to}',
+          smsPending: 'SMS sending',
+          smsFailed: 'SMS not sent',
+          windowAtStart: 'window goes out at start',
+          etaSent: 'Arrival windows sent to customers: {n}.',
+          gapWord: 'Unfilled',
+          tomorrow: 'Tomorrow',
+          yesterday: 'Yesterday',
+          cancelledWord: 'Cancelled',
+          driverApp: 'Driver app',
+          driverLogin: 'Driver sign-in',
+          password: 'Password',
+          login: 'Sign in',
+          connect: 'Connect',
+          accessNote: 'Access is issued by the company administrator.',
+          badLogin: 'Check your email and password.',
+          noDriver: 'Assign a driver to this account: Console → Settings → Hours and access.',
+          driverOff: 'Driver is disabled or not assigned.',
+          loginAgain: 'Please sign in again.',
+          changeRejected: 'Change rejected: ',
+          rowChanged: 'This address was changed, deleted or reassigned. Refresh the data.',
+          startRoute: 'Start route',
+          routeStarted: 'Route started · plan locked',
+          checkingRoute: 'Checking all collections before the start…',
+          routeStartedNote: 'Route started. New requests will wait for the next day.',
+          lateAt: 'The promised time for “{addr}” has already passed{until}{eta}.\n\nReordering cannot fix this. Start the route anyway?',
+          lateUntil: ' (until {t})',
+          lateEta: ', you would arrive at {t}',
+          planNote: 'Depart: {dep} · depot: {fin}. Working hours apply to arrivals at customers.',
+          planChecked: 'Plan checked: roads, windows, collections and return to depot.',
+          smsChats: 'SMS · customer conversations',
+          smsArrange: 'SMS · arrange collection',
+          smsChat: 'SMS · conversation',
+          smsHistory: 'SMS · history and new request',
+          editNote: 'Address, date and time are changed in the Console, so the request stays in step with the plan and the conversation.',
+          pointsLbl: 'Start and depot',
+          pointsMissing: 'Not set. Console → Settings → Start and depot.',
+          useChatToMove: 'Use the conversation to move an agreed time.',
+          confirmMove: 'Has the customer agreed to move to {d}?',
+          bankWord: 'Bank',
+          hourShort: 'h',
+          minShort: 'min',
+        },
+      };
+      function t(k, params) {
+        let s = (STR[LOCAL.lang] || STR.ru)[k] || STR.ru[k] || k;
+        if (params) for (const [name, v] of Object.entries(params)) s = s.split('{' + name + '}').join(String(v));
+        return s;
+      }
+      const durLabel = (m) => (m >= 60 ? Math.floor(m / 60) + ' ' + t('hourShort') + ' ' + (m % 60 ? (m % 60) + ' ' + t('minShort') : '') : m + ' ' + t('minShort'));
 
-/* ---------- i18n ---------- */
-const STR={
-  ru:{home:'Сегодня',addAddress:'Добавить адрес',todayAddresses:'Адреса на сегодня',left:'Осталось',newAddresses:'Новые адреса без даты',calendar:'Календарь',archive:'Архив',archSub:'Выполненные работы',addressLbl:'Адрес',bagsLbl:'Мешков',phoneLbl:'Телефон',noteLbl:'Заметка',dateLbl:'Дата выезда',save:'Сохранить',optimize:'Оптимизировать маршрут',showRoute:'Показать маршрут',buildingRoute:'Строю маршрут…',drivingTime:'В пути',routeStart:'Старт',routeFinish:'Склад',scheduledRoute:'По согласованному времени · в пути: без ожидания, сборов и прогноза пробок',scheduledLines:'Дорожный расчёт недоступен. Пунктир соединяет точки по времени и не показывает дорогу.',routeNoTime:'Адреса без согласованного времени показаны в конце.',routeApprox:'Часть точек приблизительная, по почтовому индексу.',routeMissingCoords:'Нужны координаты всех адресов. Без координат: ',routeMissingEnds:'Укажите координаты старта и склада в настройках.',routeChanged:'Адреса или настройки изменились. Нажмите «Показать маршрут» ещё раз.',addrInfo:'Остановка',addressShort:'Адрес',result:'Результат',visited:'Выполнено',noAnswer:'Не отвечает',problem:'Проблема',actions:'Действия',edit:'Редактировать',reschedule:'Перенести',delete:'Удалить',navigate:'Навигация',tabAll:'Все',tabDone:'Выполнено',tabNoAnswer:'Не отвечает',tabProblem:'Проблема',settings:'Настройки',homeLbl:'Дом (старт маршрута)',depotLbl:'Склад (финиш маршрута)',fuelLbl:'Расход, л/100 км',priceLbl:'Топливо, £/л',langLbl:'Язык / Language',navHome:'Сегодня',navCal:'Календарь',navArch:'Архив',navSet:'Ещё',editAddress:'Редактировать адрес',bags:'мешк.',noCoords:'координаты не найдены',coordsOk:'координаты найдены',postcodeCoords:'точка по индексу',saved:'Сохранено',geocoding:'Ищу координаты…',emptyDay:'На эту дату сборов нет',emptyNew:'Новых адресов нет',emptyArc:'Пока пусто',problemPrompt:'Что случилось? (короткая заметка)',reschedulePrompt:'Новая дата (ГГГГ-ММ-ДД):',confirmDelete:'Удалить этот адрес?',optimizing:'Оптимизирую…',optOSRM:'Реальные дороги (OSRM)',optFallback:'Оценка по прямой (fallback)',dist:'Дистанция',time:'Время',fuel:'Топливо',cost:'Цена',stops:'Остановки',needTwo:'Нужен минимум 1 адрес с координатами',noCoordAddr:'Без координат (не попадёт в маршрут)',setSaved:'Настройки сохранены',geoFail:'Адрес не найден, проверьте текст',bh:'Bank holiday',movedTo:'Перенесено на',todayWord:'Сегодня',connErr:'Нет связи с базой',syncNow:'Обновить данные',logout:'Выйти',synced:'Данные обновлены',syncNote:'Адреса и результаты синхронизируются с общей базой. Настройки маршрута — локальные для этого телефона.',queued:'Сохранено локально, отправится при появлении сети',photos:'Фото',takePhoto:'Сделать фото',close:'Закрыть',photoQueued:'Фото сохранено, отправится при появлении сети',offlineMsg:'Offline — изменения отправятся при появлении сети',fillLbl:'Вес собранного',phOpen:'Фото: открытый бин + содержимое',phEmpty:'Фото: пустой бин перед закрытием',phRubbish:'Мусор рядом (по желанию)',addRubbish:'Фото мусора + комментарий',needPhotos:'Нужно фото открытого бина И пустого перед закрытием',needFill:'Укажите вес собранного',rubbishCmt:'Комментарий к мусору (необязательно):',fillWord:'Собрано',kgUnit:'кг',emptyBin:'Пусто — ничего не собрано',photoErr:'Фото не обработано',photoUpErr:'Фото пока не отправились',navAppLbl:'Навигатор',navAsk:'Спрашивать каждый раз',navWith:'Открыть маршрут в',cancelWord:'Отмена',photoDelQ:'Удалить это фото?',collections:'Сборов',doneWord:'Выполнено',departure:'Выезд',depotWord:'Склад',window:'окно до',windowLbl:'Окно',noTime:'время не согласовано',gapWord:'Не заполнено',tomorrow:'Завтра',yesterday:'Вчера',cancelledWord:'Отменено'},
-  en:{home:'Today',addAddress:'Add address',todayAddresses:"Today's addresses",left:'Left',newAddresses:'New addresses without a date',calendar:'Calendar',archive:'Archive',archSub:'Completed jobs',addressLbl:'Address',bagsLbl:'Bags',phoneLbl:'Phone',noteLbl:'Note',dateLbl:'Collection date',save:'Save',optimize:'Optimize route',showRoute:'Show route',buildingRoute:'Building route…',drivingTime:'Driving',routeStart:'Start',routeFinish:'Depot',scheduledRoute:'In appointment order · driving time excludes waiting, collections and traffic forecasts',scheduledLines:'Road routing is unavailable. Dashed lines join stops in appointment order; they do not show roads.',routeNoTime:'Stops without an agreed time are shown at the end.',routeApprox:'Some positions are approximate, based on postcodes.',routeMissingCoords:'Coordinates are needed for every stop. Missing: ',routeMissingEnds:'Set the start and depot coordinates in Settings.',routeChanged:'Stops or settings changed. Press Show route again.',addrInfo:'Stop',addressShort:'Address',result:'Result',visited:'Visited',noAnswer:'No answer',problem:'Problem',actions:'Actions',edit:'Edit',reschedule:'Move',delete:'Delete',navigate:'Navigate',tabAll:'All',tabDone:'Done',tabNoAnswer:'No answer',tabProblem:'Problem',settings:'Settings',homeLbl:'Home (route start)',depotLbl:'Depot (route end)',fuelLbl:'Fuel use, L/100 km',priceLbl:'Fuel price, £/L',langLbl:'Язык / Language',navHome:'Today',navCal:'Calendar',navArch:'Archive',navSet:'More',editAddress:'Edit address',bags:'bags',noCoords:'coordinates not found',coordsOk:'coordinates found',postcodeCoords:'postcode position',saved:'Saved',geocoding:'Geocoding…',emptyDay:'No collections for this date',emptyNew:'No new addresses',emptyArc:'Nothing here yet',problemPrompt:'What happened? (short note)',reschedulePrompt:'New date (YYYY-MM-DD):',confirmDelete:'Delete this address?',optimizing:'Optimizing…',optOSRM:'Real roads (OSRM)',optFallback:'Straight-line estimate (fallback)',dist:'Distance',time:'Time',fuel:'Fuel',cost:'Cost',stops:'Stops',needTwo:'Need at least 1 address with coordinates',noCoordAddr:'No coordinates (excluded from route)',setSaved:'Settings saved',geoFail:'Address not found, check the text',bh:'Bank holiday',movedTo:'Moved to',todayWord:'Today',connErr:'No connection to database',syncNow:'Refresh data',logout:'Log out',synced:'Data refreshed',syncNote:'Addresses and results sync with the shared database. Route settings are local to this phone.',queued:'Saved locally, will sync when back online',photos:'Photos',takePhoto:'Take photo',close:'Close',photoQueued:'Photo saved, will upload when back online',photoDelQ:'Delete this photo?',offlineMsg:'Offline — changes will sync when back online',fillLbl:'Collected weight',phOpen:'Photo: open bin + contents',phEmpty:'Photo: empty bin before closing',phRubbish:'Rubbish nearby (optional)',addRubbish:'Rubbish photo + comment',needPhotos:'Required: photo of open bin AND empty bin before closing',needFill:'Select the collected weight',rubbishCmt:'Comment about the rubbish (optional):',fillWord:'Collected',kgUnit:'kg',emptyBin:'Empty — nothing collected',photoErr:'Photo could not be processed',photoUpErr:'Photos not uploaded yet',navAppLbl:'Navigation app',navAsk:'Ask every time',navWith:'Navigate with',cancelWord:'Cancel',collections:'Collections',doneWord:'Done',departure:'Depart',depotWord:'Depot',window:'window until',windowLbl:'Window',noTime:'time not agreed',gapWord:'Unfilled',tomorrow:'Tomorrow',yesterday:'Yesterday',cancelledWord:'Cancelled'}
-};
-function t(k){return (STR[LOCAL.lang]||STR.ru)[k]||STR.ru[k]||k;}
+      /* ---------- local prefs / cache / outbox ---------- */
+      const LKEY = 'subnexDriver2_local';
+      const LOCAL = Object.assign(
+        {
+          lang: 'ru',
+          points: null,
+          nav: 'ask',
+          routes: {},
+          cache: [],
+          outbox: [],
+        },
+        JSON.parse(localStorage.getItem(LKEY) || '{}'),
+      );
+      function saveLocal() {
+        localStorage.setItem(LKEY, JSON.stringify(LOCAL));
+      }
+      function getCreds() {
+        return { url: CFG_URL || localStorage.getItem('sb_url') || '', key: CFG_KEY || localStorage.getItem('sb_key') || '' };
+      }
+      let sb = null,
+        ME = null,
+        ADDR = [],
+        OPS_PROFILE = null;
+      function uuid() {
+        if (crypto.randomUUID) return crypto.randomUUID();
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+          const r = (Math.random() * 16) | 0;
+          return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+        });
+      }
+      function todayStr() {
+        return SubnexDispatchCore.ukDay();
+      }
+      function esc(s) {
+        return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+      }
+      const addDays = (d, n) => new Date(Date.parse(d + 'T12:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+      const dayLabel = (d) =>
+        new Intl.DateTimeFormat(LOCAL.lang === 'en' ? 'en-GB' : 'ru-RU', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          timeZone: 'UTC',
+        }).format(new Date(d + 'T12:00:00Z'));
+      const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+      const hm = SubnexDispatchCore.hm,
+        ukMinute = SubnexDispatchCore.ukMinute;
+      function bagsLabel(a) {
+        const raw = a.bags_text ? String(a.bags_text).trim() : a.bags ? String(a.bags) : '';
+        if (!raw) return '';
+        const r = raw.replace(/\s*(?:to|-|–)\s*/i, '–');
+        return r + ' ' + t('bags');
+      }
 
-/* ---------- local prefs / cache / outbox ---------- */
-const LKEY='subnexDriver2_local';
-const LOCAL=Object.assign({lang:'ru',home:{text:'',lat:null,lng:null},depot:{text:'',lat:null,lng:null},fuelPer100:9.0,fuelPrice:1.45,nav:'ask',routes:{},cache:[],outbox:[]},JSON.parse(localStorage.getItem(LKEY)||'{}'));
-function saveLocal(){localStorage.setItem(LKEY,JSON.stringify(LOCAL));}
-function getCreds(){return {url:CFG_URL||localStorage.getItem('sb_url')||'',key:CFG_KEY||localStorage.getItem('sb_key')||''};}
-let sb=null,ME=null,ADDR=[],OPS_PROFILE=null;
-function uuid(){if(crypto.randomUUID)return crypto.randomUUID();return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return (c==='x'?r:(r&0x3|0x8)).toString(16);});}
-function todayStr(){return SubnexDispatchCore.ukDay();}
-function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-const addDays=(d,n)=>new Date(Date.parse(d+'T12:00:00Z')+n*86400000).toISOString().slice(0,10);
-const dayLabel=d=>new Intl.DateTimeFormat(LOCAL.lang==='en'?'en-GB':'ru-RU',{weekday:'long',day:'numeric',month:'long',timeZone:'UTC'}).format(new Date(d+'T12:00:00Z'));
-const cap=s=>s.charAt(0).toUpperCase()+s.slice(1);
-const hm=SubnexDispatchCore.hm, ukMinute=SubnexDispatchCore.ukMinute;
-function bagsLabel(a){const raw=a.bags_text?String(a.bags_text).trim():(a.bags?String(a.bags):'');if(!raw)return '';const r=raw.replace(/\s*(?:to|-|–)\s*/i,'–');return r+' '+t('bags');}
+      /* ---------- bank holidays ---------- */
+      const BH = {
+        '2026-01-01': 1,
+        '2026-04-03': 1,
+        '2026-04-06': 1,
+        '2026-05-04': 1,
+        '2026-05-25': 1,
+        '2026-08-31': 1,
+        '2026-12-25': 1,
+        '2026-12-28': 1,
+        '2027-01-01': 1,
+        '2027-03-26': 1,
+        '2027-03-29': 1,
+        '2027-05-03': 1,
+        '2027-05-31': 1,
+        '2027-08-30': 1,
+        '2027-12-27': 1,
+        '2027-12-28': 1,
+      };
+      fetch('https://www.gov.uk/bank-holidays.json')
+        .then((r) => r.json())
+        .then((j) => {
+          (j['england-and-wales'].events || []).forEach((e) => (BH[e.date] = 1));
+        })
+        .catch(() => {});
 
-/* ---------- bank holidays ---------- */
-const BH={'2026-01-01':1,'2026-04-03':1,'2026-04-06':1,'2026-05-04':1,'2026-05-25':1,'2026-08-31':1,'2026-12-25':1,'2026-12-28':1,'2027-01-01':1,'2027-03-26':1,'2027-03-29':1,'2027-05-03':1,'2027-05-31':1,'2027-08-30':1,'2027-12-27':1,'2027-12-28':1};
-fetch('https://www.gov.uk/bank-holidays.json').then(r=>r.json()).then(j=>{(j['england-and-wales'].events||[]).forEach(e=>BH[e.date]=1);}).catch(()=>{});
+      /* ---------- DB <-> app ---------- */
+      function fromRow(r) {
+        return {
+          id: r.id,
+          text: r.text,
+          bags: r.bags || 0,
+          phone: r.phone || '',
+          note: r.note || '',
+          date: r.date,
+          lat: r.lat,
+          lng: r.lng,
+          geocode_source: r.geocode_source || null,
+          status: r.status || 'new',
+          collection_start: r.collection_start,
+          collection_end: r.collection_end,
+          collection_version: r.collection_version || 0,
+          collection_source: r.collection_source,
+          driver_id: r.driver_id,
+          kind: r.kind || 'd2d',
+          bankId: r.bank_id || null,
+          fill: r.fill_level == null ? null : r.fill_level,
+          estimated_kg: r.estimated_kg,
+          service_minutes: r.service_minutes,
+          arrival_mode: r.arrival_mode,
+          intake_channel: r.intake_channel,
+          bags_text: r.bags_text,
+          not_before: r.not_before,
+          cancelledAt: r.collection_cancelled_at ? Date.parse(r.collection_cancelled_at) : null,
+          cancelledDate: r.cancelled_date,
+          cancellationReason: r.cancellation_reason,
+          resultNote: r.result_note || '',
+          doneAt: r.done_at ? Date.parse(r.done_at) : null,
+          createdAt: r.created_at ? Date.parse(r.created_at) : Date.now(),
+        };
+      }
+      function toRow(a) {
+        return {
+          id: a.id,
+          text: a.text,
+          bags: a.bags || 0,
+          phone: a.phone || '',
+          note: a.note || '',
+          date: a.date || null,
+          driver_id: ME.id,
+          lat: a.lat,
+          lng: a.lng,
+          geocode_source: a.geocode_source || null,
+          status: a.status,
+          kind: a.kind || 'd2d',
+          bank_id: a.bankId || null,
+          fill_level: a.fill == null ? null : a.fill,
+          result_note: a.resultNote || '',
+          done_at: a.doneAt ? new Date(a.doneAt).toISOString() : null,
+        };
+      }
 
-/* ---------- DB <-> app ---------- */
-function fromRow(r){
-  return {id:r.id,text:r.text,bags:r.bags||0,phone:r.phone||'',note:r.note||'',date:r.date,lat:r.lat,lng:r.lng,geocode_source:r.geocode_source||null,status:r.status||'new',
-    collection_start:r.collection_start,collection_end:r.collection_end,collection_version:r.collection_version||0,collection_source:r.collection_source,driver_id:r.driver_id,
-    kind:r.kind||'d2d',bankId:r.bank_id||null,fill:(r.fill_level==null?null:r.fill_level),
-    estimated_kg:r.estimated_kg,service_minutes:r.service_minutes,arrival_mode:r.arrival_mode,intake_channel:r.intake_channel,bags_text:r.bags_text,not_before:r.not_before,
-    cancelledAt:r.collection_cancelled_at?Date.parse(r.collection_cancelled_at):null,cancelledDate:r.cancelled_date,cancellationReason:r.cancellation_reason,
-    resultNote:r.result_note||'',doneAt:r.done_at?Date.parse(r.done_at):null,createdAt:r.created_at?Date.parse(r.created_at):Date.now()};
-}
-function toRow(a){
-  return {id:a.id,text:a.text,bags:a.bags||0,phone:a.phone||'',note:a.note||'',date:a.date||null,driver_id:ME.id,lat:a.lat,lng:a.lng,geocode_source:a.geocode_source||null,status:a.status,
-    kind:a.kind||'d2d',bank_id:a.bankId||null,fill_level:(a.fill==null?null:a.fill),result_note:a.resultNote||'',done_at:a.doneAt?new Date(a.doneAt).toISOString():null};
-}
+      /* ---------- sync layer with outbox ---------- */
+      function online() {
+        return navigator.onLine !== false;
+      }
+      function setOfflineBar() {
+        document.getElementById('offline').classList.toggle('show', !online() || LOCAL.outbox.length > 0);
+      }
+      window.addEventListener('online', () => {
+        flushOutbox();
+        setOfflineBar();
+      });
+      window.addEventListener('offline', setOfflineBar);
+      function queueOp(op) {
+        LOCAL.outbox.push(op);
+        saveLocal();
+        setOfflineBar();
+        toast(t('queued'));
+      }
+      let syncing = false;
+      function networkFailure(e) {
+        return !online() || e instanceof TypeError || /Failed to fetch|NetworkError|Network request|fetch failed/i.test(e?.message || '');
+      }
+      async function executeOp(op) {
+        let r;
+        if (op.t === 'i') r = await sb.from('addresses').insert(op.row).select('id');
+        else if (op.t === 'u') r = await sb.from('addresses').update(op.fields).eq('id', op.id).select('id');
+        else r = await sb.from('addresses').delete().eq('id', op.id).select('id');
+        if (r.error) {
+          if (op.t === 'i' && r.error.code === '23505') return;
+          throw r.error;
+        }
+        if (op.t !== 'i' && !r.data?.length) throw new Error(t('rowChanged'));
+      }
+      async function flushOutbox() {
+        if (syncing || !sb || !ME || !OPS_PROFILE || LOCAL.owner !== OPS_PROFILE.user_id || !LOCAL.outbox.length || !online()) return;
+        syncing = true;
+        const owner = OPS_PROFILE.user_id;
+        try {
+          while (LOCAL.outbox.length && ME && OPS_PROFILE?.user_id === owner) {
+            const op = LOCAL.outbox[0];
+            try {
+              await executeOp(op);
+              LOCAL.outbox.shift();
+            } catch (e) {
+              if (networkFailure(e)) break;
+              LOCAL.outbox.shift();
+              toast(t('changeRejected') + Ops.error(e));
+            }
+            saveLocal();
+          }
+        } finally {
+          syncing = false;
+          setOfflineBar();
+        }
+      }
+      setInterval(flushOutbox, 30000);
+      async function writeOp(op) {
+        if (!ME || !OPS_PROFILE || LOCAL.owner !== OPS_PROFILE.user_id) throw new Error(t('loginAgain'));
+        try {
+          if (!online()) {
+            queueOp(op);
+            return;
+          }
+          await executeOp(op);
+        } catch (e) {
+          if (networkFailure(e)) {
+            queueOp(op);
+            return;
+          }
+          await loadAddresses();
+          refreshDriverView();
+          throw e;
+        }
+      }
+      async function dbInsert(a) {
+        await writeOp({ t: 'i', row: toRow(a) });
+      }
+      async function dbUpdate(id, fields) {
+        await writeOp({ t: 'u', id, fields });
+      }
+      async function dbDelete(id) {
+        await writeOp({ t: 'd', id });
+      }
+      async function loadAddresses() {
+        if (!ME || !OPS_PROFILE) return;
+        const owner = OPS_PROFILE.user_id;
+        const driver = ME.id;
+        try {
+          /* Не вся история: открытые заявки и всё, что было за последние 60 дней.
+             Телефону этого хватает, а база с 40 адресами в день быстро растёт. */
+          const since = addDays(todayStr(), -60);
+          const { data, error } = await sb
+            .from('addresses')
+            .select('*')
+            .eq('driver_id', driver)
+            .or(`status.in.(new,planned),date.gte.${since},cancelled_date.gte.${since}`)
+            .order('created_at', { ascending: true });
+          if (error) throw error;
+          if (OPS_PROFILE?.user_id !== owner || ME?.id !== driver) return;
+          ADDR = data.map(fromRow);
+          for (const op of LOCAL.outbox) {
+            if (op.t === 'i' && op.row.driver_id === driver && !ADDR.some((a) => a.id === op.row.id)) ADDR.push(fromRow(op.row));
+            else if (op.t === 'u') {
+              const i = ADDR.findIndex((a) => a.id === op.id);
+              if (i >= 0)
+                ADDR[i] = fromRow({
+                  ...toRow(ADDR[i]),
+                  ...op.fields,
+                  collection_start: ADDR[i].collection_start,
+                  collection_end: ADDR[i].collection_end,
+                  collection_version: ADDR[i].collection_version,
+                });
+            } else if (op.t === 'd') ADDR = ADDR.filter((a) => a.id !== op.id);
+          }
+          LOCAL.cache = ADDR;
+          saveLocal();
+        } catch (e) {
+          if (OPS_PROFILE?.user_id !== owner) return;
+          if (networkFailure(e) && LOCAL.owner === owner) ADDR = LOCAL.cache || [];
+          else {
+            ADDR = [];
+            LOCAL.cache = [];
+            saveLocal();
+            toast(Ops.error(e));
+          }
+        }
+        setOfflineBar();
+      }
+      let rtChannel = null;
+      function subscribeRealtime() {
+        try {
+          if (rtChannel) sb.removeChannel(rtChannel);
+          rtChannel = sb
+            .channel('addr-changes')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'addresses' }, async () => {
+              await loadAddresses();
+              refreshDriverView();
+            })
+            .subscribe();
+        } catch (e) {}
+      }
 
-/* ---------- sync layer with outbox ---------- */
-function online(){return navigator.onLine!==false;}
-function setOfflineBar(){document.getElementById('offline').classList.toggle('show',!online()||LOCAL.outbox.length>0);}
-window.addEventListener('online',()=>{flushOutbox();setOfflineBar();});
-window.addEventListener('offline',setOfflineBar);
-function queueOp(op){LOCAL.outbox.push(op);saveLocal();setOfflineBar();toast(t('queued'));}
-let syncing=false;
-function networkFailure(e){return !online()||e instanceof TypeError||/Failed to fetch|NetworkError|Network request|fetch failed/i.test(e?.message||'');}
-async function executeOp(op){
- let r;if(op.t==='i')r=await sb.from('addresses').insert(op.row).select('id');
- else if(op.t==='u')r=await sb.from('addresses').update(op.fields).eq('id',op.id).select('id');
- else r=await sb.from('addresses').delete().eq('id',op.id).select('id');
- if(r.error){if(op.t==='i'&&r.error.code==='23505')return;throw r.error;}
- if(op.t!=='i'&&!r.data?.length)throw new Error('Адрес уже изменён, удалён или передан другому водителю. Обновите данные.');
-}
-async function flushOutbox(){
- if(syncing||!sb||!ME||!OPS_PROFILE||LOCAL.owner!==OPS_PROFILE.user_id||!LOCAL.outbox.length||!online())return;
- syncing=true;const owner=OPS_PROFILE.user_id;
- try{while(LOCAL.outbox.length&&ME&&OPS_PROFILE?.user_id===owner){const op=LOCAL.outbox[0];try{await executeOp(op);LOCAL.outbox.shift();}catch(e){if(networkFailure(e))break;LOCAL.outbox.shift();toast('Изменение не принято: '+Ops.error(e));}saveLocal();}}
- finally{syncing=false;setOfflineBar();}
-}
-setInterval(flushOutbox,30000);
-async function writeOp(op){
- if(!ME||!OPS_PROFILE||LOCAL.owner!==OPS_PROFILE.user_id)throw new Error('Войдите заново.');
- try{if(!online()){queueOp(op);return;}await executeOp(op);}
- catch(e){if(networkFailure(e)){queueOp(op);return;}await loadAddresses();refreshDriverView();throw e;}
-}
-async function dbInsert(a){await writeOp({t:'i',row:toRow(a)});}
-async function dbUpdate(id,fields){await writeOp({t:'u',id,fields});}
-async function dbDelete(id){await writeOp({t:'d',id});}
-async function loadAddresses(){
- if(!ME||!OPS_PROFILE)return;const owner=OPS_PROFILE.user_id;const driver=ME.id;
- try{const {data,error}=await sb.from('addresses').select('*').eq('driver_id',driver).order('created_at',{ascending:true});if(error)throw error;
-  if(OPS_PROFILE?.user_id!==owner||ME?.id!==driver)return;
-  ADDR=data.map(fromRow);
-  for(const op of LOCAL.outbox){if(op.t==='i'&&op.row.driver_id===driver&&!ADDR.some(a=>a.id===op.row.id))ADDR.push(fromRow(op.row));else if(op.t==='u'){const i=ADDR.findIndex(a=>a.id===op.id);if(i>=0)ADDR[i]=fromRow({...toRow(ADDR[i]),...op.fields,collection_start:ADDR[i].collection_start,collection_end:ADDR[i].collection_end,collection_version:ADDR[i].collection_version});}else if(op.t==='d')ADDR=ADDR.filter(a=>a.id!==op.id);}
-  LOCAL.cache=ADDR;saveLocal();
- }catch(e){if(OPS_PROFILE?.user_id!==owner)return;if(networkFailure(e)&&LOCAL.owner===owner)ADDR=LOCAL.cache||[];else{ADDR=[];LOCAL.cache=[];saveLocal();toast(Ops.error(e));}}
- setOfflineBar();
-}
-let rtChannel=null;
-function subscribeRealtime(){
-  try{if(rtChannel)sb.removeChannel(rtChannel);
-    rtChannel=sb.channel('addr-changes').on('postgres_changes',{event:'*',schema:'public',table:'addresses'},async()=>{await loadAddresses();refreshDriverView();}).subscribe();
-  }catch(e){}
-}
+      /* ---------- photos ---------- */
+      let pdb = null;
+      function pdbOpen() {
+        return new Promise((res, rej) => {
+          if (pdb) return res(pdb);
+          const r = indexedDB.open('subnexPhotoOutbox', 1);
+          r.onupgradeneeded = () => r.result.createObjectStore('q', { keyPath: 'id' });
+          r.onsuccess = () => {
+            pdb = r.result;
+            res(pdb);
+          };
+          r.onerror = () => rej(r.error);
+        });
+      }
+      function pdbAll() {
+        return pdbOpen()
+          .then(
+            (db) =>
+              new Promise((res, rej) => {
+                const t = db.transaction('q').objectStore('q').getAll();
+                t.onsuccess = () => res(t.result || []);
+                t.onerror = () => rej(t.error);
+              }),
+          )
+          .catch(() => []);
+      }
+      function pdbPut(rec) {
+        return pdbOpen().then(
+          (db) =>
+            new Promise((res, rej) => {
+              const t = db.transaction('q', 'readwrite').objectStore('q').put(rec);
+              t.onsuccess = res;
+              t.onerror = () => rej(t.error);
+            }),
+        );
+      }
+      function pdbDel(id) {
+        return pdbOpen()
+          .then(
+            (db) =>
+              new Promise((res, rej) => {
+                const t = db.transaction('q', 'readwrite').objectStore('q').delete(id);
+                t.onsuccess = res;
+                t.onerror = () => rej(t.error);
+              }),
+          )
+          .catch(() => {});
+      }
+      let CURPHOTOS = [],
+        CURPENDING = [],
+        lbCur = null;
+      function photoUrl(path) {
+        return Ops.photoUrl(path);
+      }
+      async function loadAddrPhotos() {
+        CURPHOTOS = [];
+        CURPENDING = [];
+        renderAddrPhotos();
+        const my = currentAddrId,
+          owner = OPS_PROFILE?.user_id;
+        try {
+          const { data, error } = await sb.from('photos').select('*').eq('address_id', my).order('created_at');
+          if (!error && data && my === currentAddrId && OPS_PROFILE?.user_id === owner) {
+            await Ops.signPhotos(
+              sb,
+              data.map((p) => p.path),
+            );
+            if (OPS_PROFILE?.user_id === owner && my === currentAddrId) CURPHOTOS = data;
+          }
+        } catch (e) {}
+        try {
+          const all = await pdbAll();
+          if (my === currentAddrId && OPS_PROFILE?.user_id === owner)
+            CURPENDING = all.filter((p) => p.address_id === my && p.driver_id === ME?.id);
+        } catch (e) {}
+        renderAddrPhotos();
+      }
+      function thumbHtml(p, pending) {
+        const src = pending ? URL.createObjectURL(p.blob) : photoUrl(p.path);
+        return (
+          '<div class="photothumb' +
+          (pending ? ' pending' : '') +
+          '" onclick="lbOpen(\'' +
+          p.id +
+          "'," +
+          (pending ? 'true' : 'false') +
+          ')"><img ' +
+          (pending ? '' : 'loading="lazy" ') +
+          'src="' +
+          src +
+          '" alt="photo"></div>'
+        );
+      }
+      function renderAddrPhotos() {
+        const a = ADDR.find((x) => x.id === currentAddrId);
+        const isBank = a && a.kind === 'bank';
+        const all = [...CURPHOTOS.map((p) => ({ p, pend: false })), ...CURPENDING.map((p) => ({ p, pend: true }))];
+        if (isBank) {
+          const put = (id, kind) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.innerHTML = all
+              .filter((x) => (x.p.kind || 'photo') === kind)
+              .map((x) => thumbHtml(x.p, x.pend))
+              .join('');
+          };
+          put('ph-open', 'open');
+          put('ph-empty', 'empty');
+          put('ph-rubbish', 'rubbish');
+        } else {
+          const el = document.getElementById('ai-photos');
+          if (!el) return;
+          el.innerHTML = all.map((x) => thumbHtml(x.p, x.pend)).join('');
+        }
+      }
+      let PENDKIND = 'photo',
+        RUBCMT = '';
+      function takePhoto(kind) {
+        PENDKIND = kind || 'photo';
+        RUBCMT = '';
+        if (PENDKIND === 'rubbish') {
+          RUBCMT = (prompt(t('rubbishCmt'), '') || '').trim();
+        }
+        document.getElementById('photo-input').click();
+      }
+      async function onPhotoPicked(files) {
+        if (!files || !files.length) return;
+        for (const f of Array.from(files)) {
+          let rec = null;
+          try {
+            const blob = await compressPhoto(f);
+            rec = { id: uuid(), address_id: currentAddrId, driver_id: ME.id, blob, created: Date.now(), kind: PENDKIND, comment: RUBCMT };
+          } catch (e) {
+            toast('⚠ ' + t('photoErr') + (e && e.message ? ' (' + e.message + ')' : ''));
+            continue;
+          }
+          CURPENDING.push(rec);
+          try {
+            await pdbPut(rec);
+          } catch (e) {}
+        }
+        document.getElementById('photo-input').value = '';
+        renderAddrPhotos();
+        if (online()) flushPhotos();
+        else toast(t('photoQueued'));
+      }
+      function compressPhoto(file) {
+        return new Promise((res, rej) => {
+          const img = new Image();
+          img.onload = () => {
+            const MAX = 1600;
+            let w = img.naturalWidth,
+              h = img.naturalHeight;
+            const k = Math.min(1, MAX / Math.max(w, h));
+            w = Math.max(1, Math.round(w * k));
+            h = Math.max(1, Math.round(h * k));
+            const c = document.createElement('canvas');
+            c.width = w;
+            c.height = h;
+            c.getContext('2d').drawImage(img, 0, 0, w, h);
+            URL.revokeObjectURL(img.src);
+            c.toBlob((b) => (b ? res(b) : rej(new Error('blob'))), 'image/jpeg', 0.72);
+          };
+          img.onerror = () => {
+            URL.revokeObjectURL(img.src);
+            rej(new Error('img'));
+          };
+          img.src = URL.createObjectURL(file);
+        });
+      }
+      let photoBusy = false;
+      async function flushPhotos() {
+        if (photoBusy || !sb || !ME || !online()) return;
+        photoBusy = true;
+        let upErr = null;
+        try {
+          let idb = [];
+          try {
+            idb = await pdbAll();
+          } catch (e) {}
+          const mem = CURPENDING.filter((m) => !idb.some((x) => x.id === m.id));
+          const q = [...idb, ...mem].filter((p) => p.driver_id === ME.id);
+          const owner = OPS_PROFILE?.user_id;
+          for (const p of q) {
+            if (!ME || OPS_PROFILE?.user_id !== owner) break;
+            try {
+              const path = p.address_id + '/' + p.id + '.jpg';
+              const up = await sb.storage.from('photos').upload(path, p.blob, { contentType: 'image/jpeg', upsert: true });
+              if (up.error) throw up.error;
+              const ins = await sb
+                .from('photos')
+                .insert({
+                  id: p.id,
+                  address_id: p.address_id,
+                  driver_id: p.driver_id,
+                  path,
+                  kind: p.kind || 'photo',
+                  comment: p.comment || '',
+                });
+              if (ins.error && ins.error.code !== '23505') throw ins.error;
+              try {
+                await pdbDel(p.id);
+              } catch (e) {}
+              if (p.address_id === currentAddrId) {
+                CURPENDING = CURPENDING.filter((x) => x.id !== p.id);
+                if (!CURPHOTOS.some((x) => x.id === p.id))
+                  CURPHOTOS.push({ id: p.id, address_id: p.address_id, path, kind: p.kind || 'photo', comment: p.comment || '' });
+                renderAddrPhotos();
+              }
+            } catch (e) {
+              upErr = e;
+            }
+          }
+        } finally {
+          photoBusy = false;
+        }
+        if (upErr) toast('⚠ ' + t('photoUpErr') + (upErr.message ? ' (' + String(upErr.message).slice(0, 80) + ')' : ''));
+      }
+      setInterval(flushPhotos, 30000);
+      window.addEventListener('online', () => flushPhotos());
+      async function lbOpen(id, pending) {
+        lbCur = { id, pending };
+        const img = document.getElementById('lb-img');
+        if (pending) {
+          const p = CURPENDING.find((x) => x.id === id);
+          if (!p) return;
+          img.src = URL.createObjectURL(p.blob);
+        } else {
+          const p = CURPHOTOS.find((x) => x.id === id);
+          if (!p) return;
+          await Ops.signPhotos(sb, [p.path]);
+          if (!ME) return;
+          img.src = photoUrl(p.path);
+        }
+        document.getElementById('photo-lb').classList.add('show');
+      }
+      function lbClose() {
+        document.getElementById('photo-lb').classList.remove('show');
+        lbCur = null;
+      }
+      async function lbDelete() {
+        if (!lbCur || !confirm(t('photoDelQ'))) return;
+        const id = lbCur.id;
+        if (lbCur.pending) {
+          await pdbDel(id);
+          CURPENDING = CURPENDING.filter((x) => x.id !== id);
+        } else {
+          const p = CURPHOTOS.find((x) => x.id === id);
+          try {
+            await sb.from('photos').delete().eq('id', id);
+            if (p) await sb.storage.from('photos').remove([p.path]);
+          } catch (e) {}
+          CURPHOTOS = CURPHOTOS.filter((x) => x.id !== id);
+        }
+        renderAddrPhotos();
+        lbClose();
+      }
 
-/* ---------- photos ---------- */
-let pdb=null;
-function pdbOpen(){return new Promise((res,rej)=>{if(pdb)return res(pdb);const r=indexedDB.open('subnexPhotoOutbox',1);r.onupgradeneeded=()=>r.result.createObjectStore('q',{keyPath:'id'});r.onsuccess=()=>{pdb=r.result;res(pdb);};r.onerror=()=>rej(r.error);});}
-function pdbAll(){return pdbOpen().then(db=>new Promise((res,rej)=>{const t=db.transaction('q').objectStore('q').getAll();t.onsuccess=()=>res(t.result||[]);t.onerror=()=>rej(t.error);})).catch(()=>[]);}
-function pdbPut(rec){return pdbOpen().then(db=>new Promise((res,rej)=>{const t=db.transaction('q','readwrite').objectStore('q').put(rec);t.onsuccess=res;t.onerror=()=>rej(t.error);}));}
-function pdbDel(id){return pdbOpen().then(db=>new Promise((res,rej)=>{const t=db.transaction('q','readwrite').objectStore('q').delete(id);t.onsuccess=res;t.onerror=()=>rej(t.error);})).catch(()=>{});}
-let CURPHOTOS=[],CURPENDING=[],lbCur=null;
-function photoUrl(path){return Ops.photoUrl(path);}
-async function loadAddrPhotos(){
-  CURPHOTOS=[];CURPENDING=[];renderAddrPhotos();const my=currentAddrId,owner=OPS_PROFILE?.user_id;
-  try{const {data,error}=await sb.from('photos').select('*').eq('address_id',my).order('created_at');if(!error&&data&&my===currentAddrId&&OPS_PROFILE?.user_id===owner){await Ops.signPhotos(sb,data.map(p=>p.path));if(OPS_PROFILE?.user_id===owner&&my===currentAddrId)CURPHOTOS=data;}}catch(e){}
-  try{const all=await pdbAll();if(my===currentAddrId&&OPS_PROFILE?.user_id===owner)CURPENDING=all.filter(p=>p.address_id===my&&p.driver_id===ME?.id);}catch(e){}
-  renderAddrPhotos();
-}
-function thumbHtml(p,pending){const src=pending?URL.createObjectURL(p.blob):photoUrl(p.path);return '<div class="photothumb'+(pending?' pending':'')+'" onclick="lbOpen(\''+p.id+'\','+(pending?'true':'false')+')"><img '+(pending?'':'loading="lazy" ')+'src="'+src+'" alt="photo"></div>';}
-function renderAddrPhotos(){
-  const a=ADDR.find(x=>x.id===currentAddrId);const isBank=a&&a.kind==='bank';
-  const all=[...CURPHOTOS.map(p=>({p,pend:false})),...CURPENDING.map(p=>({p,pend:true}))];
-  if(isBank){const put=(id,kind)=>{const el=document.getElementById(id);if(!el)return;el.innerHTML=all.filter(x=>(x.p.kind||'photo')===kind).map(x=>thumbHtml(x.p,x.pend)).join('');};put('ph-open','open');put('ph-empty','empty');put('ph-rubbish','rubbish');}
-  else{const el=document.getElementById('ai-photos');if(!el)return;el.innerHTML=all.map(x=>thumbHtml(x.p,x.pend)).join('');}
-}
-let PENDKIND='photo',RUBCMT='';
-function takePhoto(kind){PENDKIND=kind||'photo';RUBCMT='';if(PENDKIND==='rubbish'){RUBCMT=(prompt(t('rubbishCmt'),'')||'').trim();}document.getElementById('photo-input').click();}
-async function onPhotoPicked(files){
-  if(!files||!files.length)return;
-  for(const f of Array.from(files)){let rec=null;try{const blob=await compressPhoto(f);rec={id:uuid(),address_id:currentAddrId,driver_id:ME.id,blob,created:Date.now(),kind:PENDKIND,comment:RUBCMT};}catch(e){toast('⚠ '+t('photoErr')+(e&&e.message?' ('+e.message+')':''));continue;}
-    CURPENDING.push(rec);try{await pdbPut(rec);}catch(e){}}
-  document.getElementById('photo-input').value='';renderAddrPhotos();if(online())flushPhotos();else toast(t('photoQueued'));
-}
-function compressPhoto(file){return new Promise((res,rej)=>{const img=new Image();img.onload=()=>{const MAX=1600;let w=img.naturalWidth,h=img.naturalHeight;const k=Math.min(1,MAX/Math.max(w,h));w=Math.max(1,Math.round(w*k));h=Math.max(1,Math.round(h*k));const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);URL.revokeObjectURL(img.src);c.toBlob(b=>b?res(b):rej(new Error('blob')),'image/jpeg',0.72);};img.onerror=()=>{URL.revokeObjectURL(img.src);rej(new Error('img'));};img.src=URL.createObjectURL(file);});}
-let photoBusy=false;
-async function flushPhotos(){
-  if(photoBusy||!sb||!ME||!online())return;photoBusy=true;let upErr=null;
-  try{let idb=[];try{idb=await pdbAll();}catch(e){}const mem=CURPENDING.filter(m=>!idb.some(x=>x.id===m.id));const q=[...idb,...mem].filter(p=>p.driver_id===ME.id);const owner=OPS_PROFILE?.user_id;
-    for(const p of q){if(!ME||OPS_PROFILE?.user_id!==owner)break;
-      try{const path=p.address_id+'/'+p.id+'.jpg';const up=await sb.storage.from('photos').upload(path,p.blob,{contentType:'image/jpeg',upsert:true});if(up.error)throw up.error;
-        const ins=await sb.from('photos').insert({id:p.id,address_id:p.address_id,driver_id:p.driver_id,path,kind:p.kind||'photo',comment:p.comment||''});if(ins.error&&ins.error.code!=='23505')throw ins.error;
-        try{await pdbDel(p.id);}catch(e){}
-        if(p.address_id===currentAddrId){CURPENDING=CURPENDING.filter(x=>x.id!==p.id);if(!CURPHOTOS.some(x=>x.id===p.id))CURPHOTOS.push({id:p.id,address_id:p.address_id,path,kind:p.kind||'photo',comment:p.comment||''});renderAddrPhotos();}
-      }catch(e){upErr=e;}}
-  }finally{photoBusy=false;}
-  if(upErr)toast('⚠ '+t('photoUpErr')+(upErr.message?' ('+String(upErr.message).slice(0,80)+')':''));
-}
-setInterval(flushPhotos,30000);window.addEventListener('online',()=>flushPhotos());
-async function lbOpen(id,pending){
-  lbCur={id,pending};const img=document.getElementById('lb-img');
-  if(pending){const p=CURPENDING.find(x=>x.id===id);if(!p)return;img.src=URL.createObjectURL(p.blob);}
-  else{const p=CURPHOTOS.find(x=>x.id===id);if(!p)return;await Ops.signPhotos(sb,[p.path]);if(!ME)return;img.src=photoUrl(p.path);}
-  document.getElementById('photo-lb').classList.add('show');
-}
-function lbClose(){document.getElementById('photo-lb').classList.remove('show');lbCur=null;}
-async function lbDelete(){
-  if(!lbCur||!confirm(t('photoDelQ')))return;const id=lbCur.id;
-  if(lbCur.pending){await pdbDel(id);CURPENDING=CURPENDING.filter(x=>x.id!==id);}
-  else{const p=CURPHOTOS.find(x=>x.id===id);try{await sb.from('photos').delete().eq('id',id);if(p)await sb.storage.from('photos').remove([p.path]);}catch(e){}CURPHOTOS=CURPHOTOS.filter(x=>x.id!==id);}
-  renderAddrPhotos();lbClose();
-}
+      /* ---------- config & login ---------- */
+      function saveConfig() {
+        const url = document.getElementById('cfg-url').value.trim().replace(/\/$/, ''),
+          key = document.getElementById('cfg-key').value.trim();
+        if (!url || !key) {
+          toast('⚠');
+          return;
+        }
+        localStorage.setItem('sb_url', url);
+        localStorage.setItem('sb_key', key);
+        init();
+      }
+      async function acceptDriver() {
+        const p = await Ops.profile(sb);
+        if (!p.driver_id) throw new Error(t('noDriver'));
+        const { data, error } = await sb.from('drivers').select('id,name,active').eq('id', p.driver_id).single();
+        if (error || !data.active) throw new Error(t('driverOff'));
+        OPS_PROFILE = p;
+        ME = { id: data.id, name: data.name };
+        if (LOCAL.owner !== p.user_id) {
+          if (LOCAL.outbox.length) localStorage.setItem(LKEY + '_pending_' + (LOCAL.owner || 'legacy'), JSON.stringify(LOCAL.outbox));
+          LOCAL.cache = [];
+          LOCAL.routes = {};
+          LOCAL.outbox = [];
+          const pending = localStorage.getItem(LKEY + '_pending_' + p.user_id);
+          if (pending) {
+            try {
+              LOCAL.outbox = JSON.parse(pending);
+            } catch {}
+            localStorage.removeItem(LKEY + '_pending_' + p.user_id);
+          }
+        }
+        LOCAL.owner = p.user_id;
+        saveLocal();
+        localStorage.removeItem('driver');
+        await enterApp();
+      }
+      async function tryLogin() {
+        const btn = document.getElementById('driver-login'),
+          err = document.getElementById('pinerr');
+        if (btn.disabled) return;
+        btn.disabled = true;
+        err.textContent = '';
+        try {
+          const { error } = await sb.auth.signInWithPassword({
+            email: document.getElementById('driver-email').value.trim(),
+            password: document.getElementById('driver-password').value,
+          });
+          if (error) throw new Error(t('badLogin'));
+          await acceptDriver();
+          document.getElementById('driver-password').value = '';
+        } catch (e) {
+          err.textContent = Ops.error(e);
+        } finally {
+          btn.disabled = false;
+        }
+      }
+      function clearDriver() {
+        window.OpsPlanner?.close();
+        stopGeoWatch();
+        OPS_PROFILE = null;
+        ME = null;
+        ADDR = [];
+        CURPHOTOS = [];
+        CURPENDING = [];
+        currentAddrId = null;
+        editId = null;
+        Ops.clear();
+        sb?.removeAllChannels();
+        LOCAL.cache = [];
+        LOCAL.routes = {};
+        saveLocal();
+        localStorage.removeItem('driver');
+        document.getElementById('mainnav').style.display = 'none';
+        document.getElementById('photo-lb').classList.remove('show');
+        document.getElementById('lb-img').removeAttribute('src');
+        showView('v-login', false);
+        viewStack = ['v-login'];
+      }
+      async function logout() {
+        clearDriver();
+        await sb.auth.signOut();
+      }
+      async function openSMS(addressId, planner) {
+        if (!OPS_PROFILE) return;
+        const old = ADDR.find((a) => a.id === addressId);
+        const phone = old?.status === 'cancelled' ? old.phone : null;
+        await Ops.open({
+          sb,
+          profile: OPS_PROFILE,
+          addressId: phone ? null : addressId,
+          phone,
+          planner,
+          geocode,
+          addresses: () => ADDR,
+          drivers: () => (ME ? [{ ...ME, active: true }] : []),
+          plannerPoints: () => LOCAL.points || {},
+          hasOutbox: () => LOCAL.outbox.length > 0,
+          onChanged: async (change) => {
+            if (ME) {
+              if (change?.kind === 'collection_closed' && change.date) {
+                delete LOCAL.routes[change.date];
+                saveLocal();
+              }
+              await loadAddresses();
+              refreshDriverView();
+            }
+          },
+        });
+      }
+      async function openPartnerPlanner(tab, fromDay) {
+        if (!ME || !OPS_PROFILE) return;
+        await OpsPlanner.open({
+          sb,
+          driver: ME,
+          tab: typeof tab === 'string' ? tab : 'queue',
+          fromDay,
+          geocode,
+          addresses: () => ADDR,
+          hasOutbox: () => LOCAL.outbox.length > 0,
+          onSms: async (id, plan) => {
+            if (ME) {
+              await loadAddresses();
+              await openSMS(id, plan);
+            }
+          },
+          onChanged: async () => {
+            if (ME) {
+              await loadAddresses();
+              LOCAL.routes = {};
+              saveLocal();
+              refreshDriverView();
+            }
+          },
+        });
+      }
+      function refreshDriverView() {
+        const v = document.querySelector('.ph-view.active')?.id;
+        if (v === 'v-day') {
+          renderDay();
+          autoRoute(currentDay);
+        }
+        if (v === 'v-addr') renderAddr();
+        if (v === 'v-cal') renderCal();
+        if (v === 'v-archive') renderArchive();
+      }
+      window.addEventListener('unhandledrejection', (event) => {
+        event.preventDefault();
+        toast(Ops.error(event.reason));
+      });
 
-/* ---------- config & login ---------- */
-function saveConfig(){const url=document.getElementById('cfg-url').value.trim().replace(/\/$/,''),key=document.getElementById('cfg-key').value.trim();if(!url||!key){toast('⚠');return;}localStorage.setItem('sb_url',url);localStorage.setItem('sb_key',key);init();}
-async function acceptDriver(){
- const p=await Ops.profile(sb);if(!p.driver_id)throw new Error('Назначьте аккаунту водителя: Пульт → Настройки → Часы и доступ.');
- const {data,error}=await sb.from('drivers').select('id,name,active').eq('id',p.driver_id).single();if(error||!data.active)throw new Error('Водитель отключён или не назначен.');
- OPS_PROFILE=p;ME={id:data.id,name:data.name};
- if(LOCAL.owner!==p.user_id){if(LOCAL.outbox.length)localStorage.setItem(LKEY+'_pending_'+(LOCAL.owner||'legacy'),JSON.stringify(LOCAL.outbox));LOCAL.cache=[];LOCAL.routes={};LOCAL.outbox=[];const pending=localStorage.getItem(LKEY+'_pending_'+p.user_id);if(pending){try{LOCAL.outbox=JSON.parse(pending);}catch{}localStorage.removeItem(LKEY+'_pending_'+p.user_id);}}
- LOCAL.owner=p.user_id;saveLocal();localStorage.removeItem('driver');
- await enterApp();
-}
-async function tryLogin(){
- const btn=document.getElementById('driver-login'),err=document.getElementById('pinerr');if(btn.disabled)return;btn.disabled=true;err.textContent='';
- try{const {error}=await sb.auth.signInWithPassword({email:document.getElementById('driver-email').value.trim(),password:document.getElementById('driver-password').value});if(error)throw new Error('Проверьте email и пароль.');await acceptDriver();document.getElementById('driver-password').value='';}
- catch(e){err.textContent=Ops.error(e);}finally{btn.disabled=false;}
-}
-function clearDriver(){
- window.OpsPlanner?.close();stopGeoWatch();OPS_PROFILE=null;ME=null;ADDR=[];CURPHOTOS=[];CURPENDING=[];currentAddrId=null;editId=null;Ops.clear();
- sb?.removeAllChannels();LOCAL.cache=[];LOCAL.routes={};saveLocal();localStorage.removeItem('driver');
- document.getElementById('mainnav').style.display='none';document.getElementById('photo-lb').classList.remove('show');document.getElementById('lb-img').removeAttribute('src');
- showView('v-login',false);viewStack=['v-login'];
-}
-async function logout(){clearDriver();await sb.auth.signOut();}
-async function openSMS(addressId,planner){
- if(!OPS_PROFILE)return;const old=ADDR.find(a=>a.id===addressId);const phone=old?.status==='cancelled'?old.phone:null;
- await Ops.open({sb,profile:OPS_PROFILE,addressId:phone?null:addressId,phone,planner,geocode,addresses:()=>ADDR,drivers:()=>ME?[{...ME,active:true}]:[],plannerPoints:()=>({home:LOCAL.home,depot:LOCAL.depot}),hasOutbox:()=>LOCAL.outbox.length>0,onChanged:async(change)=>{if(ME){if(change?.kind==='collection_closed'&&change.date){delete LOCAL.routes[change.date];saveLocal();}await loadAddresses();refreshDriverView();}}});
-}
-async function openPartnerPlanner(tab,fromDay){
- if(!ME||!OPS_PROFILE)return;
- await OpsPlanner.open({sb,driver:ME,tab:typeof tab==='string'?tab:'queue',fromDay,geocode,home:LOCAL.home,depot:LOCAL.depot,addresses:()=>ADDR,hasOutbox:()=>LOCAL.outbox.length>0,
-   onSms:async(id,plan)=>{if(ME){await loadAddresses();await openSMS(id,plan);}},
-   onChanged:async()=>{if(ME){await loadAddresses();LOCAL.routes={};saveLocal();refreshDriverView();}}});
-}
-function refreshDriverView(){const v=document.querySelector('.ph-view.active')?.id;if(v==='v-day')renderDay();if(v==='v-addr')renderAddr();if(v==='v-cal')renderCal();if(v==='v-archive')renderArchive();}
-window.addEventListener('unhandledrejection',event=>{event.preventDefault();toast(Ops.error(event.reason));});
+      /* ---------- live location ---------- */
+      let geoWatchId = null,
+        lastLocSent = 0,
+        lastLoc = null;
+      function startGeoWatch() {
+        if (geoWatchId != null || !('geolocation' in navigator)) return;
+        try {
+          geoWatchId = navigator.geolocation.watchPosition(
+            (p) => {
+              const lat = p.coords.latitude,
+                lng = p.coords.longitude,
+                now = Date.now();
+              const movedM = lastLoc ? hav([lastLoc.lat, lastLoc.lng], [lat, lng]) * 1000 : 1e9;
+              if (now - lastLocSent < 45000 && movedM < 150) return;
+              lastLocSent = now;
+              lastLoc = { lat, lng };
+              try {
+                sb.from('driver_locations')
+                  .upsert({ driver_id: ME.id, lat, lng, updated_at: new Date().toISOString() })
+                  .then(
+                    () => {},
+                    () => {},
+                  );
+              } catch (e) {}
+            },
+            () => {},
+            { enableHighAccuracy: false, maximumAge: 30000, timeout: 20000 },
+          );
+        } catch (e) {}
+      }
+      function stopGeoWatch() {
+        if (geoWatchId != null) {
+          try {
+            navigator.geolocation.clearWatch(geoWatchId);
+          } catch (e) {}
+          geoWatchId = null;
+        }
+      }
 
-/* ---------- live location ---------- */
-let geoWatchId=null,lastLocSent=0,lastLoc=null;
-function startGeoWatch(){
-  if(geoWatchId!=null||!('geolocation' in navigator))return;
-  try{geoWatchId=navigator.geolocation.watchPosition(p=>{const lat=p.coords.latitude,lng=p.coords.longitude,now=Date.now();const movedM=lastLoc?hav([lastLoc.lat,lastLoc.lng],[lat,lng])*1000:1e9;if(now-lastLocSent<45000&&movedM<150)return;lastLocSent=now;lastLoc={lat,lng};try{sb.from('driver_locations').upsert({driver_id:ME.id,lat,lng,updated_at:new Date().toISOString()}).then(()=>{},()=>{});}catch(e){}},()=>{},{enableHighAccuracy:false,maximumAge:30000,timeout:20000});}catch(e){}
-}
-function stopGeoWatch(){if(geoWatchId!=null){try{navigator.geolocation.clearWatch(geoWatchId);}catch(e){}geoWatchId=null;}}
+      async function enterApp() {
+        document.getElementById('h-driver').textContent = ME.name;
+        document.getElementById('set-driver').textContent = ME.name;
+        document.getElementById('mainnav').style.display = '';
+        await loadAddresses();
+        subscribeRealtime();
+        startGeoWatch();
+        flushOutbox();
+        viewStack = ['v-day'];
+        currentDay = todayStr();
+        showView('v-day', false);
+        renderDay();
+        loadPoints().then(() => refreshDriverView());
+        autoRoute(todayStr());
+      }
+      /* Старт и склад живут на сервере (Пульт → Старт и склад). Телефон их только читает. */
+      async function loadPoints() {
+        if (!ME || !online()) return LOCAL.points;
+        try {
+          const r = await OpsDispatch.rpc(sb, 'settings', { driver_id: ME.id });
+          LOCAL.points = { home: r.config?.home || null, depot: r.config?.depot || null, enabled: !!r.enabled };
+          saveLocal();
+        } catch (e) {}
+        return LOCAL.points;
+      }
+      /* Утром водитель открывает приложение — план на сегодня уже должен быть на экране,
+         без лишних нажатий. Считаем один раз, а потом раз в 15 минут, пока маршрут не начат. */
+      let autoRouteBusy = false;
+      async function autoRoute(ds) {
+        if (autoRouteBusy || !ME || !online() || ds !== todayStr()) return;
+        const r = LOCAL.routes[ds];
+        if (r && (r.started_at || Date.now() - (r.stamp || 0) < 15 * 60000)) return;
+        autoRouteBusy = true;
+        try {
+          await showScheduledRoute(ds, true);
+        } finally {
+          autoRouteBusy = false;
+        }
+      }
+      async function syncNow() {
+        await loadAddresses();
+        await flushOutbox();
+        flushPhotos();
+        refreshDriverView();
+        toast(t('synced'));
+      }
 
-async function enterApp(){
-  document.getElementById('h-driver').textContent=ME.name;document.getElementById('set-driver').textContent=ME.name;
-  document.getElementById('mainnav').style.display='';
-  await loadAddresses();subscribeRealtime();startGeoWatch();flushOutbox();
-  viewStack=['v-day'];currentDay=todayStr();showView('v-day',false);renderDay();
-}
-async function syncNow(){await loadAddresses();await flushOutbox();flushPhotos();refreshDriverView();toast(t('synced'));}
+      /* ---------- views ---------- */
+      let viewStack = ['v-day'];
+      let currentDay = todayStr(),
+        currentAddrId = null,
+        editId = null,
+        arcTab = 'all';
+      let calCursor = new Date();
+      function showView(id, push = true) {
+        if (id === 'v-home') {
+          id = 'v-day';
+          currentDay = todayStr();
+        }
+        document.querySelectorAll('.ph-view').forEach((v) => v.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        if (push && viewStack[viewStack.length - 1] !== id) viewStack.push(id);
+        const navMap = { 'v-day': 'nav-home', 'v-cal': 'nav-cal', 'v-archive': 'nav-arch', 'v-set': 'nav-set' };
+        document.querySelectorAll('.ph-nav button').forEach((b) => b.classList.remove('on'));
+        if (navMap[id]) document.getElementById(navMap[id]).classList.add('on');
+        if (id === 'v-cal') renderCal();
+        if (id === 'v-archive') renderArchive();
+        if (id === 'v-set') renderSettings();
+        window.scrollTo(0, 0);
+      }
+      function goToday() {
+        currentDay = todayStr();
+        viewStack = ['v-day'];
+        showView('v-day', false);
+        renderDay();
+        autoRoute(currentDay);
+      }
+      function goBack() {
+        viewStack.pop();
+        const prev = viewStack[viewStack.length - 1] || 'v-day';
+        if (prev === 'v-day') {
+          showView('v-day', false);
+          renderDay();
+        } else showView(prev, false);
+      }
+      let toastTimer = null;
+      function toast(msg) {
+        const el = document.getElementById('toast');
+        el.textContent = msg;
+        el.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+      }
+      function renderHome() {}
 
-/* ---------- views ---------- */
-let viewStack=['v-day'];
-let currentDay=todayStr(),currentAddrId=null,editId=null,arcTab='all';
-let calCursor=new Date();
-function showView(id,push=true){
-  if(id==='v-home'){id='v-day';currentDay=todayStr();}
-  document.querySelectorAll('.ph-view').forEach(v=>v.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
-  if(push&&viewStack[viewStack.length-1]!==id)viewStack.push(id);
-  const navMap={'v-day':'nav-home','v-cal':'nav-cal','v-archive':'nav-arch','v-set':'nav-set'};
-  document.querySelectorAll('.ph-nav button').forEach(b=>b.classList.remove('on'));
-  if(navMap[id])document.getElementById(navMap[id]).classList.add('on');
-  if(id==='v-cal')renderCal();if(id==='v-archive')renderArchive();if(id==='v-set')renderSettings();
-  window.scrollTo(0,0);
-}
-function goToday(){currentDay=todayStr();viewStack=['v-day'];showView('v-day',false);renderDay();}
-function goBack(){viewStack.pop();const prev=viewStack[viewStack.length-1]||'v-day';if(prev==='v-day'){showView('v-day',false);renderDay();}else showView(prev,false);}
-let toastTimer=null;
-function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2600);}
-function renderHome(){}
+      /* ---------- geocoding ---------- */
+      const SW_VIEWBOX = '-5.6,52.2,-2.4,51.2';
+      async function geocode(text) {
+        const q = text.replace(/\s+/g, ' ').trim();
+        if (!q) return null;
+        try {
+          const u =
+            'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=gb&viewbox=' +
+            SW_VIEWBOX +
+            '&q=' +
+            encodeURIComponent(q);
+          const r = await fetch(u, { headers: { Accept: 'application/json' } });
+          const j = await r.json();
+          if (j && j[0]) return { lat: +j[0].lat, lng: +j[0].lon, source: 'osm' };
+        } catch (e) {}
+        const m = q.toUpperCase().match(/\b([A-Z]{1,2}\d[A-Z\d]?)\s*(\d[A-Z]{2})\b/);
+        if (m) {
+          try {
+            const r = await fetch('https://api.postcodes.io/postcodes/' + encodeURIComponent(m[1] + m[2]));
+            const j = await r.json();
+            if (j && j.result) return { lat: j.result.latitude, lng: j.result.longitude, source: 'postcode' };
+          } catch (e) {}
+        }
+        return null;
+      }
 
-/* ---------- geocoding ---------- */
-const SW_VIEWBOX='-5.6,52.2,-2.4,51.2';
-async function geocode(text){
-  const q=text.replace(/\s+/g,' ').trim();if(!q)return null;
-  try{const u='https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=gb&viewbox='+SW_VIEWBOX+'&q='+encodeURIComponent(q);const r=await fetch(u,{headers:{'Accept':'application/json'}});const j=await r.json();if(j&&j[0])return {lat:+j[0].lat,lng:+j[0].lon,source:'osm'};}catch(e){}
-  const m=q.toUpperCase().match(/\b([A-Z]{1,2}\d[A-Z\d]?)\s*(\d[A-Z]{2})\b/);
-  if(m){try{const r=await fetch('https://api.postcodes.io/postcodes/'+encodeURIComponent(m[1]+m[2]));const j=await r.json();if(j&&j.result)return {lat:j.result.latitude,lng:j.result.longitude,source:'postcode'};}catch(e){}}
-  return null;
-}
+      /* ---------- add / edit ---------- */
+      function openAdd(prefillDate) {
+        return openPartnerPlanner('one', typeof prefillDate === 'string' ? prefillDate : undefined);
+      }
+      function openEdit(id) {
+        const a = ADDR.find((x) => x.id === id);
+        if (!a) return;
+        editId = id;
+        document.getElementById('f-addr-text').textContent = a.text;
+        document.getElementById('f-bags').value = a.bags || '';
+        document.getElementById('f-phone').value = a.phone || '';
+        document.getElementById('f-note').value = a.note || '';
+        showView('v-add');
+      }
+      /* Телефон правит только мешки, телефон и заметку. Адрес, дата и время принадлежат
+         серверу: их меняют в Пульте, чтобы заявка не разошлась с планом и перепиской. */
+      async function saveAddress() {
+        const btn = document.getElementById('btn-save-addr');
+        if (btn.disabled) return;
+        const old = editId ? ADDR.find((x) => x.id === editId) : null;
+        if (!old) return goBack();
+        btn.disabled = true;
+        try {
+          const fields = {
+            bags: parseInt(document.getElementById('f-bags').value) || 0,
+            phone: document.getElementById('f-phone').value.trim(),
+            note: document.getElementById('f-note').value.trim(),
+          };
+          await dbUpdate(old.id, fields);
+          Object.assign(old, fields);
+          LOCAL.cache = ADDR;
+          saveLocal();
+          toast(t('saved'));
+          editId = null;
+          goBack();
+        } catch (e) {
+          toast(Ops.error(e));
+        } finally {
+          btn.disabled = false;
+        }
+      }
 
-/* ---------- add / edit ---------- */
-function openAdd(prefillDate){return openPartnerPlanner('one',typeof prefillDate==='string'?prefillDate:undefined);}
-function openEdit(id){
-  const a=ADDR.find(x=>x.id===id);if(!a)return;editId=id;
-  document.getElementById('f-addr').value=a.text;document.getElementById('f-bags').value=a.bags||'';document.getElementById('f-phone').value=a.phone||'';document.getElementById('f-note').value=a.note||'';document.getElementById('f-date').value=a.date||'';
-  showView('v-add');
-}
-async function saveAddress(){
- const text=document.getElementById('f-addr').value.trim();if(!text){toast(t('geoFail'));return;}
- const btn=document.getElementById('btn-save-addr');if(btn.disabled)return;btn.disabled=true;
- try{
- const old=editId?ADDR.find(x=>x.id===editId):null;const date=document.getElementById('f-date').value||null;
- if(old&&old.date!==date&&old.date){
-   if(old.collection_start){await openSMS(old.id);throw new Error('Для переноса согласованного времени используйте подтверждение в чате.');}
-   if(!confirm('Клиент согласовал дату '+(date||'не назначена')+'?'))return;
-   await Ops.api(sb,'legacy_date',{address_id:old.id,day:date||'',version:old.collection_version,agreed:true});
- }
- const a={...(old||{id:uuid(),status:'new',createdAt:Date.now(),lat:null,lng:null,resultNote:'',doneAt:null,kind:'d2d',bankId:null,fill:null}),text,date,bags:parseInt(document.getElementById('f-bags').value)||0,phone:document.getElementById('f-phone').value.trim(),note:document.getElementById('f-note').value.trim()};
- if(date&&a.status==='new')a.status='planned';if(!date&&a.status==='planned')a.status='new';
- if(!old||old.text!==text||a.lat==null){const g=await geocode(text);a.lat=g?g.lat:null;a.lng=g?g.lng:null;a.geocode_source=g?g.source:null;}
- if(old)await dbUpdate(a.id,{text:a.text,bags:a.bags,phone:a.phone,note:a.note,date:a.date,lat:a.lat,lng:a.lng,geocode_source:a.geocode_source||null,status:a.status});else await dbInsert(a);
- if(old)ADDR=ADDR.map(x=>x.id===a.id?a:x);else ADDR.push(a);
- if(old?.date)delete LOCAL.routes[old.date];if(a.date)delete LOCAL.routes[a.date];LOCAL.cache=ADDR;saveLocal();
- toast(a.lat!=null?t('saved')+' · '+t('coordsOk'):t('saved')+' · ⚠ '+t('noCoords'));editId=null;goBack();
- }catch(e){toast(Ops.error(e));}finally{btn.disabled=false;}
-}
+      /* ---------- новые без даты (в календаре) ---------- */
+      function renderNew() {
+        const list = ADDR.filter((a) => !a.date && a.status === 'new');
+        const el = document.getElementById('new-list');
+        if (!list.length) {
+          el.innerHTML = '<div class="empty" style="padding:16px">' + t('emptyNew') + '</div>';
+          return;
+        }
+        el.innerHTML = list
+          .map(
+            (a) =>
+              `<button class="ph-stop" onclick="openAddr('${a.id}')"><div class="body"><b>${a.kind === 'bank' ? BANKPLATE + ' ' : ''}${esc(a.text)}</b><small>${esc(bagsLabel(a))}${a.lat == null ? ' · <span style="color:var(--crit)">' + t('noCoords') + '</span>' : ''}</small></div></button>`,
+          )
+          .join('');
+      }
 
-/* ---------- новые без даты (в календаре) ---------- */
-function renderNew(){
-  const list=ADDR.filter(a=>!a.date&&a.status==='new');const el=document.getElementById('new-list');
-  if(!list.length){el.innerHTML='<div class="empty" style="padding:16px">'+t('emptyNew')+'</div>';return;}
-  el.innerHTML=list.map(a=>`<button class="ph-stop" onclick="openAddr('${a.id}')"><div class="body"><b>${a.kind==='bank'?BANKPLATE+' ':''}${esc(a.text)}</b><small>${esc(bagsLabel(a))}${a.lat==null?' · <span style="color:var(--crit)">'+t('noCoords')+'</span>':''}</small></div></button>`).join('');
-}
+      /* ---------- calendar ---------- */
+      function calShift(n) {
+        calCursor.setMonth(calCursor.getMonth() + n);
+        renderCal();
+      }
+      function renderCal() {
+        const y = calCursor.getFullYear(),
+          m = calCursor.getMonth();
+        const monthNames =
+          LOCAL.lang === 'ru'
+            ? ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
+            : ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        const dows = LOCAL.lang === 'ru' ? ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'] : ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+        document.getElementById('cal-title').textContent = monthNames[m] + ' ' + y;
+        const startDow = (new Date(y, m, 1).getDay() + 6) % 7,
+          days = new Date(y, m + 1, 0).getDate();
+        const by = {};
+        ADDR.forEach((a) => {
+          if (!a.date || a.status === 'cancelled') return;
+          const x = by[a.date] || (by[a.date] = { n: 0, done: 0 });
+          x.n++;
+          if (['done', 'noanswer', 'problem'].includes(a.status)) x.done++;
+        });
+        let html = dows.map((d) => '<div class="dow">' + d + '</div>').join('');
+        for (let i = 0; i < startDow; i++) html += '<div class="cell out"></div>';
+        const td = todayStr();
+        for (let d = 1; d <= days; d++) {
+          const ds = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+          const x = by[ds];
+          const sun = (startDow + d - 1) % 7 === 6;
+          const cls = ['cell'];
+          if (ds === td) cls.push('today');
+          if (BH[ds]) cls.push('bh');
+          else if (sun) cls.push('rest');
+          html += `<button class="${cls.join(' ')}" onclick="openDay('${ds}')"><div class="n">${d}</div>${x ? '<div class="cnt">' + x.n + '</div>' : ''}<div class="mini">${x ? `<i style="width:${Math.min(100, x.n * 6)}%" class="${x.done === x.n ? 'done' : ''}"></i>` : ''}</div></button>`;
+        }
+        document.getElementById('cal-grid').innerHTML = html;
+        document.getElementById('cal-legend').innerHTML =
+          LOCAL.lang === 'ru'
+            ? '<span><i style="background:var(--brand)"></i>запланировано</span><span><i style="background:var(--ok)"></i>выполнено</span><span><i style="background:var(--crit-soft);border:1px solid var(--crit)"></i>bank holiday</span>'
+            : '<span><i style="background:var(--brand)"></i>planned</span><span><i style="background:var(--ok)"></i>done</span><span><i style="background:var(--crit-soft);border:1px solid var(--crit)"></i>bank holiday</span>';
+        renderNew();
+      }
 
-/* ---------- calendar ---------- */
-function calShift(n){calCursor.setMonth(calCursor.getMonth()+n);renderCal();}
-function renderCal(){
-  const y=calCursor.getFullYear(),m=calCursor.getMonth();
-  const monthNames=LOCAL.lang==='ru'?['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь']:['January','February','March','April','May','June','July','August','September','October','November','December'];
-  const dows=LOCAL.lang==='ru'?['Пн','Вт','Ср','Чт','Пт','Сб','Вс']:['Mo','Tu','We','Th','Fr','Sa','Su'];
-  document.getElementById('cal-title').textContent=monthNames[m]+' '+y;
-  const startDow=(new Date(y,m,1).getDay()+6)%7,days=new Date(y,m+1,0).getDate();
-  const by={};ADDR.forEach(a=>{if(!a.date||a.status==='cancelled')return;const x=by[a.date]||(by[a.date]={n:0,done:0});x.n++;if(['done','noanswer','problem'].includes(a.status))x.done++;});
-  let html=dows.map(d=>'<div class="dow">'+d+'</div>').join('');
-  for(let i=0;i<startDow;i++)html+='<div class="cell out"></div>';
-  const td=todayStr();
-  for(let d=1;d<=days;d++){const ds=y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');const x=by[ds];const sun=(startDow+d-1)%7===6;
-    const cls=['cell'];if(ds===td)cls.push('today');if(BH[ds])cls.push('bh');else if(sun)cls.push('rest');
-    html+=`<button class="${cls.join(' ')}" onclick="openDay('${ds}')"><div class="n">${d}</div>${x?'<div class="cnt">'+x.n+'</div>':''}<div class="mini">${x?`<i style="width:${Math.min(100,x.n*6)}%" class="${x.done===x.n?'done':''}"></i>`:''}</div></button>`;}
-  document.getElementById('cal-grid').innerHTML=html;
-  document.getElementById('cal-legend').innerHTML=LOCAL.lang==='ru'?'<span><i style="background:var(--brand)"></i>запланировано</span><span><i style="background:var(--ok)"></i>выполнено</span><span><i style="background:var(--crit-soft);border:1px solid var(--crit)"></i>bank holiday</span>':'<span><i style="background:var(--brand)"></i>planned</span><span><i style="background:var(--ok)"></i>done</span><span><i style="background:var(--crit-soft);border:1px solid var(--crit)"></i>bank holiday</span>';
-  renderNew();
-}
+      /* ---------- day view ---------- */
+      let map = null;
+      function openDay(ds) {
+        currentDay = ds;
+        showView('v-day');
+        renderDay();
+      }
+      function dayAddrs(ds) {
+        return ADDR.filter((a) => a.date === ds && a.status !== 'cancelled');
+      }
+      const hasCoords = (a) => a && Number.isFinite(a.lat) && Number.isFinite(a.lng) && Math.abs(a.lat) <= 90 && Math.abs(a.lng) <= 180;
+      function appointmentOrder(list) {
+        const at = (a) => {
+          const v = Date.parse(a.collection_start);
+          return Number.isFinite(v) ? v : Infinity;
+        };
+        return list.slice().sort((a, b) => at(a) - at(b) || String(a.createdAt).localeCompare(String(b.createdAt)));
+      }
+      function renderRouteButton() {
+        const btn = document.getElementById('btn-opt');
+        if (btn.disabled) return;
+        btn.innerHTML = '<svg class="ic" style="fill:currentColor;stroke:none"><use href="#i-nav"/></svg> <span>' + t('showRoute') + '</span>';
+      }
+      /* Порядок дня: как посчитал планировщик, иначе по согласованному времени. */
+      function orderedDayAddrs(ds) {
+        const list = dayAddrs(ds);
+        const r = LOCAL.routes[ds];
+        if (r?.dispatch && Array.isArray(r.order)) {
+          const pos = new Map(r.order.map((id, i) => [id, i]));
+          return appointmentOrder(list).sort((a, b) => (pos.get(a.id) ?? 999) - (pos.get(b.id) ?? 999));
+        }
+        return appointmentOrder(list);
+      }
+      function renderDay() {
+        const ds = currentDay,
+          td = todayStr(),
+          isToday = ds === td;
+        const startButton = document.getElementById('btn-start-route'),
+          route = LOCAL.routes[ds];
+        startButton.hidden = !isToday;
+        startButton.disabled = !!route?.started_at;
+        startButton.textContent = route?.started_at ? t('routeStarted') : t('startRoute');
+        renderRouteButton();
+        document.getElementById('day-back').hidden = isToday;
+        document.getElementById('day-flag').textContent = BH[ds]
+          ? t('bh')
+          : ds === addDays(td, 1)
+            ? t('tomorrow')
+            : ds === addDays(td, -1)
+              ? t('yesterday')
+              : '';
+        document.getElementById('day-title').textContent = (isToday ? t('todayWord') + ' · ' : '') + cap(dayLabel(ds));
+        const list = orderedDayAddrs(ds);
+        const finished = list.filter((a) => ['done', 'noanswer', 'problem'].includes(a.status)).length;
+        const fit = route?.dispatch ? route.state?.fit : null;
+        document.getElementById('day-sum').innerHTML =
+          `<div>${t('collections')}<b>${list.length}</b></div><div>${t('doneWord')}<b>${finished}</b></div>` +
+          (fit?.ok ? `<div>${t('departure')}<b>${hm(fit.departure)}</b></div><div>${t('depotWord')}<b>${hm(fit.finish)}</b></div>` : '');
+        const hero = document.getElementById('day-hero');
+        hero.hidden = !list.length;
+        document.getElementById('cnt-today').textContent = list.length;
+        document.getElementById('cnt-today-left').textContent = list.length - finished;
+        document.getElementById('today-progress').style.width = (list.length ? Math.round((finished / list.length) * 100) : 0) + '%';
+        if (typeof L !== 'undefined') {
+          if (map) {
+            map.remove();
+            map = null;
+          }
+          map = L.map('map', { zoomControl: false });
+          L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap', maxZoom: 19 }).addTo(map);
+          const pts = [];
+          list.forEach((a, i) => {
+            if (!hasCoords(a)) return;
+            pts.push([a.lat, a.lng]);
+            const col =
+              a.status === 'done' ? '#17764F' : a.status === 'noanswer' ? '#A22B22' : a.status === 'problem' ? '#D9A300' : '#0E1A15';
+            L.marker([a.lat, a.lng], {
+              icon: L.divIcon({
+                className: '',
+                html: `<div class="mk" style="background:${col}">${i + 1}</div>`,
+                iconSize: [28, 28],
+                iconAnchor: [14, 14],
+              }),
+            })
+              .addTo(map)
+              .on('click', () => openAddr(a.id));
+          });
+          for (const [point, label, symbol] of [
+            [route?.config?.home || LOCAL.points?.home, t('routeStart'), 'S'],
+            [route?.config?.depot || LOCAL.points?.depot, t('routeFinish'), 'F'],
+          ]) {
+            if (!hasCoords(point)) continue;
+            pts.push([point.lat, point.lng]);
+            L.marker([point.lat, point.lng], {
+              icon: L.divIcon({ className: '', html: `<div class="mk sq">${symbol}</div>`, iconSize: [28, 28], iconAnchor: [14, 14] }),
+            })
+              .addTo(map)
+              .bindTooltip(esc(label) + (point.text ? ' · ' + esc(point.text) : ''));
+          }
+          const r = LOCAL.routes[ds];
+          if (r && r.geometry && r.geometry.length) {
+            L.polyline(r.geometry, {
+              color: '#0F6B4F',
+              weight: 4,
+              opacity: 0.85,
+              dashArray: r.sketch ? '8 8' : null,
+            }).addTo(map);
+            for (const point of r.geometry) pts.push(point);
+          }
+          if (pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.2));
+          else map.setView([51.6, -3.4], 9);
+        }
+        const strip = document.getElementById('signstrip');
+        if (route) {
+          const totalMin = Math.round(route.min || 0);
+          document.getElementById('sign-vals').innerHTML =
+            (Number.isFinite(route.km) && Number.isFinite(route.min)
+              ? `<span>${t('dist')}: <b>${route.km.toFixed(1)} km</b></span><span>${t('drivingTime')}: <b>${Math.floor(totalMin / 60)} h ${totalMin % 60} min</b></span>`
+              : '') + `<span>${t('stops')}: <b>${(route.order || []).length}</b></span>`;
+          document.getElementById('sign-src').textContent = [
+            t(route.sketch ? 'scheduledLines' : 'scheduledRoute'),
+            list.some((a) => !a.collection_start) ? t('routeNoTime') : '',
+            list.some((a) => a.geocode_source === 'postcode') ? t('routeApprox') : '',
+          ]
+            .filter(Boolean)
+            .join(' ');
+          strip.classList.add('show');
+        } else strip.classList.remove('show');
+        const el = document.getElementById('day-list');
+        if (!list.length) {
+          el.innerHTML =
+            '<div class="empty">' +
+            t('emptyDay') +
+            '</div><button class="ph-cta ghost" onclick="openAdd(\'' +
+            ds +
+            '\')">' +
+            ICH('plus') +
+            ' ' +
+            t('addAddress') +
+            '</button>';
+          return;
+        }
+        const arrivals = new Map();
+        if (fit?.ok) fit.stops.forEach((s) => arrivals.set(s.address_id, s));
+        const SERVICE = SubnexDispatchCore.PLAN_DEFAULTS.service_minutes;
+        let prevEnd = null;
+        const rows = [];
+        const firstOpen = list.find((a) => !['done', 'noanswer', 'problem'].includes(a.status));
+        list.forEach((a, i) => {
+          const st = a.collection_start ? ukMinute(a.collection_start) : null,
+            en = a.collection_end ? ukMinute(a.collection_end) : null;
+          const ar = arrivals.get(a.id);
+          if (st != null && prevEnd != null && !ar && st - prevEnd >= 20) {
+            const gap = st - prevEnd;
+            rows.push(
+              `<div class="ph-gap">${t('gapWord')} ${durLabel(gap)}</div>`,
+            );
+          }
+          const numCls = a.status === 'done' ? 'done' : a.status === 'noanswer' ? 'noanswer' : a.status === 'problem' ? 'problem' : '';
+          const win = ar ? '≈ ' + hm(ar.arrival) : st != null && !isDayMode(a) ? hm(st) : '';
+          const eta = a.kind !== 'bank' ? etaLabel(a) : '';
+          const winTail = eta
+            ? ' · ' + esc(eta)
+            : isDayMode(a) && st != null
+              ? ' · ' + t('anyTime')
+              : en != null && st !== en
+                ? ' · ' + t('window') + ' ' + hm(en)
+                : '';
+          rows.push(
+            `<button class="ph-stop ${['done', 'noanswer', 'problem'].includes(a.status) ? 'done' : ''} ${a === firstOpen && isToday ? 'now' : ''}" onclick="openAddr('${a.id}')"><div class="num ${numCls}">${i + 1}</div><div class="body"><b>${a.kind === 'bank' ? BANKPLATE + ' ' : ''}${esc(a.text)}</b><small>${win ? '<span class="win">' + win + '</span>' + winTail + ' · ' : winTail ? winTail.slice(3) + ' · ' : ''}${bagsLabel(a) ? esc(bagsLabel(a)) : st == null ? t('noTime') : ''}${!hasCoords(a) ? ' · <span style="color:var(--crit)">' + t('noCoordAddr') + '</span>' : ''}</small>${a.note ? '<small>' + esc(a.note) + '</small>' : ''}</div><span class="navb" onclick="event.stopPropagation();navTo('${a.id}')" aria-label="navigate"><svg class="ic" style="fill:#fff;stroke:none;width:18px;height:18px"><use href="#i-nav"/></svg></span></button>`,
+          );
+          prevEnd = en != null ? en + SERVICE : null;
+        });
+        el.innerHTML =
+          rows.join('') +
+          '<button class="ph-cta ghost" onclick="openAdd(\'' +
+          ds +
+          '\')">' +
+          ICH('plus') +
+          ' ' +
+          t('addAddress') +
+          '</button>';
+      }
 
-/* ---------- day view ---------- */
-let map=null;
-function openDay(ds){currentDay=ds;showView('v-day');renderDay();}
-function dayAddrs(ds){return ADDR.filter(a=>a.date===ds&&a.status!=='cancelled');}
-const hasCoords=a=>a&&Number.isFinite(a.lat)&&Number.isFinite(a.lng)&&Math.abs(a.lat)<=90&&Math.abs(a.lng)<=180;
-const isScheduledRoute=r=>r?.dispatch||r?.source==='osrm-schedule'||r?.source==='schedule-lines';
-function appointmentOrder(list){const at=a=>{const v=Date.parse(a.collection_start);return Number.isFinite(v)?v:Infinity;};return list.slice().sort((a,b)=>{const x=at(a),y=at(b);return x===y?0:x<y?-1:1;});}
-function scheduledRouteSignature(ds){const list=dayAddrs(ds);return JSON.stringify([OpsRoute.signature(list,LOCAL.home,LOCAL.depot),appointmentOrder(list).map(a=>a.id)]);}
-function renderRouteButton(){const btn=document.getElementById('btn-opt');if(btn.disabled)return;const key=currentDay>=todayStr()||dayAddrs(currentDay).some(a=>a.collection_start)?'showRoute':'optimize';btn.innerHTML='<svg class="ic" style="fill:currentColor;stroke:none"><use href="#i-'+(key==='showRoute'?'nav':'bolt')+'"/></svg> <span>'+t(key)+'</span>';}
-function orderedDayAddrs(ds){
-  const list=dayAddrs(ds);let r=LOCAL.routes[ds];
-  if(r?.dispatch){const pos=new Map(r.order.map((id,i)=>[id,i]));return list.sort((a,b)=>(pos.get(a.id)??999)-(pos.get(b.id)??999));}
-  if(list.some(a=>a.collection_start)){if(!isScheduledRoute(r)||r.signature!==scheduledRouteSignature(ds))delete LOCAL.routes[ds];return appointmentOrder(list);}
-  if(isScheduledRoute(r)){delete LOCAL.routes[ds];r=null;}
-  if(r&&r.order){const pos={};r.order.forEach((id,i)=>pos[id]=i);list.sort((a,b)=>(pos[a.id]??999)-(pos[b.id]??999));}
-  return list;
-}
-function renderDay(){
-  const ds=currentDay,td=todayStr(),isToday=ds===td;
-  const startButton=document.getElementById('btn-start-route'),route=LOCAL.routes[ds];
-  startButton.hidden=!isToday;startButton.disabled=!!route?.started_at;startButton.textContent=route?.started_at?'Маршрут начат · план зафиксирован':'Начать маршрут';
-  renderRouteButton();
-  document.getElementById('day-back').hidden=isToday;
-  document.getElementById('day-flag').textContent=BH[ds]?t('bh'):ds===addDays(td,1)?t('tomorrow'):ds===addDays(td,-1)?t('yesterday'):'';
-  document.getElementById('day-title').textContent=(isToday?t('todayWord')+' · ':'')+cap(dayLabel(ds));
-  const list=orderedDayAddrs(ds);
-  const finished=list.filter(a=>['done','noanswer','problem'].includes(a.status)).length;
-  const fit=route?.dispatch?route.state?.fit:null;
-  document.getElementById('day-sum').innerHTML=`<div>${t('collections')}<b>${list.length}</b></div><div>${t('doneWord')}<b>${finished}</b></div>`+(fit?.ok?`<div>${t('departure')}<b>${hm(fit.departure)}</b></div><div>${t('depotWord')}<b>${hm(fit.finish)}</b></div>`:'');
-  const hero=document.getElementById('day-hero');hero.hidden=!list.length;
-  document.getElementById('cnt-today').textContent=list.length;document.getElementById('cnt-today-left').textContent=list.length-finished;document.getElementById('today-progress').style.width=(list.length?Math.round(finished/list.length*100):0)+'%';
-  if(typeof L!=='undefined'){
-    if(map){map.remove();map=null;}
-    map=L.map('map',{zoomControl:false});
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(map);
-    const pts=[];
-    list.forEach((a,i)=>{if(!hasCoords(a))return;pts.push([a.lat,a.lng]);const col=a.status==='done'?'#17764F':a.status==='noanswer'?'#A22B22':a.status==='problem'?'#D9A300':'#0E1A15';
-      L.marker([a.lat,a.lng],{icon:L.divIcon({className:'',html:`<div class="mk" style="background:${col}">${i+1}</div>`,iconSize:[28,28],iconAnchor:[14,14]})}).addTo(map).on('click',()=>openAddr(a.id));});
-    for(const [point,label,symbol] of [[LOCAL.routes[ds]?.config?.home||LOCAL.home,t('routeStart'),'S'],[LOCAL.routes[ds]?.config?.depot||LOCAL.depot,t('routeFinish'),'F']]){if(!hasCoords(point))continue;pts.push([point.lat,point.lng]);L.marker([point.lat,point.lng],{icon:L.divIcon({className:'',html:`<div class="mk sq">${symbol}</div>`,iconSize:[28,28],iconAnchor:[14,14]})}).addTo(map).bindTooltip(esc(label)+(point.text?' · '+esc(point.text):''));}
-    const r=LOCAL.routes[ds];
-    if(r&&r.geometry&&r.geometry.length){L.polyline(r.geometry,{color:'#0F6B4F',weight:4,opacity:.85,dashArray:r.source==='schedule-lines'?'8 8':null}).addTo(map);for(const point of r.geometry)pts.push(point);}
-    if(pts.length)map.fitBounds(L.latLngBounds(pts).pad(0.2));else map.setView([51.6,-3.4],9);
-  }
-  const strip=document.getElementById('signstrip');
-  if(route){const fuel=route.km*LOCAL.fuelPer100/100,cost=fuel*LOCAL.fuelPrice;const totalMin=Math.round(route.min||0);
-    document.getElementById('sign-vals').innerHTML=(Number.isFinite(route.km)&&Number.isFinite(route.min)?`<span>${t('dist')}: <b>${route.km.toFixed(1)} km</b></span><span>${t(isScheduledRoute(route)?'drivingTime':'time')}: <b>${Math.floor(totalMin/60)} h ${totalMin%60} min</b></span><span>${t('fuel')}: <b>${fuel.toFixed(1)} L</b></span><span>${t('cost')}: <b>£${cost.toFixed(2)}</b></span>`:'')+`<span>${t('stops')}: <b>${route.order.length}</b></span>`;
-    document.getElementById('sign-src').textContent=isScheduledRoute(route)?[t(route.source==='osrm-schedule'?'scheduledRoute':'scheduledLines'),list.some(a=>!a.collection_start)?t('routeNoTime'):'',list.some(a=>a.geocode_source==='postcode')?t('routeApprox'):''].filter(Boolean).join(' '):(route.source==='osrm'?'✅ '+t('optOSRM'):'⚠️ '+t('optFallback'));
-    strip.classList.add('show');}else strip.classList.remove('show');
-  const el=document.getElementById('day-list');
-  if(!list.length){el.innerHTML='<div class="empty">'+t('emptyDay')+'</div><button class="ph-cta ghost" onclick="openAdd(\''+ds+'\')">'+ICH('plus')+' '+t('addAddress')+'</button>';return;}
-  const arrivals=new Map();if(fit?.ok)fit.stops.forEach(s=>arrivals.set(s.address_id,s));
-  const SERVICE=10;let prevEnd=null;const rows=[];
-  const firstOpen=list.find(a=>!['done','noanswer','problem'].includes(a.status));
-  list.forEach((a,i)=>{
-    const st=a.collection_start?ukMinute(a.collection_start):null,en=a.collection_end?ukMinute(a.collection_end):null;const ar=arrivals.get(a.id);
-    if(st!=null&&prevEnd!=null&&!ar&&st-prevEnd>=20){const gap=st-prevEnd;rows.push(`<div class="ph-gap">${t('gapWord')} ${gap>=60?Math.floor(gap/60)+' ч '+(gap%60?gap%60+' мин':''):gap+' мин'}</div>`);}
-    const numCls=a.status==='done'?'done':a.status==='noanswer'?'noanswer':a.status==='problem'?'problem':'';
-    const win=ar?'≈ '+hm(ar.arrival):st!=null?hm(st):'';
-    rows.push(`<button class="ph-stop ${['done','noanswer','problem'].includes(a.status)?'done':''} ${a===firstOpen&&isToday?'now':''}" onclick="openAddr('${a.id}')"><div class="num ${numCls}">${i+1}</div><div class="body"><b>${a.kind==='bank'?BANKPLATE+' ':''}${esc(a.text)}</b><small>${win?'<span class="win">'+win+'</span>'+(en!=null&&st!==en?' · '+t('window')+' '+hm(en):'')+' · ':''}${bagsLabel(a)?esc(bagsLabel(a)):(st==null?t('noTime'):'')}${!hasCoords(a)?' · <span style="color:var(--crit)">'+t('noCoordAddr')+'</span>':''}</small>${a.note?'<small>'+esc(a.note)+'</small>':''}</div><span class="navb" onclick="event.stopPropagation();navTo('${a.id}')" aria-label="navigate"><svg class="ic" style="fill:#fff;stroke:none;width:18px;height:18px"><use href="#i-nav"/></svg></span></button>`);
-    prevEnd=en!=null?en+SERVICE:null;
-  });
-  el.innerHTML=rows.join('')+'<button class="ph-cta ghost" onclick="openAdd(\''+ds+'\')">'+ICH('plus')+' '+t('addAddress')+'</button>';
-}
+      /* Окно прибытия, обещанное клиенту утренней SMS (сервер отдаёт его вместе с планом дня). */
+      function etaLabel(a) {
+        const eta = LOCAL.routes[a.date]?.state?.eta?.[a.id];
+        if (!eta) return '';
+        const txt = t('smsWindow', { from: hm(eta.from), to: hm(eta.to) });
+        return eta.state === 'accepted' ? txt : eta.state === 'pending' || eta.state === 'dispatching' ? txt + ' · ' + t('smsPending') : txt + ' · ' + t('smsFailed');
+      }
+      const isDayMode = (a) => a.arrival_mode === 'day' || SubnexDispatchCore.isDaySpan(a.collection_start, a.collection_end);
+      /* ---------- route optimization ---------- */
+      function hav(a, b) {
+        const R = 6371,
+          dLa = ((b[0] - a[0]) * Math.PI) / 180,
+          dLo = ((b[1] - a[1]) * Math.PI) / 180;
+        const x = Math.sin(dLa / 2) ** 2 + Math.cos((a[0] * Math.PI) / 180) * Math.cos((b[0] * Math.PI) / 180) * Math.sin(dLo / 2) ** 2;
+        return 2 * R * Math.asin(Math.sqrt(x));
+      }
+      function dispatchOptions() {
+        return { sb, driver: ME, hasOutbox: () => LOCAL.outbox.length > 0 };
+      }
+      async function startDispatchDay() {
+        const btn = document.getElementById('btn-start-route'),
+          note = document.getElementById('dispatch-day-note');
+        if (btn.disabled) return;
+        btn.disabled = true;
+        note.textContent = t('checkingRoute');
+        /* Опоздание на один адрес не запирает день: сборы уже сделаны, а переставить
+           прошедшее окно нельзя. Решение остаётся за водителем — показываем, по кому опоздание. */
+        const onLate = (fit) =>
+          confirm(
+            t('lateAt', {
+              addr: fit.to || '',
+              until: Number.isFinite(fit.latest) ? t('lateUntil', { t: hm(fit.latest) }) : '',
+              eta: Number.isFinite(fit.arrival) ? t('lateEta', { t: hm(fit.arrival) }) : '',
+            }),
+          );
+        try {
+          const started = await OpsDispatch.startDay(dispatchOptions(), currentDay, { onLate });
+          delete LOCAL.routes[currentDay];
+          await showScheduledRoute(currentDay);
+          const n = started?.started?.eta_sent;
+          note.textContent = t('routeStartedNote') + (Number.isFinite(n) ? ' ' + t('etaSent', { n }) : '');
+        } catch (e) {
+          note.textContent = OpsDispatch.error(e);
+        } finally {
+          btn.disabled = !!LOCAL.routes[currentDay]?.started_at;
+        }
+      }
+      /* План дня с сервера: порядок, прибытия, дорога. На прошлые дни — просто точки по порядку. */
+      async function showScheduledRoute(ds, quiet) {
+        const btn = document.getElementById('btn-opt');
+        if (btn.disabled) return;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spin"></span> ' + t('buildingRoute');
+        try {
+          if (ds >= todayStr()) {
+            const r = await OpsDispatch.routeDay(dispatchOptions(), ds);
+            if (r) {
+              LOCAL.routes[ds] = { ...r, dispatch: true, started_at: r.state.started_at, config: r.state.config, stamp: Date.now() };
+              if (r.state.config?.home) LOCAL.points = { ...(LOCAL.points || {}), home: r.state.config.home, depot: r.state.config.depot };
+              saveLocal();
+              if (currentDay === ds) {
+                renderDay();
+                document.getElementById('dispatch-day-note').textContent =
+                  r.warning ||
+                  (Number.isFinite(r.state.fit?.departure)
+                    ? t('planNote', { dep: hm(r.state.fit.departure), fin: hm(r.state.fit.finish) })
+                    : t('planChecked'));
+              }
+              return;
+            }
+          }
+          const list = appointmentOrder(dayAddrs(ds)).filter(hasCoords);
+          if (!list.length) {
+            if (!quiet) toast(t('emptyDay'));
+            return;
+          }
+          const p = LOCAL.points || {};
+          const all = [...(hasCoords(p.home) ? [[p.home.lat, p.home.lng]] : []), ...list.map((a) => [a.lat, a.lng]), ...(hasCoords(p.depot) ? [[p.depot.lat, p.depot.lng]] : [])];
+          LOCAL.routes[ds] = { order: list.map((a) => a.id), sketch: true, km: null, min: null, geometry: all, stamp: Date.now() };
+          saveLocal();
+          if (currentDay === ds) renderDay();
+        } catch (e) {
+          if (!quiet) toast(OpsDispatch.error(e));
+          else document.getElementById('dispatch-day-note').textContent = OpsDispatch.error(e);
+        } finally {
+          btn.disabled = false;
+          renderRouteButton();
+        }
+      }
+      function optimizeDay() {
+        return showScheduledRoute(currentDay);
+      }
 
-/* ---------- route optimization ---------- */
-function hav(a,b){const R=6371,dLa=(b[0]-a[0])*Math.PI/180,dLo=(b[1]-a[1])*Math.PI/180;const x=Math.sin(dLa/2)**2+Math.cos(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*Math.sin(dLo/2)**2;return 2*R*Math.asin(Math.sqrt(x));}
-function tspSolve(M,n){
-  const INF=1e15;const cost=(i,j)=>{const v=(M[i]||[])[j];return (v==null)?INF:v;};
-  let pool=[];for(let k=1;k<=n;k++)pool.push(k);let route=[],cur=0;
-  while(pool.length){let bi=0;for(let k=1;k<pool.length;k++)if(cost(cur,pool[k])<cost(cur,pool[bi]))bi=k;cur=pool[bi];route.push(cur);pool.splice(bi,1);}
-  const len=r=>{let d=cost(0,r[0]);for(let i=0;i<r.length-1;i++)d+=cost(r[i],r[i+1]);return d+cost(r[r.length-1],n+1);};
-  let best=len(route),improved=true,guard=0;
-  while(improved&&guard++<120){improved=false;
-    for(let i=0;i<route.length-1;i++)for(let j=i+1;j<route.length;j++){const cand=route.slice(0,i).concat(route.slice(i,j+1).reverse(),route.slice(j+1));const l=len(cand);if(l<best-1e-6){route=cand;best=l;improved=true;}}
-    for(let seg=1;seg<=3&&route.length>seg;seg++){for(let i=0;i+seg<=route.length;i++){const chain=route.slice(i,i+seg);const rest=route.slice(0,i).concat(route.slice(i+seg));for(let k=0;k<=rest.length;k++){const cand=rest.slice(0,k).concat(chain,rest.slice(k));const l=len(cand);if(l<best-1e-6){route=cand;best=l;improved=true;i=route.length;break;}}}}}
-  return route;
-}
-async function scheduledRoad(all){
- let km=0,min=0;const geometry=[];
- for(let first=0;first<all.length-1;first+=74){const chunk=all.slice(first,first+75);const coords=chunk.map(c=>c[1].toFixed(6)+','+c[0].toFixed(6)).join(';');
-  const rr=await fetch('https://router.project-osrm.org/route/v1/driving/'+coords+'?overview=full&geometries=geojson&continue_straight=false',{signal:AbortSignal.timeout(15000)});
-  const data=await rr.json(),rt=data.routes?.[0],line=rt?.geometry?.coordinates;
-  if(!rr.ok||data.code!=='Ok'||!Array.isArray(line)||line.length<2||!line.every(c=>Array.isArray(c)&&hasCoords({lat:c[1],lng:c[0]}))||!Number.isFinite(rt.distance)||rt.distance<0||!Number.isFinite(rt.duration)||rt.duration<0)throw new Error('ROAD_UNAVAILABLE');
-  km+=rt.distance/1000;min+=rt.duration/60;for(let i=first?1:0;i<line.length;i++)geometry.push([line[i][1],line[i][0]]);}
- return {km,min,geometry};
-}
-function dispatchOptions(){return {sb,driver:ME,home:LOCAL.home,depot:LOCAL.depot,hasOutbox:()=>LOCAL.outbox.length>0};}
-async function startDispatchDay(){
- const btn=document.getElementById('btn-start-route'),note=document.getElementById('dispatch-day-note');if(btn.disabled)return;btn.disabled=true;note.textContent='Проверяю все сборы перед стартом…';
- /* Опоздание на один адрес больше не запирает день: сборы уже сделаны, а переставить
-    прошедшее окно нельзя. Решение оставляем водителю — показываем, по кому опоздание. */
- const onLate=fit=>{const hm=OpsDispatch.core.hm;
-  return confirm('По адресу «'+(fit.to||'')+'» обещанное время уже прошло'
-   +(Number.isFinite(fit.latest)?' (до '+hm(fit.latest)+')':'')
-   +(Number.isFinite(fit.arrival)?', сейчас туда доедете к '+hm(fit.arrival):'')+'.\n\n'
-   +'Перестановка это не исправит. Начать маршрут всё равно?');};
- try{await OpsDispatch.startDay(dispatchOptions(),currentDay,{onLate});await showScheduledRoute(currentDay);note.textContent='Маршрут начат. Новые заявки будут ждать следующего дня.';}
- catch(e){note.textContent=OpsDispatch.error(e);}finally{btn.disabled=!!LOCAL.routes[currentDay]?.started_at;}
-}
-async function showScheduledRoute(ds){
- const btn=document.getElementById('btn-opt');if(btn.disabled)return;btn.disabled=true;btn.innerHTML='<span class="spin"></span> '+t('buildingRoute');
- try{
-  if(ds>=todayStr()){const r=await OpsDispatch.routeDay(dispatchOptions(),ds);
-   if(r){LOCAL.routes[ds]={...r,dispatch:true,started_at:r.state.started_at,config:r.state.config,source:r.sketch?'schedule-lines':'osrm-schedule'};saveLocal();if(currentDay===ds){renderDay();document.getElementById('dispatch-day-note').textContent=r.warning||(Number.isFinite(r.state.fit?.departure)?'Выезд: '+hm(r.state.fit.departure)+' · склад: '+hm(r.state.fit.finish)+'. Часы работы относятся к прибытиям к клиентам.':'План проверен: дорога, интервалы, сборы и возврат на склад.');}return;}}
-  const list=appointmentOrder(dayAddrs(ds));if(!list.length){toast(t('emptyDay'));return;}
-  const missing=list.filter(a=>!hasCoords(a));if(missing.length)throw new Error(t('routeMissingCoords')+missing.length);
-  if(!hasCoords(LOCAL.home)||!hasCoords(LOCAL.depot))throw new Error(t('routeMissingEnds'));
-  const signature=scheduledRouteSignature(ds);const all=[[LOCAL.home.lat,LOCAL.home.lng],...list.map(a=>[a.lat,a.lng]),[LOCAL.depot.lat,LOCAL.depot.lng]];
-  let route={order:list.map(a=>a.id),source:'schedule-lines',signature,km:null,min:null,geometry:all};
-  try{route={...route,...await scheduledRoad(all),source:'osrm-schedule'};}catch{}
-  if(signature!==scheduledRouteSignature(ds))throw new Error(t('routeChanged'));
-  LOCAL.routes[ds]=route;saveLocal();if(currentDay===ds)renderDay();
- }catch(e){toast(e.message);}finally{btn.disabled=false;renderRouteButton();}
-}
-async function optimizeDay(){
-  const ds=currentDay;
-  if(ds>=todayStr()||dayAddrs(ds).some(a=>a.collection_start)){await showScheduledRoute(ds);return;}
-  const active=dayAddrs(ds).filter(a=>!['done','noanswer','problem','cancelled'].includes(a.status));const list=active.filter(a=>a.lat!=null&&a.lng!=null);
-  if(!list.length){toast(t('needTwo'));return;}
-  const btn=document.getElementById('btn-opt');btn.disabled=true;btn.innerHTML='<span class="spin"></span> '+t('optimizing');
-  const start=LOCAL.home.lat!=null?[LOCAL.home.lat,LOCAL.home.lng]:[list[0].lat,list[0].lng];const end=LOCAL.depot.lat!=null?[LOCAL.depot.lat,LOCAL.depot.lng]:start;
-  const n=list.length;const all=[start,...list.map(a=>[a.lat,a.lng]),end];const toCs=arr=>arr.map(c=>c[1].toFixed(6)+','+c[0].toFixed(6)).join(';');let done=false;
-  try{if(n<=90){const tr=await fetch(`https://router.project-osrm.org/table/v1/driving/${toCs(all)}?annotations=duration`);const tj=await tr.json();
-      if(tj.code==='Ok'&&tj.durations){const order=tspSolve(tj.durations,n);const path=[0,...order,n+1].map(i=>all[i]);const rr=await fetch(`https://router.project-osrm.org/route/v1/driving/${toCs(path)}?overview=full&geometries=geojson`);const rj=await rr.json();
-        if(rj.code==='Ok'&&rj.routes&&rj.routes[0]){const rt=rj.routes[0];LOCAL.routes[ds]={order:order.map(i=>list[i-1].id),km:rt.distance/1000,min:rt.duration/60+n*4,source:'osrm',geometry:rt.geometry.coordinates.map(c=>[c[1],c[0]])};done=true;}}}}catch(e){}
-  if(!done){const M=all.map(p=>all.map(q=>hav(p,q)));const order=tspSolve(M,n);const path=[0,...order,n+1].map(i=>all[i]);let km=0;for(let i=0;i<path.length-1;i++)km+=hav(path[i],path[i+1]);km*=1.3;LOCAL.routes[ds]={order:order.map(i=>list[i-1].id),km,min:km/45*60+n*4,source:'fallback',geometry:path};}
-  saveLocal();btn.disabled=false;renderRouteButton();renderDay();
-}
+      /* ---------- остановка ---------- */
+      function openAddr(id) {
+        currentAddrId = id;
+        showView('v-addr');
+        renderAddr();
+        loadAddrPhotos();
+      }
+      const ICH = (n, st) =>
+        '<svg class="ic" style="width:15px;height:15px;vertical-align:-2px;' + (st || '') + '"><use href="#i-' + n + '"/></svg>';
+      const BANKPLATE_ICON = ICH('bin', 'stroke:#fff;width:11px;height:11px;');
+      /* Метка контейнера собирается при показе, чтобы слушалась переключателя языка. */
+      Object.defineProperty(window, 'BANKPLATE', { get: () => '<span class="chip bank">' + BANKPLATE_ICON + ' ' + t('bankWord') + '</span>' });
+      let FILL = null;
+      const KGVALS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+      function renderFillSel() {
+        const el = document.getElementById('fillsel');
+        if (!el) return;
+        el.innerHTML =
+          '<button class="kgzero' +
+          (FILL === 0 ? ' on' : '') +
+          '" onclick="setFill(0)">' +
+          t('emptyBin') +
+          '</button>' +
+          KGVALS.map((v) => '<button class="' + (FILL === v ? 'on' : '') + '" onclick="setFill(' + v + ')">' + v + '</button>').join('');
+      }
+      async function setFill(v) {
+        FILL = v;
+        renderFillSel();
+        const a = ADDR.find((x) => x.id === currentAddrId);
+        if (!a) return;
+        a.fill = v;
+        LOCAL.cache = ADDR;
+        saveLocal();
+        dbUpdate(a.id, { fill_level: v });
+      }
+      function renderAddr() {
+        const a = ADDR.find((x) => x.id === currentAddrId);
+        if (!a) return goBack();
+        const isBank = a.kind === 'bank',
+          cancelled = a.status === 'cancelled';
+        const list = a.date ? orderedDayAddrs(a.date) : [];
+        const idx = list.findIndex((x) => x.id === a.id);
+        document.getElementById('ai-pos').textContent = idx >= 0 ? idx + 1 + ' / ' + list.length : t('addrInfo');
+        document.getElementById('ai-head').textContent = a.text.split(',')[0];
+        document.getElementById('ai-sum').innerHTML =
+          (a.collection_start
+            ? `<div>${t('windowLbl')}<b>${esc(etaLabel(a).replace(/^SMS: /, '') || (isDayMode(a) ? t('anyTime') : hm(ukMinute(a.collection_start)) + (a.collection_end && a.collection_end !== a.collection_start ? '–' + hm(ukMinute(a.collection_end)) : '')))}</b></div>`
+            : a.date
+              ? `<div>${t('dateLbl')}<b>${a.date}</b></div>`
+              : '') +
+          (bagsLabel(a) ? `<div>${t('bagsLbl')}<b>${esc(bagsLabel(a).replace(' ' + t('bags'), ''))}</b></div>` : '') +
+          `<div>${t('result')}<b>${cancelled ? t('cancelledWord') : a.status === 'done' ? t('visited') : a.status === 'noanswer' ? t('noAnswer') : a.status === 'problem' ? t('problem') : '—'}</b></div>`;
+        let html = cancelled ? '<p style="color:var(--crit);font-weight:600">' + t('cancelledWord') + '</p>' : '';
+        if (isBank) html += BANKPLATE + '<br>';
+        html += esc(a.text);
+        if (a.phone)
+          html += '<br><a href="tel:' + esc(a.phone) + '" style="font-family:var(--mono)">' + ICH('phone') + ' ' + esc(a.phone) + '</a>';
+        if (a.collection_start) html += '<div class="ops-slot-label">' + esc(Ops.slotLabel(a)) + '</div>';
+        if (a.note) html += '<br><span class="muted">' + esc(a.note) + '</span>';
+        if (a.resultNote) html += '<br><span style="color:var(--crit)">' + esc(a.resultNote) + '</span>';
+        document.getElementById('ai-text').innerHTML = html;
+        document.getElementById('ai-geo').innerHTML =
+          a.lat != null && a.lng != null
+            ? a.geocode_source === 'postcode'
+              ? '<span class="pill-geo">' + t('postcodeCoords') + '</span>'
+              : '<span class="pill-geo ok">✓ ' + t('coordsOk') + '</span>'
+            : '<span class="pill-geo fail">⚠ ' + t('noCoords') + '</span>';
+        FILL = a.fill == null ? null : a.fill;
+        document.getElementById('bank-sec').style.display = isBank ? '' : 'none';
+        document.getElementById('d2d-photo-sec').style.display = isBank ? 'none' : '';
+        document.getElementById('btn-noanswer').style.display = isBank ? 'none' : '';
+        document.getElementById('btn-edit').style.display = isBank ? 'none' : '';
+        const smsBtn = document.getElementById('btn-sms');
+        smsBtn.style.display = a.phone && !isBank ? '' : 'none';
+        document.getElementById('btn-sms-label').textContent = cancelled ? t('smsHistory') : a.collection_start ? t('smsChat') : t('smsArrange');
+        if (isBank) renderFillSel();
+        document
+          .querySelectorAll(
+            '#v-addr > .ph-sec, #v-addr > .ph-cta, #result-btns, #action-btns > button:not(#btn-sms), #bank-sec, #d2d-photo-sec',
+          )
+          .forEach((el) => {
+            el.hidden = cancelled;
+          });
+        if (cancelled) {
+          document.getElementById('bank-sec').style.display = 'none';
+          document.getElementById('d2d-photo-sec').style.display = 'none';
+        }
+      }
+      function navUrl(app, a) {
+        const usePin = Number.isFinite(a.lat) && Number.isFinite(a.lng) && a.geocode_source !== 'postcode';
+        if (app === 'waze')
+          return usePin
+            ? 'https://waze.com/ul?ll=' + a.lat + ',' + a.lng + '&navigate=yes'
+            : 'https://waze.com/ul?q=' + encodeURIComponent(a.text) + '&navigate=yes';
+        const dest = usePin ? a.lat + ',' + a.lng : a.text;
+        return 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + encodeURIComponent(dest);
+      }
+      let NAVID = null;
+      function navTo(id) {
+        const a = ADDR.find((x) => x.id === id);
+        if (!a) return;
+        if (LOCAL.nav === 'google' || LOCAL.nav === 'waze') {
+          window.open(navUrl(LOCAL.nav, a), '_blank');
+          return;
+        }
+        NAVID = id;
+        document.getElementById('nav-chooser').classList.add('show');
+      }
+      function navGo(app) {
+        const a = ADDR.find((x) => x.id === NAVID);
+        document.getElementById('nav-chooser').classList.remove('show');
+        if (a) window.open(navUrl(app, a), '_blank');
+      }
+      function navCancel() {
+        document.getElementById('nav-chooser').classList.remove('show');
+      }
+      function navToCurrent() {
+        navTo(currentAddrId);
+      }
+      async function setResult(status) {
+        const a = ADDR.find((x) => x.id === currentAddrId);
+        if (!a || a.status === 'cancelled') return;
+        if (a.kind === 'bank' && status === 'done') {
+          const all = [...CURPHOTOS, ...CURPENDING];
+          const nOpen = all.filter((p) => (p.kind || 'photo') === 'open').length,
+            nEmpty = all.filter((p) => (p.kind || 'photo') === 'empty').length;
+          if (nOpen < 1 || nEmpty < 1) {
+            toast('⚠ ' + t('needPhotos'));
+            return;
+          }
+          if (FILL == null) {
+            toast('⚠ ' + t('needFill'));
+            return;
+          }
+          a.fill = FILL;
+        }
+        if (status === 'problem') {
+          const n = prompt(t('problemPrompt'), a.resultNote || '');
+          if (n === null) return;
+          a.resultNote = n.trim();
+        } else a.resultNote = '';
+        a.status = status;
+        a.doneAt = Date.now();
+        LOCAL.cache = ADDR;
+        saveLocal();
+        const upd = { status, result_note: a.resultNote, done_at: new Date(a.doneAt).toISOString() };
+        if (a.kind === 'bank') upd.fill_level = a.fill == null ? null : a.fill;
+        await dbUpdate(a.id, upd);
+        toast(t('saved'));
+        goBack();
+      }
+      function editCurrent() {
+        openEdit(currentAddrId);
+      }
+      async function rescheduleCurrent() {
+        const a = ADDR.find((x) => x.id === currentAddrId);
+        if (!a || a.status === 'cancelled') return;
+        if (a.collection_start) {
+          await openSMS(a.id);
+          return;
+        }
+        const day = prompt(t('reschedulePrompt'), a.date || todayStr());
+        if (!day) return;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+          toast('YYYY-MM-DD');
+          return;
+        }
+        if (!confirm(t('confirmMove', { d: day }))) return;
+        try {
+          await Ops.api(sb, 'legacy_date', { address_id: a.id, day, version: a.collection_version, agreed: true });
+          await loadAddresses();
+          toast(t('movedTo') + ' ' + day);
+          goBack();
+        } catch (e) {
+          toast(Ops.error(e));
+        }
+      }
+      /* ---------- archive ---------- */
+      function setArcTab(tab) {
+        arcTab = tab;
+        ['all', 'done', 'noanswer', 'problem', 'cancelled'].forEach((x) =>
+          document.getElementById('tab-' + x).setAttribute('aria-current', x === tab ? 'true' : 'false'),
+        );
+        renderArchive();
+      }
+      function renderArchive() {
+        let list = ADDR.filter((a) => ['done', 'noanswer', 'problem', 'cancelled'].includes(a.status));
+        if (arcTab !== 'all') list = list.filter((a) => a.status === arcTab);
+        list.sort((a, b) => (b.cancelledAt || b.doneAt || 0) - (a.cancelledAt || a.doneAt || 0));
+        const el = document.getElementById('arc-list');
+        if (!list.length) {
+          el.innerHTML = '<div class="empty">' + t('emptyArc') + '</div>';
+          return;
+        }
+        const badge = { done: t('tabDone'), noanswer: t('tabNoAnswer'), problem: t('tabProblem'), cancelled: t('cancelledWord') };
+        el.innerHTML = list
+          .slice(0, 300)
+          .map(
+            (a) =>
+              `<button class="ph-stop arc-card ${a.status}" onclick="openAddr('${a.id}')"><div class="body"><b>${a.kind === 'bank' ? BANKPLATE + ' ' : ''}${esc(a.text)}</b><small><span class="chip st-${a.status}">${badge[a.status]}</span> ${a.date || a.cancelledDate ? '<span class="mono">' + esc(a.date || a.cancelledDate) + '</span>' : ''}${a.kind === 'bank' && a.fill != null ? ' · ' + t('fillWord') + ' ' + a.fill + ' ' + t('kgUnit') : ''}</small>${a.resultNote ? '<small style="color:var(--crit)">' + esc(a.resultNote) + '</small>' : ''}</div></button>`,
+          )
+          .join('');
+      }
 
-/* ---------- остановка ---------- */
-function openAddr(id){currentAddrId=id;showView('v-addr');renderAddr();loadAddrPhotos();}
-const ICH=(n,st)=>'<svg class="ic" style="width:15px;height:15px;vertical-align:-2px;'+(st||'')+'"><use href="#i-'+n+'"/></svg>';
-const BANKPLATE='<span class="chip bank">'+ICH('bin','stroke:#fff;width:11px;height:11px;')+' Контейнер</span>';
-let FILL=null;const KGVALS=[10,20,30,40,50,60,70,80,90,100];
-function renderFillSel(){const el=document.getElementById('fillsel');if(!el)return;el.innerHTML='<button class="kgzero'+(FILL===0?' on':'')+'" onclick="setFill(0)">'+t('emptyBin')+'</button>'+KGVALS.map(v=>'<button class="'+(FILL===v?'on':'')+'" onclick="setFill('+v+')">'+v+'</button>').join('');}
-async function setFill(v){FILL=v;renderFillSel();const a=ADDR.find(x=>x.id===currentAddrId);if(!a)return;a.fill=v;LOCAL.cache=ADDR;saveLocal();dbUpdate(a.id,{fill_level:v});}
-function renderAddr(){
-  const a=ADDR.find(x=>x.id===currentAddrId);if(!a)return goBack();
-  const isBank=a.kind==='bank',cancelled=a.status==='cancelled';
-  const list=a.date?orderedDayAddrs(a.date):[];const idx=list.findIndex(x=>x.id===a.id);
-  document.getElementById('ai-pos').textContent=idx>=0?(idx+1)+' / '+list.length:t('addrInfo');
-  document.getElementById('ai-head').textContent=a.text.split(',')[0];
-  document.getElementById('ai-sum').innerHTML=(a.collection_start?`<div>${t('windowLbl')}<b>${hm(ukMinute(a.collection_start))}${a.collection_end&&a.collection_end!==a.collection_start?'–'+hm(ukMinute(a.collection_end)):''}</b></div>`:a.date?`<div>${t('dateLbl')}<b>${a.date}</b></div>`:'')+(bagsLabel(a)?`<div>${t('bagsLbl')}<b>${esc(bagsLabel(a).replace(' '+t('bags'),''))}</b></div>`:'')+`<div>${t('result')}<b>${cancelled?t('cancelledWord'):a.status==='done'?t('visited'):a.status==='noanswer'?t('noAnswer'):a.status==='problem'?t('problem'):'—'}</b></div>`;
-  let html=cancelled?'<p style="color:var(--crit);font-weight:600">'+t('cancelledWord')+'</p>':'';
-  if(isBank)html+=BANKPLATE+'<br>';
-  html+=esc(a.text);
-  if(a.phone)html+='<br><a href="tel:'+esc(a.phone)+'" style="font-family:var(--mono)">'+ICH('phone')+' '+esc(a.phone)+'</a>';
-  if(a.collection_start)html+='<div class="ops-slot-label">'+esc(Ops.slotLabel(a))+'</div>';
-  if(a.note)html+='<br><span class="muted">'+esc(a.note)+'</span>';
-  if(a.resultNote)html+='<br><span style="color:var(--crit)">'+esc(a.resultNote)+'</span>';
-  document.getElementById('ai-text').innerHTML=html;
-  document.getElementById('ai-geo').innerHTML=a.lat!=null&&a.lng!=null?(a.geocode_source==='postcode'?'<span class="pill-geo">'+t('postcodeCoords')+'</span>':'<span class="pill-geo ok">✓ '+t('coordsOk')+'</span>'):'<span class="pill-geo fail">⚠ '+t('noCoords')+'</span>';
-  FILL=(a.fill==null?null:a.fill);
-  document.getElementById('bank-sec').style.display=isBank?'':'none';document.getElementById('d2d-photo-sec').style.display=isBank?'none':'';
-  document.getElementById('btn-noanswer').style.display=isBank?'none':'';document.getElementById('btn-edit').style.display=isBank?'none':'';document.getElementById('btn-del').style.display=isBank?'none':'';
-  const smsBtn=document.getElementById('btn-sms');smsBtn.style.display=a.phone&&!isBank?'':'none';document.getElementById('btn-sms-label').textContent=cancelled?'SMS · история и новая заявка':a.collection_start?'SMS · переписка с клиентом':'SMS · согласовать сбор';
-  if(isBank)renderFillSel();
-  document.querySelectorAll('#v-addr > .ph-sec, #v-addr > .ph-cta, #result-btns, #action-btns > button:not(#btn-sms), #bank-sec, #d2d-photo-sec').forEach(el=>{el.hidden=cancelled;});
-  if(cancelled){document.getElementById('bank-sec').style.display='none';document.getElementById('d2d-photo-sec').style.display='none';}
-}
-function navUrl(app,a){const usePin=Number.isFinite(a.lat)&&Number.isFinite(a.lng)&&a.geocode_source!=='postcode';if(app==='waze')return usePin?'https://waze.com/ul?ll='+a.lat+','+a.lng+'&navigate=yes':'https://waze.com/ul?q='+encodeURIComponent(a.text)+'&navigate=yes';const dest=usePin?a.lat+','+a.lng:a.text;return 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+encodeURIComponent(dest);}
-let NAVID=null;
-function navTo(id){const a=ADDR.find(x=>x.id===id);if(!a)return;if(LOCAL.nav==='google'||LOCAL.nav==='waze'){window.open(navUrl(LOCAL.nav,a),'_blank');return;}NAVID=id;document.getElementById('nav-chooser').classList.add('show');}
-function navGo(app){const a=ADDR.find(x=>x.id===NAVID);document.getElementById('nav-chooser').classList.remove('show');if(a)window.open(navUrl(app,a),'_blank');}
-function navCancel(){document.getElementById('nav-chooser').classList.remove('show');}
-function navToCurrent(){navTo(currentAddrId);}
-async function setResult(status){
-  const a=ADDR.find(x=>x.id===currentAddrId);if(!a||a.status==='cancelled')return;
-  if(a.kind==='bank'&&status==='done'){const all=[...CURPHOTOS,...CURPENDING];const nOpen=all.filter(p=>(p.kind||'photo')==='open').length,nEmpty=all.filter(p=>(p.kind||'photo')==='empty').length;if(nOpen<1||nEmpty<1){toast('⚠ '+t('needPhotos'));return;}if(FILL==null){toast('⚠ '+t('needFill'));return;}a.fill=FILL;}
-  if(status==='problem'){const n=prompt(t('problemPrompt'),a.resultNote||'');if(n===null)return;a.resultNote=n.trim();}else a.resultNote='';
-  a.status=status;a.doneAt=Date.now();LOCAL.cache=ADDR;saveLocal();
-  const upd={status,result_note:a.resultNote,done_at:new Date(a.doneAt).toISOString()};if(a.kind==='bank')upd.fill_level=(a.fill==null?null:a.fill);
-  await dbUpdate(a.id,upd);toast(t('saved'));goBack();
-}
-function editCurrent(){openEdit(currentAddrId);}
-async function rescheduleCurrent(){
- const a=ADDR.find(x=>x.id===currentAddrId);if(!a||a.status==='cancelled')return;if(a.collection_start){await openSMS(a.id);return;}
- const day=prompt(t('reschedulePrompt'),a.date||todayStr());if(!day)return;if(!/^\d{4}-\d{2}-\d{2}$/.test(day)){toast('YYYY-MM-DD');return;}
- if(!confirm('Клиент согласовал перенос на '+day+'?'))return;
- try{await Ops.api(sb,'legacy_date',{address_id:a.id,day,version:a.collection_version,agreed:true});await loadAddresses();toast(t('movedTo')+' '+day);goBack();}catch(e){toast(Ops.error(e));}
-}
-async function deleteCurrent(){if(!confirm(t('confirmDelete')))return;const a=ADDR.find(x=>x.id===currentAddrId);if(a&&a.date)delete LOCAL.routes[a.date];ADDR=ADDR.filter(x=>x.id!==currentAddrId);LOCAL.cache=ADDR;saveLocal();await dbDelete(currentAddrId);goBack();}
+      /* ---------- settings ---------- */
+      function renderSettings() {
+        document.getElementById('s-nav').value = LOCAL.nav || 'ask';
+        document.getElementById('s-lang').value = LOCAL.lang;
+        const p = LOCAL.points || {};
+        const pt = (x, lbl) => (hasCoords(x) ? '<div><span class="lbl">' + lbl + '</span>' + esc(x.text || '') + '</div>' : '');
+        document.getElementById('s-points').innerHTML =
+          pt(p.home, t('routeStart')) + pt(p.depot, t('routeFinish')) || '<span class="muted">' + t('pointsMissing') + '</span>';
+      }
+      async function saveSettings() {
+        LOCAL.nav = document.getElementById('s-nav').value || 'ask';
+        const newLang = document.getElementById('s-lang').value;
+        const langChanged = newLang !== LOCAL.lang;
+        LOCAL.lang = newLang;
+        saveLocal();
+        if (langChanged) applyLang();
+        renderSettings();
+        toast(t('setSaved'));
+      }
+      function applyLang() {
+        document.querySelectorAll('[data-i18n]').forEach((el) => {
+          el.textContent = t(el.getAttribute('data-i18n'));
+        });
+      }
 
-/* ---------- archive ---------- */
-function setArcTab(tab){arcTab=tab;['all','done','noanswer','problem','cancelled'].forEach(x=>document.getElementById('tab-'+x).setAttribute('aria-current',x===tab?'true':'false'));renderArchive();}
-function renderArchive(){
-  let list=ADDR.filter(a=>['done','noanswer','problem','cancelled'].includes(a.status));if(arcTab!=='all')list=list.filter(a=>a.status===arcTab);
-  list.sort((a,b)=>(b.cancelledAt||b.doneAt||0)-(a.cancelledAt||a.doneAt||0));
-  const el=document.getElementById('arc-list');if(!list.length){el.innerHTML='<div class="empty">'+t('emptyArc')+'</div>';return;}
-  const badge={done:t('tabDone'),noanswer:t('tabNoAnswer'),problem:t('tabProblem'),cancelled:t('cancelledWord')};
-  el.innerHTML=list.slice(0,300).map(a=>`<button class="ph-stop arc-card ${a.status}" onclick="openAddr('${a.id}')"><div class="body"><b>${a.kind==='bank'?BANKPLATE+' ':''}${esc(a.text)}</b><small><span class="chip st-${a.status}">${badge[a.status]}</span> ${a.date||a.cancelledDate?'<span class="mono">'+esc(a.date||a.cancelledDate)+'</span>':''}${(a.kind==='bank'&&a.fill!=null)?' · '+t('fillWord')+' '+a.fill+' '+t('kgUnit'):''}</small>${a.resultNote?'<small style="color:var(--crit)">'+esc(a.resultNote)+'</small>':''}</div></button>`).join('');
-}
-
-/* ---------- settings ---------- */
-function renderSettings(){
-  document.getElementById('s-home').value=LOCAL.home.text||'';document.getElementById('s-depot').value=LOCAL.depot.text||'';document.getElementById('s-fuel').value=LOCAL.fuelPer100;document.getElementById('s-price').value=LOCAL.fuelPrice;document.getElementById('s-nav').value=LOCAL.nav||'ask';document.getElementById('s-lang').value=LOCAL.lang;
-  document.getElementById('s-home-geo').innerHTML=LOCAL.home.lat!=null?'<span class="pill-geo ok">✓ '+t('coordsOk')+'</span>':'';document.getElementById('s-depot-geo').innerHTML=LOCAL.depot.lat!=null?'<span class="pill-geo ok">✓ '+t('coordsOk')+'</span>':'';
-}
-async function saveSettings(){
-  const homeT=document.getElementById('s-home').value.trim(),depotT=document.getElementById('s-depot').value.trim();
-  LOCAL.fuelPer100=parseFloat(document.getElementById('s-fuel').value)||9;LOCAL.fuelPrice=parseFloat(document.getElementById('s-price').value)||1.45;LOCAL.nav=document.getElementById('s-nav').value||'ask';
-  const newLang=document.getElementById('s-lang').value;const langChanged=newLang!==LOCAL.lang;LOCAL.lang=newLang;
-  if(homeT!==LOCAL.home.text){LOCAL.home={text:homeT,lat:null,lng:null};if(homeT){const g=await geocode(homeT);if(g){LOCAL.home.lat=g.lat;LOCAL.home.lng=g.lng;}}}
-  if(depotT!==LOCAL.depot.text){LOCAL.depot={text:depotT,lat:null,lng:null};if(depotT){const g=await geocode(depotT);if(g){LOCAL.depot.lat=g.lat;LOCAL.depot.lng=g.lng;}}}
-  LOCAL.routes={};saveLocal();if(langChanged)applyLang();renderSettings();toast(t('setSaved'));
-}
-function applyLang(){document.querySelectorAll('[data-i18n]').forEach(el=>{el.textContent=t(el.getAttribute('data-i18n'));});}
-
-/* ---------- init ---------- */
-async function init(){
- applyLang();const {url,key}=getCreds();if(!url||!key){showView('v-config',false);viewStack=['v-config'];return;}
- try{sb=window.supabase.createClient(url,key);}catch{showView('v-config',false);viewStack=['v-config'];return;}
- showView('v-login',false);viewStack=['v-login'];
- sb.auth.onAuthStateChange(event=>{if(event==='SIGNED_OUT')setTimeout(clearDriver,0);});
- document.getElementById('driver-password').addEventListener('keydown',e=>{if(e.key==='Enter')tryLogin();});
- try{const {data}=await sb.auth.getSession();if(data.session)await acceptDriver();}catch(e){document.getElementById('pinerr').textContent=Ops.error(e);}
-}
-init();
-</script></body></html>
+      /* ---------- init ---------- */
+      async function init() {
+        applyLang();
+        const { url, key } = getCreds();
+        if (!url || !key) {
+          showView('v-config', false);
+          viewStack = ['v-config'];
+          return;
+        }
+        try {
+          sb = window.supabase.createClient(url, key);
+        } catch {
+          showView('v-config', false);
+          viewStack = ['v-config'];
+          return;
+        }
+        showView('v-login', false);
+        viewStack = ['v-login'];
+        sb.auth.onAuthStateChange((event) => {
+          if (event === 'SIGNED_OUT') setTimeout(clearDriver, 0);
+        });
+        document.getElementById('driver-password').addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') tryLogin();
+        });
+        try {
+          const { data } = await sb.auth.getSession();
+          if (data.session) await acceptDriver();
+        } catch (e) {
+          document.getElementById('pinerr').textContent = Ops.error(e);
+        }
+      }
+      init();
+    </script>
+  </body>
+</html>
