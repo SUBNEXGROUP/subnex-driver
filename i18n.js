@@ -1,4 +1,4 @@
-/* SUBNEX · язык интерфейса: русский (исходный) или английский.
+/* SUBNEX · язык интерфейса: английский (по умолчанию) или русский.
    Тексты в коде остаются русскими и служат ключами: T('Заявки без даты') → перевод
    из словаря EN, а если перевода нет — тот же русский текст. Язык общий для пульта
    и телефона: localStorage 'subnex_lang'. Словарь — в конце файла (SubnexI18n.EN). */
@@ -8,9 +8,9 @@
   const read = () => {
     try {
       const v = root.localStorage && root.localStorage.getItem(KEY);
-      return v === 'en' ? 'en' : 'ru';
+      return v === 'ru' ? 'ru' : 'en';
     } catch {
-      return 'ru';
+      return 'en';
     }
   };
   const I = {

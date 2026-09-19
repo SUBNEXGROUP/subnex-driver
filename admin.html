@@ -1072,7 +1072,7 @@
               >
             </div>
             <div class="f-group">
-              <label class="f">Название</label><input class="field" type="text" id="mz-name" placeholder="Бристоль" />
+              <label class="f">Название</label><input class="field" type="text" id="mz-name" placeholder="Bristol" />
             </div>
           </div>
           <div class="f-group">
@@ -2657,7 +2657,7 @@
         try {
           const { data, error } = await sb.rpc('subnex_intake_admin', {
             p_action: 'create',
-            p_data: { name: T('Почта партнёра'), driver_id: drv.id, channel: 'partner_email' },
+            p_data: { name: 'Partner email', driver_id: drv.id, channel: 'partner_email' },
           });
           if (error) throw error;
           document.getElementById('mi-secret').value = data.secret;
