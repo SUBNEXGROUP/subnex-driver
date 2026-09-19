@@ -81,7 +81,8 @@
     RESERVE_EXHAUSTED: T('Для этого плана недостаточно свободного времени или запаса по загрузке.'),
     STALE_ADDRESS: T('Заявка изменилась. Обновите список и пересчитайте план.'),
     REQUEST_RESERVED: T('Для заявки уже предложено время. Откройте согласование.'),
-    ARRIVAL_WINDOW_30: T('Для нового предложения укажите интервал в 30 минут.'),
+    ARRIVAL_WINDOW_30: T('Укажите интервал в 30 минут или отметьте «Только дата».'),
+    ALREADY_SCHEDULED_USE_MANUAL: T('У клиента уже подтверждено время. Откройте «Переписку» и предложите новое.'),
     CONFIRMED_FIXED: T('Подтверждённые дату и интервал изменять нельзя.'),
     CONFIRMED_CHANGE_REQUIRES_AGREEMENT: T('Отметьте, что клиент согласовал перенос. Подтверждённое время само не двигается.'),
     USE_CHAT_TO_RESCHEDULE: T('Клиент ещё не ответил на отправленное время. Перенос делается в разделе «Переписка».'),
@@ -211,7 +212,14 @@
     const id = plan?.address_id || o.address?.id;
     if (!id) throw new Error(T('Сначала добавьте адрес.'));
     await warm({ ...o, driver: { id: driver } }, payload.day, [id]);
-    await rpc(o.sb, 'check', { driver_id: driver, address_id: id, day: payload.day, start: payload.start, end: payload.end });
+    await rpc(o.sb, 'check', {
+      driver_id: driver,
+      address_id: id,
+      day: payload.day,
+      start: payload.start,
+      end: payload.end,
+      reoffer: !!payload.reoffer,
+    });
     return {};
   }
   /* Лучший порядок остановок по матрице дорог (см. core.optimizeOrder). null — улучшений нет

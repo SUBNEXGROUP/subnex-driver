@@ -186,6 +186,11 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   'Заявка изменилась. Обновите список и пересчитайте план.': 'The request has changed. Refresh the list and recalculate the plan.',
   'Для заявки уже предложено время. Откройте согласование.': 'A time has already been offered for this request. Open the conversation.',
   'Для нового предложения укажите интервал в 30 минут.': 'A new offer needs a 30-minute slot.',
+  'Укажите интервал в 30 минут или отметьте «Только дата».': 'Use a 30-minute slot, or tick “Date only”.',
+  'У клиента уже подтверждено время. Откройте «Переписку» и предложите новое.':
+    'This customer already has a confirmed time. Open Conversation and offer a new one.',
+  'У клиента уже подтверждено время. Оно останется в силе, пока клиент не ответит YES на новое предложение.':
+    'This customer already has a confirmed time. It stands until they reply YES to the new offer.',
   'Подтверждённые дату и интервал изменять нельзя.': 'A confirmed date and slot cannot be changed.',
   'Отметьте, что клиент согласовал перенос. Подтверждённое время само не двигается.':
     'Tick that the customer agreed to the move. A confirmed time does not move on its own.',
