@@ -83,6 +83,17 @@ const reminderMessage=(a,driverName)=>{
   +`Please reply YES to confirm and we will be there. If that day no longer suits you, just reply and tell us which day works better — we are happy to move it.\n\n`
   +`Kind regards,\n${name?name+'\n':''}${brand}`;
 };
+/* Запасной текст для источников без партнёрского шаблона. Смысл тот же, что
+   у шаблона: прежний день прошёл, вот новое время, подтвердите. */
+const renewMessage=(a,driverName,day,start,end)=>{
+ const name=String(driverName||'').trim(),brand=C.sourceOf(a)==='subnex_website'?'SUBNEX':'We Recycle Clothes';
+ const when=new Intl.DateTimeFormat('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'UTC'})
+  .format(new Date(day+'T12:00:00Z'));
+ return `Hello, this is ${name?name+' from '+brand:brand}.\n\n`
+  +`We did not hear back about your clothing collection at ${a.text}, so the day we offered has now passed.\n\n`
+  +`We can come on ${when}, between ${start} and ${end} (UK time). Please reply YES to confirm, or tell us which day suits you better — we are happy to fit around you.\n\n`
+  +`Kind regards,\n${name?name+'\n':''}${brand}`;
+};
 /* Список charity — подсказка, а не ограничение: партнёр регулярно присылает новые,
    поэтому поле остаётся текстовым, а список только помогает не плодить написания. */
 const datalist=(id,items)=>`<datalist id="${id}">${items.map(v=>`<option value="${esc(v)}"></option>`).join('')}</datalist>`;
@@ -285,8 +296,10 @@ class Dispatch{
   /* Три блока, чтобы новые заявки не путались с теми, где время уже занято
      или клиенту уже написали. Порядок — по убыванию обязательств перед клиентом. */
   const groups=[
+   {key:'dead', title:'Время прошло, ответа нет', hint:'Обещанный день уже позади, клиент так и не подтвердил. Подберите новое время и предложите ещё раз.',
+    rows:shown.filter(a=>C.offerExpired(a))},
    {key:'wait', title:'Ждём ответ клиента', hint:'Время обещано в SMS. Трогать не нужно — ждём YES.',
-    rows:shown.filter(a=>a.offered_start)},
+    rows:shown.filter(a=>a.offered_start&&!C.offerExpired(a))},
    {key:'held', title:'Время занято, не отправлено', hint:'Место в маршруте есть, клиент про него ещё не знает. Отсюда идёт «Отправить предложения».',
     rows:shown.filter(a=>!a.offered_start&&a.held_start)},
    {key:'new', title:'Новые заявки', hint:'Без времени. Отметьте и посчитайте план.',
@@ -306,7 +319,7 @@ class Dispatch{
    if(z.mode==='off')return `<span class="od-chip">Район «${esc(z.name)}» выключен</span>`;
    if(z.mode==='monthly'){const d=C.nextTripDays(z,C.ukDay(),1)[0];return `<span class="od-chip" style="background:var(--far-soft);color:var(--far)">${esc(z.name)} · выезд ${d?label(d):'не задан'}</span>`;}
    return '<span class="od-muted">Ждёт распределения</span>';};
-  const acts=a=>{const b=[];if(a.hold_id&&['partner_whatsapp','missing'].includes(C.sourceOf(a)))b.push(`<button data-action="partner" data-id="${a.id}">Согласовать</button>`);else if(a.hold_id||a.offer_state||a.date)b.push(`<button data-action="sms" data-id="${a.id}">SMS</button>`);if(a.hold_id&&!['preparing','awaiting','manual'].includes(a.offer_state))b.push(`<button data-action="release" data-id="${a.id}">Снять</button>`);if(a.offer_state==='awaiting'&&a.offered_start)b.push(`<button data-action="remind" data-id="${a.id}">Напомнить</button>`);if(this.available(a))b.push(`<button data-action="edit" data-id="${a.id}">Изменить</button>`);
+  const acts=a=>{const b=[];if(a.hold_id&&['partner_whatsapp','missing'].includes(C.sourceOf(a)))b.push(`<button data-action="partner" data-id="${a.id}">Согласовать</button>`);else if(a.hold_id||a.offer_state||a.date)b.push(`<button data-action="sms" data-id="${a.id}">SMS</button>`);if(a.hold_id&&!['preparing','awaiting','manual'].includes(a.offer_state))b.push(`<button data-action="release" data-id="${a.id}">Снять</button>`);if(C.offerExpired(a))b.push(`<button data-action="renew" data-id="${a.id}">Предложить новое время</button>`);else if(a.offer_state==='awaiting'&&a.offered_start)b.push(`<button data-action="remind" data-id="${a.id}">Напомнить</button>`);if(this.available(a))b.push(`<button data-action="edit" data-id="${a.id}">Изменить</button>`);
    if(!['preparing','awaiting','manual'].includes(a.offer_state))b.push(`<button data-action="move" data-id="${a.id}">Перенести</button>`);
    b.push(`<button data-action="drop" data-id="${a.id}">Убрать</button>`);return b.join('');};
   return `<div class="od-intro od-between"><div><h3>Заявки без даты · ${this.requests.length}</h3><p>Отметьте адреса — приложение подберёт день и время, заполняя уже начатые дни вплотную к соседним адресам.</p></div><div class="od-actions"><button data-action="sendall" ${ready.total?'':'disabled data-locked="true"'}>Отправить предложения${ready.total?' · '+ready.total:''}</button>${ready.direct.length?`<button data-action="copypartner">Текст для WhatsApp · ${ready.direct.length}</button>`:''}<button data-action="schedule">Разбор по категориям</button><button data-action="refresh">Обновить</button></div></div>
@@ -365,6 +378,77 @@ class Dispatch{
     await this.reload();this.render();this.notice('Напоминание отправлено.');
     await this.o.onChanged?.();
    },'Отправить напоминание');
+ }
+ /* Предложенный день прошёл, клиент не ответил. Повторять мёртвое время
+    бессмысленно: подбираем новое по маршруту и шлём обычное предложение —
+    то самое, на которое отвечают YES. Текст предложения задаёт шаблон,
+    его проверяет сервер, поэтому мы его не сочиняем. */
+ renew(a){
+  if(!a.offered_start){this.notice('Этому адресу предложение не отправлялось.',true);return;}
+  const tomorrow=C.ukDay(new Date(Date.now()+86400000));
+  const src=a.collection_source==='subnex'?'subnex':'partner';
+  const templated=['subnex','partner','missing'].includes(a.collection_source);
+  let slots=[];
+  const w=this.dialog('Предложить новое время',
+   `<p><b>${esc(a.text)}</b></p>`
+   +`<p class="od-muted">Обещали ${label(C.ukDay(a.offered_start))}, ${C.hm(C.ukMinute(a.offered_start))}–${C.hm(C.ukMinute(a.offered_end||a.offered_start))}. Ответа не было, день прошёл.</p>`
+   +`<div class="od-grid"><label>Новая дата<input id="od-nw-day" type="date" min="${C.ukDay()}" value="${esc(tomorrow)}"></label>`
+   +`<label>Время<select id="od-nw-time"><option value="">Считаю…</option></select></label></div>`
+   +`<p class="od-muted" id="od-nw-note">Подбираю по маршруту этого дня — первым идёт самое выгодное по дороге.</p>`
+   +`<textarea id="od-nw-text" rows="9" readonly></textarea>`
+   +`<label><input id="od-nw-send" type="checkbox" checked>Отправить клиенту это предложение.</label>`,
+   async wrap=>{
+    const day=wrap.querySelector('#od-nw-day').value,slot=slots[+wrap.querySelector('#od-nw-time').value];
+    if(!day||!slot)throw new Error('Выберите дату и свободное время.');
+    if(!wrap.querySelector('#od-nw-send').checked)throw new Error('Отметьте отправку или закройте окно.');
+    online(this.o);
+    if(!window.Ops?.api)throw new Error('Модуль переписки не загружен.');
+    try{await warm(this.o,day,[a.id]);}catch(e){}
+    const thread=await Ops.api(this.sb,'create',{address_id:a.id});
+    if(!thread?.thread_id)throw new Error('Не удалось открыть переписку.');
+    const payload={thread_id:thread.thread_id,kind:'offer',day,start:slot.start,end:slot.end,
+     version:a.collection_version,body:wrap.querySelector('#od-nw-text').value,request_id:crypto.randomUUID()};
+    if(templated)Object.assign(payload,{template:'wrc-v1',expected_source:a.collection_source,
+     expected_driver_name:(this.driver.name||'').trim()});
+    await Ops.api(this.sb,'send',payload);
+    await this.reload();this.render();
+    this.notice(`Новое время предложено: ${label(day)}, ${slot.start}–${slot.end}. Ждём YES.`);
+    await this.o.onChanged?.();
+   },'Отправить предложение');
+  const text=()=>{
+   const box=w.querySelector('#od-nw-text'),slot=slots[+w.querySelector('#od-nw-time').value];
+   const day=w.querySelector('#od-nw-day').value;
+   box.value=slot?(templated&&window.Ops?.offerText
+    ?Ops.offerText(src,day,slot.start,slot.end,this.driver.name||'')
+    :renewMessage(a,this.driver.name,day,slot.start,slot.end)):'';
+  };
+  const load=async()=>{
+   const day=w.querySelector('#od-nw-day').value,sel=w.querySelector('#od-nw-time'),note=w.querySelector('#od-nw-note');
+   slots=[];sel.innerHTML='<option value="">Считаю…</option>';note.textContent='Считаю дорогу на этот день…';text();
+   try{
+    if(!day)throw new Error('Укажите дату.');
+    let roads={};try{roads=(await warm(this.o,day,[a.id])).roads||{};}catch(e){}
+    const snap=await this.call('snapshot',{from_day:day,days:1,address_ids:[a.id]});
+    const node={key:'nw:'+a.id,address_id:a.id,text:a.text,lat:a.lat,lng:a.lng,
+     service:a.service_minutes||5,kg:a.estimated_kg||10};
+    const cfg={...snap.config,zones:this.zones||[]};
+    slots=C.slotsFor({days:snap.days,assigned:[],unassigned:[]},node,day,cfg,roads,8);
+    sel.innerHTML=slots.length
+     ?slots.map((x,i)=>`<option value="${i}">${esc(x.start)}–${esc(x.end)}${x.extra_minutes?' · +'+x.extra_minutes+' мин дороги':''}</option>`).join('')
+     :'<option value="">Свободного места нет</option>';
+    note.textContent=slots.length
+     ?`Свободных мест в этот день: ${slots.length}. Первое — с наименьшим крюком.`
+     :(dayIssueText(C.dayIssue({days:snap.days,assigned:[],unassigned:[]},node,day,cfg,roads))
+       ||'Свободного времени в этот день не осталось. Выберите другую дату.');
+   }catch(e){
+    sel.innerHTML='<option value="">Не удалось посчитать</option>';
+    note.textContent=error(e);
+   }
+   text();
+  };
+  w.querySelector('#od-nw-day').addEventListener('change',load);
+  w.querySelector('#od-nw-time').addEventListener('change',text);
+  load();
  }
  moveText(node,source,day,start,end){
   const name=(this.driver.name||'').trim(),brand=source==='subnex'?'SUBNEX':'We Recycle Clothes';
@@ -514,6 +598,7 @@ class Dispatch{
  if(act==='replan'){this.replanStop(b.dataset.id,b.dataset.day,b.dataset.key);return;}
  if(act==='move'){this.moveRequest(a);return;}
  if(act==='remind'){this.remind(a);return;}
+ if(act==='renew'){this.renew(a);return;}
  if(act==='drop'){this.dropRequest(a);return;}
  if(act==='release'){this.dialog('Снять предложение',`<p>${esc(a.text)}</p><label><input id="od-withdrawn" type="checkbox">${a.shared_at?'Я отозвал это время у партнёра.':'Предложение ещё не передано клиенту или уже отозвано.'}</label>`,async w=>{if(!w.querySelector('#od-withdrawn').checked)throw new Error('PARTNER_WITHDRAWAL_REQUIRED');await this.call('release',{address_id:a.id,acknowledged:true});await this.reload();this.render();},'Снять предложение');return;}
  if(act==='legacy'){const p=this.legacy.find(p=>p.id===b.dataset.id);this.dialog('Подтвердить прежнее предложение',`<p>${esc(p.address)} · ${label(C.ukDay(p.starts_at))} ${C.hm(C.ukMinute(p.starts_at))}</p><label><input id="od-legacy-agreed" type="checkbox">Партнёр подтвердил эту дату и время.</label>`,async w=>{if(!w.querySelector('#od-legacy-agreed').checked)throw new Error('AGREEMENT_REQUIRED');await warm(this.o,C.ukDay(p.starts_at));await this.call('legacy_confirm',{id:p.id,agreed:true});await this.reload();this.render();await this.o.onChanged?.();},'Подтвердить');return;}
@@ -532,5 +617,5 @@ class Dispatch{
  else if(act==='health'){const r=await edge(this.sb,{action:'health',driver_id:this.driver.id});this.notice('Сервис дорог подключён: '+r.provider+'.');}
  },act==='calculate'?'Начинаю расчёт…':'Выполняю…');}
 }
-root.OpsDispatch={open:async o=>{if(!o.driver?.id)throw new Error('Выберите водителя.');if(o.mount){const d=new Dispatch(o);await d.start();return d;}if(instance)instance.close();if(instance)return;instance=new Dispatch(o);await instance.start();return instance;},close:()=>instance?.close(),rpc,edge,warm,preflight,routeDay,startDay,lateOnly,dayIssueText,reminderMessage,error,core:C};
+root.OpsDispatch={open:async o=>{if(!o.driver?.id)throw new Error('Выберите водителя.');if(o.mount){const d=new Dispatch(o);await d.start();return d;}if(instance)instance.close();if(instance)return;instance=new Dispatch(o);await instance.start();return instance;},close:()=>instance?.close(),rpc,edge,warm,preflight,routeDay,startDay,lateOnly,dayIssueText,reminderMessage,renewMessage,error,core:C};
 })(window);

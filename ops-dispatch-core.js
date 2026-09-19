@@ -333,6 +333,16 @@ const placeKey=s=>{const pc=postcode(s);if(!pc)return null;
   .replace(/[^a-z0-9]+/g,' ').replace(CITY_WORDS,' ');
  return key(pc)+'|'+body.split(/\s+/).filter(Boolean).join('');};
 const samePlace=(a,b)=>{const ka=placeKey(a),kb=placeKey(b);return ka&&kb?ka===kb:key(a)===key(b);};
+/* Предложение, чьё время уже прошло: клиент не ответил, а обещанный интервал
+   остался позади. Повторять его бессмысленно — нужно подбирать новое. */
+const offerExpired=(a,now)=>{
+ if(!a||a.offer_state!=='awaiting'||!a.offered_start)return false;
+ const when=now||new Date(),end=a.offered_end||a.offered_start;
+ const today=ukDay(when),day=ukDay(end);
+ if(day<today)return true;
+ if(day>today)return false;
+ return ukMinute(end)<=ukMinute(when);
+};
 /* ---------- похоже на дубль ----------
    Два партнёра присылают один и тот же дом, написанный по-разному:
    «15 Joyce Close, Gaer Newport NP203JD» и «15 Joyce Close, NP203JD».
@@ -416,6 +426,6 @@ function issues(row,existing=[],previous=[]){const out=[];const pc=postcode(row.
  if(twin)out.push(key(twin.text)===key(row.text)?'Адрес уже есть в действующих заявках':'Это тот же дом, что и «'+twin.text+'» — заявка на него уже есть');
  return out;
 }
-root.SubnexDispatchCore={sourceNames,sourceOf,postcode,key,phone,hm,minute,ukDay,ukMinute,pointKey,validPoint,zone,evaluate,ordered,placements,planBatch,shareSlots,parseRows,issues,warnings,samePlace,placeKey,duplicateNotes,duplicateExtras,houseNumber,dayIssue,PLAN_DEFAULTS,postcodeArea,zoneRule,zoneKey,zoneTripDay,tripZoneOf,occupiedZoneOf,activeZones,postcodeNumber,sameZone,movePlanned,slotsFor,nextTripDays,zoneReason,nthWeekday};
+root.SubnexDispatchCore={sourceNames,sourceOf,postcode,key,phone,hm,minute,ukDay,ukMinute,pointKey,validPoint,zone,evaluate,ordered,placements,planBatch,shareSlots,parseRows,issues,warnings,samePlace,placeKey,duplicateNotes,duplicateExtras,offerExpired,houseNumber,dayIssue,PLAN_DEFAULTS,postcodeArea,zoneRule,zoneKey,zoneTripDay,tripZoneOf,occupiedZoneOf,activeZones,postcodeNumber,sameZone,movePlanned,slotsFor,nextTripDays,zoneReason,nthWeekday};
 if(typeof module!=='undefined'&&module.exports)module.exports=root.SubnexDispatchCore;
 })(typeof window==='undefined'?globalThis:window);
