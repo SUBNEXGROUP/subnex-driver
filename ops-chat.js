@@ -50,7 +50,9 @@
     }).format(new Date(day + 'T12:00:00Z'));
     return (
       `Hello, this is ${name ? name + ' from ' + brand : brand}.\n\n` +
-      `Your clothing collection at ${address.text} has been moved to ${when}, between ${start} and ${end} (UK time).\n\n` +
+      (start
+        ? `Your clothing collection at ${address.text} has been moved to ${when}, between ${start} and ${end} (UK time).\n\n`
+        : `Your clothing collection at ${address.text} has been moved to ${when}. We will text you a 1-hour arrival window on the day.\n\n`) +
       `Thank you for letting us know. If this no longer suits you, just reply to this message and we will find another day.\n\n` +
       `Kind regards,\n${name ? name + '\n' : ''}${brand}`
     );
@@ -588,14 +590,16 @@
       const isOffer = this.mode === 'offer',
         manual = this.mode === 'confirm';
       this.$('.oc-compose').innerHTML =
-        `${schedulable && !a.date && ['subnex', 'partner'].includes(a.collection_source) ? `<button data-act=planner style="margin-bottom:10px">${T('Подобрать время по маршруту')}</button>` : ''}${schedulable && a.collection_start ? `<button data-act=movecol style="margin-bottom:10px">${T('Перенести сбор')}</button>` : ''}${this.planner ? `<p class=oc-help>${T('Интервал выбран по маршруту. Перед отправкой проверим его ещё раз.')}</p>` : ''}<div class="oc-controls"><button data-act="mode" data-mode="reply" class="${this.mode === 'reply' ? 'active' : ''}">${T('Сообщение')}</button><button data-act="mode" data-mode="offer" ${!schedulable ? 'disabled' : ''} class="${isOffer ? 'active' : ''}">${T('Предложить время')}</button><button data-act="mode" data-mode="confirm" ${!schedulable || a.collection_start ? 'disabled' : ''} class="${manual ? 'active' : ''}">${T('Подтвердить вручную')}</button></div>${isOffer || manual ? `<div class="oc-slots"><label>${T('Дата')}<input id="oc-day" type="date" min="${ukDate()}" value="${esc(draft?.day || a?.date || (this.data.offer?.starts_at ? ukDate(this.data.offer.starts_at) : ukDate()))}"></label><label>${T('С')}<input id="oc-start" type="time" value="${esc(draft?.start || (a?.collection_start ? ukTime(a.collection_start) : this.data.offer?.starts_at ? ukTime(this.data.offer.starts_at) : '09:00'))}"></label><label>${T('До')}<input id="oc-end" type="time" value="${esc(draft?.end || (a?.collection_end ? ukTime(a.collection_end) : this.data.offer?.ends_at ? ukTime(this.data.offer.ends_at) : '09:30'))}"></label></div><div class="oc-help">${T('Время Великобритании. Новый интервал прибытия — 30 минут; время сбора учитывается отдельно.')}</div>${(isOffer || manual) && ['subnex', 'partner', 'missing'].includes(a?.collection_source) ? `<label class="oc-dayonly" style="margin-top:8px"><input id="oc-dayonly" type="checkbox" ${this.dayOnly ? 'checked' : ''}>${T('Только дата — окно прибытия придёт клиенту утром, когда водитель начнёт маршрут')}</label>` : ''}` : ''}${manual ? `<label><input id="oc-agreed" type="checkbox">${this.dayOnly ? T('Клиент согласовал эту дату в переписке или по телефону.') : T('Клиент согласовал эту дату и время в переписке или по телефону.')}</label>${a?.date ? `<label style="margin-top:10px"><input id="oc-change-agreed" type="checkbox">${T('Клиент согласен изменить ранее назначенный срок.')}</label>` : ''}<p class="oc-help">${this.dayOnly ? T('Сбор встанет на этот день без времени. Окно прибытия уйдёт клиенту утром, когда водитель начнёт маршрут.') : T('Подтверждение добавит адрес в маршрут. Автоматическая SMS подтвердит запись клиенту.')}</p><button class="oc-green" id="oc-confirm" data-act="confirm">${T('Подтвердить и добавить в маршрут')}</button>` : `<label for="oc-body">${isOffer ? T('Текст предложения') : T('Сообщение клиенту')}</label><textarea id="oc-body" maxlength="1000" placeholder="${T('Текст SMS…')}"></textarea>${isOffer ? '<div class="oc-preview" id="oc-preview"></div>' : ''}<div class="oc-row oc-between" style="margin-top:8px"><span class="oc-muted" id="oc-count"></span><button class="oc-primary" id="oc-send" data-act="send" ${t.opted_out ? 'disabled' : ''}>${isOffer ? T('Отправить предложение') : T('Отправить SMS')}</button></div><p class="oc-help">${isOffer ? (a.date ? T('У клиента уже подтверждено время. Оно останется в силе, пока клиент не ответит YES на новое предложение.') : T('Адрес попадёт в маршрут после точного ответа YES. Другой ответ откроет ручное согласование.')) : T('SMS отправляется с номера компании. Статус «Доставлено» не подтверждает сбор.')}</p>`}`;
+        `${schedulable && !a.date && ['subnex', 'partner'].includes(a.collection_source) ? `<button data-act=planner style="margin-bottom:10px">${T('Подобрать время по маршруту')}</button>` : ''}${schedulable && a.collection_start ? `<button data-act=movecol style="margin-bottom:10px">${T('Перенести сбор')}</button>` : ''}${this.planner ? `<p class=oc-help>${T('Интервал выбран по маршруту. Перед отправкой проверим его ещё раз.')}</p>` : ''}<div class="oc-controls"><button data-act="mode" data-mode="reply" class="${this.mode === 'reply' ? 'active' : ''}">${T('Сообщение')}</button><button data-act="mode" data-mode="offer" ${!schedulable ? 'disabled' : ''} class="${isOffer ? 'active' : ''}">${T('Предложить время')}</button><button data-act="mode" data-mode="confirm" ${!schedulable || a.collection_start ? 'disabled' : ''} class="${manual ? 'active' : ''}">${T('Подтвердить вручную')}</button></div>${isOffer || manual ? `<div class="oc-slots"><label>${T('Дата')}<input id="oc-day" type="date" min="${ukDate()}" value="${esc(draft?.day || a?.date || (this.data.offer?.starts_at ? ukDate(this.data.offer.starts_at) : ukDate()))}"></label><label>${T('С')}<input id="oc-start" type="time" value="${esc(draft?.start || (a?.collection_start ? ukTime(a.collection_start) : this.data.offer?.starts_at ? ukTime(this.data.offer.starts_at) : '09:00'))}"></label><label>${T('До')}<input id="oc-end" type="time" value="${esc(draft?.end || (a?.collection_end ? ukTime(a.collection_end) : this.data.offer?.ends_at ? ukTime(this.data.offer.ends_at) : '09:30'))}"></label></div><div class="oc-help">${this.dayOnly ? T('Время Великобритании. Клиенту обещается день, окно прибытия уйдёт утром при старте маршрута.') : T('Время Великобритании. Новый интервал прибытия — 30 минут; время сбора учитывается отдельно.')}</div>${(isOffer || manual) && ['subnex', 'partner', 'missing'].includes(a?.collection_source) ? `<label class="oc-dayonly" style="margin-top:8px"><input id="oc-dayonly" type="checkbox" ${this.dayOnly ? 'checked' : ''}>${T('Только дата — окно прибытия придёт клиенту утром, когда водитель начнёт маршрут')}</label>` : ''}` : ''}${manual ? `<label><input id="oc-agreed" type="checkbox">${this.dayOnly ? T('Клиент согласовал эту дату в переписке или по телефону.') : T('Клиент согласовал эту дату и время в переписке или по телефону.')}</label>${a?.date ? `<label style="margin-top:10px"><input id="oc-change-agreed" type="checkbox">${T('Клиент согласен изменить ранее назначенный срок.')}</label>` : ''}<p class="oc-help">${this.dayOnly ? T('Сбор встанет на этот день без времени. Окно прибытия уйдёт клиенту утром, когда водитель начнёт маршрут.') : T('Подтверждение добавит адрес в маршрут. Автоматическая SMS подтвердит запись клиенту.')}</p><button class="oc-green" id="oc-confirm" data-act="confirm">${T('Подтвердить и добавить в маршрут')}</button>` : `<label for="oc-body">${isOffer ? T('Текст предложения') : T('Сообщение клиенту')}</label><textarea id="oc-body" maxlength="1000" placeholder="${T('Текст SMS…')}"></textarea>${isOffer ? '<div class="oc-preview" id="oc-preview"></div>' : ''}<div class="oc-row oc-between" style="margin-top:8px"><span class="oc-muted" id="oc-count"></span><button class="oc-primary" id="oc-send" data-act="send" ${t.opted_out ? 'disabled' : ''}>${isOffer ? T('Отправить предложение') : T('Отправить SMS')}</button></div><p class="oc-help">${isOffer ? (a.date ? T('У клиента уже подтверждено время. Оно останется в силе, пока клиент не ответит YES на новое предложение.') : T('Адрес попадёт в маршрут после точного ответа YES. Другой ответ откроет ручное согласование.')) : T('SMS отправляется с номера компании. Статус «Доставлено» не подтверждает сбор.')}</p>`}`;
       const body = this.$('#oc-body');
       if (body) {
         body.value =
           draft?.body ?? (isOffer ? `Hi, this is SUBNEX. We'd like to collect your bags${a?.text ? ' from ' + a.text : ''}.` : '');
         body.addEventListener('input', () => this.preview());
       }
-      this.dayOnly = !!(draft ? draft.template === 'day-v1' : this.dayOnly);
+      /* Принцип «клиенту — день, окно прибытия утром» — основной режим.
+         Галочка снимается осознанно, если по этому адресу нужен точный интервал. */
+      this.dayOnly = draft ? draft.template === 'day-v1' : this.dayOnly !== false;
       this.$('#oc-dayonly')?.addEventListener('change', (e) => {
         this.dayOnly = e.target.checked;
         this.preview();
@@ -838,7 +842,7 @@
         `<p><b>${esc(a.text)}</b></p>
    <p class="oc-help">${T('Сейчас согласовано:')} ${esc(slotLabel(a))}${T('. Сбор переедет сразу — ответа клиента ждать не нужно.')}</p>
    <label>${T('Новая дата')}<input id="oc-mv-day" type="date" min="${ukDate()}" value="${esc(a.date || ukDate())}"></label>
-   <label>${T('Время')}<select id="oc-mv-time"><option value="">${T('Считаю…')}</option></select></label>
+   <label>${T('Время')}<select id="oc-mv-time"><option value="day" selected>${T('В течение дня — окно уйдёт утром')}</option></select></label>
    <p class="oc-help" id="oc-mv-note">${T('Время подбирается по маршруту выбранного дня — первым идёт самое выгодное по дороге.')}</p>
    <label><input id="oc-mv-sms" type="checkbox" checked>${T('Сообщить клиенту SMS о новом времени.')}</label>
    <p class="oc-help" id="oc-mv-warn" hidden>${T('Без сообщения клиент будет ждать в прежнее время. Снимайте эту галочку, только если уже сказали ему сами.')}</p>
@@ -846,10 +850,13 @@
         async (wrap) => {
           const day = wrap.querySelector('#oc-mv-day').value,
             pick = wrap.querySelector('#oc-mv-time').value;
-          const slot = slots[+pick];
-          if (!day || !slot) throw new Error(T('Выберите дату и свободное время.'));
+          const wholeDay = pick === 'day';
+          const slot = wholeDay ? null : slots[+pick];
+          if (!day || (!wholeDay && !slot)) throw new Error(T('Выберите дату и свободное время.'));
           const r = await this.sb.rpc('subnex_move_request', {
-            p_data: { address_id: a.id, version: a.collection_version, day, start: slot.start, end: slot.end, agreed: true },
+            p_data: wholeDay
+              ? { address_id: a.id, version: a.collection_version, day, mode: 'day', agreed: true }
+              : { address_id: a.id, version: a.collection_version, day, start: slot.start, end: slot.end, agreed: true },
           });
           if (r.error) throw r.error;
           let tail = '';
@@ -869,21 +876,27 @@
           await this.loadList();
           this.compose();
           this.o.onChanged?.();
-          this.notice(T('Сбор перенесён: ') + day + ', ' + slot.start + '–' + slot.end + '.' + tail);
+          this.notice(T('Сбор перенесён: ') + day + (wholeDay ? T(', в течение дня') : ', ' + slot.start + '–' + slot.end) + '.' + tail);
         },
         T('Перенести'),
       );
       const text = () => {
         const box = w.querySelector('#oc-mv-text'),
           slot = slots[+w.querySelector('#oc-mv-time').value];
-        box.value = slot ? moveMessage(a, this.driverName(), brand, w.querySelector('#oc-mv-day').value, slot.start, slot.end) : '';
+        const pick = w.querySelector('#oc-mv-time').value;
+        box.value =
+          pick === 'day'
+            ? moveMessage(a, this.driverName(), brand, w.querySelector('#oc-mv-day').value, null, null)
+            : slot
+              ? moveMessage(a, this.driverName(), brand, w.querySelector('#oc-mv-day').value, slot.start, slot.end)
+              : '';
       };
       const load = async () => {
         const day = w.querySelector('#oc-mv-day').value;
         const sel = w.querySelector('#oc-mv-time'),
           note = w.querySelector('#oc-mv-note');
         slots = [];
-        sel.innerHTML = `<option value="">${T('Считаю…')}</option>`;
+        sel.innerHTML = `<option value="day">${T('В течение дня — окно уйдёт утром')}</option>`;
         note.textContent = T('Считаю дорогу на этот день…');
         text();
         try {
@@ -904,14 +917,14 @@
             kg: a.estimated_kg || 10,
           };
           slots = C.slotsFor({ days: snap.days, assigned: [], unassigned: [] }, node, day, { ...snap.config, zones }, roads, 8);
-          sel.innerHTML = slots.length
-            ? slots
-                .map(
-                  (s, i) =>
-                    `<option value="${i}">${esc(s.start)}–${esc(s.end)}${s.extra_minutes ? ' · +' + s.extra_minutes + T(' мин дороги') : ''}</option>`,
-                )
-                .join('')
-            : `<option value="">${T('Свободного места нет')}</option>`;
+          sel.innerHTML =
+            `<option value="day">${T('В течение дня — окно уйдёт утром')}</option>` +
+            slots
+              .map(
+                (s, i) =>
+                  `<option value="${i}">${esc(s.start)}–${esc(s.end)}${s.extra_minutes ? ' · +' + s.extra_minutes + T(' мин дороги') : ''}</option>`,
+              )
+              .join('');
           note.textContent = slots.length
             ? `${T('Свободных мест в этот день:')} ${slots.length}${T('. Первое — с наименьшим крюком.')}`
             : D.dayIssueText(C.dayIssue({ days: snap.days, assigned: [], unassigned: [] }, node, day, { ...snap.config, zones }, roads)) ||

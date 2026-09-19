@@ -7,6 +7,21 @@
     esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   /* Показываем обещание клиенту, а не служебный срок проверки: у старых заявок он равен концу дня. */
   const slotOf = (n) => [n.starts_at ? C.ukMinute(n.starts_at) : n.earliest, n.ends_at ? C.ukMinute(n.ends_at) : n.latest];
+  /* Почему автоподбор не берёт заявку. Коды приходят из subnex_private.auto_plan_skip. */
+  const skipText = (code) =>
+    ({
+      AUTO_OFF: T('автоподбор выключен в настройках'),
+      NO_DRIVER: T('не назначен водитель'),
+      NO_COORDS: T('ждём координаты адреса'),
+      MANUAL_CHAT: T('идёт ручное согласование в переписке'),
+      NO_MOBILE: T('нет британского мобильного — предложите вручную'),
+      TWIN_PHONE: T('тот же номер, что у другой заявки — ждёт её'),
+      TWIN_HOUSE: T('повтор по дому — решает человек'),
+      ATTEMPT_USED: T('автопредложение уже было — предложите вручную'),
+      NO_ZONE: T('район не настроен'),
+      ZONE_OFF: T('район выключен'),
+      NO_DAY: T('нет подходящего дня в горизонте'),
+    })[code] || code;
   const arrivalLabel = (n) => {
     const [s, e] = slotOf(n);
     if (Number.isFinite(s) && Number.isFinite(e) && e - s >= 360) return T('в течение дня');
@@ -700,19 +715,21 @@
       }
       const li = (a) => `<li>${esc(a.text)} <span class="od-muted">· ${esc(this.slotText(a))}</span></li>`;
       const first = sms[0];
-      const sample = first
-        ? Ops.offerText(
-            first.collection_source,
-            C.ukDay(first.held_start),
-            C.hm(C.ukMinute(first.held_start)),
-            C.hm(C.ukMinute(first.held_end)),
-            (this.driver.name || '').trim(),
-          )
-        : '';
+      const sample = !first
+        ? ''
+        : C.isDaySpan(first.held_start, first.held_end)
+          ? C.dayOfferText(first.collection_source, C.ukDay(first.held_start), (this.driver.name || '').trim())
+          : Ops.offerText(
+              first.collection_source,
+              C.ukDay(first.held_start),
+              C.hm(C.ukMinute(first.held_start)),
+              C.hm(C.ukMinute(first.held_end)),
+              (this.driver.name || '').trim(),
+            );
       this.dialog(
         T('Отправить предложения'),
         (sms.length
-          ? `<p><b>${sms.length}</b> ${T('— уйдёт SMS с предложенным временем. Адрес встанет в маршрут после ответа YES.')}</p><ul>${sms.map(li).join('')}</ul>` +
+          ? `<p><b>${sms.length}</b> ${sms.every((a) => C.isDaySpan(a.held_start, a.held_end)) ? T('— уйдёт SMS с предложенной датой. Адрес встанет в маршрут после ответа YES, окно прибытия уйдёт утром.') : T('— уйдёт SMS с предложенным временем. Адрес встанет в маршрут после ответа YES.')}</p><ul>${sms.map(li).join('')}</ul>` +
             (sample
               ? `<details><summary>${T('Текст первой SMS')}</summary><textarea rows="9" readonly>${esc(sample)}</textarea></details>`
               : '')
@@ -740,7 +757,9 @@
         start = C.hm(C.ukMinute(a.held_start)),
         end = C.hm(C.ukMinute(a.held_end));
       const name = (this.driver.name || '').trim();
-      const body = Ops.offerText(a.collection_source, day, start, end, name);
+      /* Окно на весь рабочий день — предложение только с датой: окно прибытия уйдёт утром. */
+      const dayOnly = C.isDaySpan(a.held_start, a.held_end);
+      const body = dayOnly ? C.dayOfferText(a.collection_source, day, name) : Ops.offerText(a.collection_source, day, start, end, name);
       if (!body) throw new Error(T('Не удалось собрать текст предложения.'));
       const thread = await Ops.api(this.sb, 'create', { address_id: a.id });
       if (!thread?.thread_id) throw new Error(T('Не удалось открыть переписку по адресу.'));
@@ -752,7 +771,7 @@
         start,
         end,
         version: a.collection_version,
-        template: 'wrc-v1',
+        template: dayOnly ? 'day-v1' : 'wrc-v1',
         expected_source: a.collection_source,
         expected_driver_name: name,
         request_id: crypto.randomUUID(),
@@ -938,7 +957,7 @@
           const d = C.nextTripDays(z, C.ukDay(), 1)[0];
           return `<span class="od-chip" style="background:var(--far-soft);color:var(--far)">${esc(z.name)} ${T('· выезд')} ${d ? label(d) : T('не задан')}</span>`;
         }
-        return `<span class="od-muted">${T('Ждёт распределения')}</span>`;
+        return `<span class="od-muted">${T('Ждёт распределения')}</span>${a.auto_skip ? `<br><span class="od-muted" style="font-size:11.5px">${esc(skipText(a.auto_skip))}</span>` : ''}`;
       };
       const acts = (a) => {
         const b = [];
@@ -972,7 +991,7 @@
       : `<div class="od-empty">${T('Очередь пуста. Добавьте один адрес или вставьте список из письма.')}</div>`
   }
   ${this.legacy.length ? `<h3 style="margin-top:20px">${T('Ранее переданные партнёрам')}</h3>${this.legacy.map((p) => `<article class="od-card od-between"><div><strong>${esc(p.address)}</strong><p class="od-muted">${label(C.ukDay(p.starts_at))} · ${C.hm(C.ukMinute(p.starts_at))}</p></div><button data-action="legacy" data-id="${p.id}">${T('Партнёр подтвердил')}</button></article>`).join('')}` : ''}
-  <div class="od-footer"><span>${T('Ручное распределение: клиенту предлагается 30-минутное окно прибытия')}</span><button class="od-primary" data-action="calculate">${T('Распределить по дням')}</button></div>`;
+  <div class="od-footer"><label class="od-select" style="flex:1"><input type="checkbox" id="od-exact" ${this.dayMode === false ? 'checked' : ''}> ${T('Обещать точное время (интервал 30 минут)')}<br><span class="od-muted">${this.dayMode === false ? T('Клиенту уйдёт получасовое окно. В день помещается меньше адресов.') : T('Клиенту уйдёт только дата. Окно прибытия он получит утром, когда водитель начнёт маршрут.')}</span></label><button class="od-primary" data-action="calculate">${T('Распределить по дням')}</button></div>`;
     }
     planView() {
       const m = this.plan.metrics,
@@ -1073,6 +1092,11 @@
             this.$('#od-count').textContent = T('Выбрано: ') + this.selected.size;
           }),
       );
+      this.$('#od-exact')?.addEventListener('change', (e) => {
+        /* Основной режим — день. Точное время включается осознанно и только для этого расчёта. */
+        this.dayMode = !e.target.checked;
+        this.render();
+      });
       this.$('#od-all')?.addEventListener('change', (e) => {
         this.selected = new Set(
           e.target.checked
@@ -1168,8 +1192,13 @@
       this.planRoads = roads;
       this.planRequests = snap.requests;
       this.planConfig = { ...snap.config, zones: this.zones || [] };
-      this.plan = await C.planBatch(snap.days, snap.requests, this.planConfig, roads, (n, total) =>
-        this.notice(`${T('Подобрано')} ${n} ${T('из')} ${total}`),
+      this.plan = await C.planBatch(
+        snap.days,
+        snap.requests,
+        this.planConfig,
+        roads,
+        (n, total) => this.notice(`${T('Подобрано')} ${n} ${T('из')} ${total}`),
+        this.dayMode !== false,
       );
       this.reserveId = crypto.randomUUID();
       this.mode = 'plan';
@@ -1378,7 +1407,9 @@
       }).format(new Date(day + 'T12:00:00Z'));
       return (
         `Hello, this is ${name ? name + ' from ' + brand : brand}.\n\n` +
-        `Your clothing collection at ${node.text} has been moved to ${when}, between ${start} and ${end} (UK time).\n\n` +
+        (start
+          ? `Your clothing collection at ${node.text} has been moved to ${when}, between ${start} and ${end} (UK time).\n\n`
+          : `Your clothing collection at ${node.text} has been moved to ${when}. We will text you a 1-hour arrival window on the day.\n\n`) +
         `Sorry for the change, and thank you for your patience. If this no longer suits you, just reply to this message and we will arrange another day.\n\n` +
         `Kind regards,\n${name ? name + '\n' : ''}${brand}`
       );
@@ -1421,8 +1452,7 @@
    ${
      fresh
        ? ''
-       : `<label><input type="checkbox" id="od-rp-agreed">${T('Клиент согласовал перенос.')}</label>
-    <label><input type="checkbox" id="od-rp-sms" checked>${T('Отправить клиенту сообщение о переносе.')}</label>
+       : `<label><input type="checkbox" id="od-rp-sms" checked>${T('Сообщить клиенту SMS о новом времени.')}</label>
     <textarea id="od-rp-text" rows="7" readonly></textarea>`
    }`,
         async (wrap) => {
@@ -1449,7 +1479,6 @@
             this.notice(`${T('Перенесено на')} ${label(day)}, ${res.chosen.start}${T('. Не забудьте «Сохранить предложения».')}`);
             return;
           }
-          if (!wrap.querySelector('#od-rp-agreed').checked) throw new Error('CONFIRMED_CHANGE_REQUIRES_AGREEMENT');
           online(this.o);
           try {
             await warm(this.o, day, [addressId]);
@@ -1512,8 +1541,8 @@
       w.querySelector('#od-rp-time').onchange = fill;
       fill();
     }
-    /* Перенос заявки: другая дата или возврат в очередь. Подтверждённое время
-    двигается только с явной отметкой, что клиент согласовал перенос. */
+    /* Перенос заявки: другая дата или возврат в очередь. Подтверждённый сбор переезжает
+    сразу — это решение оператора, ответа клиента ждать не нужно; клиенту уходит SMS. */
     moveRequest(a) {
       const confirmed = !!a.collection_start,
         day = a.date || (a.held_start ? C.ukDay(a.held_start) : ''),
@@ -1523,13 +1552,20 @@
         `<p><b>${esc(a.text)}</b></p>
    ${confirmed ? `<p class="od-muted">${T('Сейчас согласовано:')} ${esc(label(a.date))}, ${esc(C.hm(C.ukMinute(a.collection_start)))}.</p>` : a.date ? `<p class="od-muted">${T('Сейчас в маршруте на')} ${esc(label(a.date))}.</p>` : ''}
    <label>${T('Куда')}<select id="od-move-mode"><option value="day">${T('На другую дату и время')}</option><option value="queue">${T('Вернуть в очередь без даты')}</option></select></label>
-   <div class="od-grid" id="od-move-slot"><label>${T('Дата')}<input id="od-move-date" type="date" min="${C.ukDay()}" value="${esc(day)}"></label><label>${T('Время прибытия')}<input id="od-move-start" type="time" step="300" value="${esc(start)}"></label></div>
+   <div class="od-grid" id="od-move-slot"><label>${T('Дата')}<input id="od-move-date" type="date" min="${C.ukDay()}" value="${esc(day)}"></label><label id="od-move-timewrap">${T('Время прибытия')}<input id="od-move-start" type="time" step="300" value="${esc(start)}"></label></div>
+   <label id="od-move-wholewrap"><input id="od-move-whole" type="checkbox" checked>${T('В течение дня — окно прибытия уйдёт клиенту утром')}</label>
    <label id="od-move-nbwrap" hidden>${T('Не раньше')}<input id="od-move-nb" type="date" min="${C.ukDay()}"></label>
    <p class="od-muted" id="od-move-help">${T('Клиенту обещается интервал 30 минут. Новое место проверяется по дороге, рабочим часам и дню выезда зоны.')}</p>
-   ${confirmed ? `<label><input id="od-move-agreed" type="checkbox">${T('Клиент согласовал перенос.')}</label>` : ''}`,
+   ${
+     confirmed
+       ? `<label><input id="od-move-sms" type="checkbox" checked>${T('Сообщить клиенту SMS о новом времени.')}</label>
+   <p class="od-muted" id="od-move-warn" hidden>${T('Без сообщения клиент будет ждать в прежнее время. Снимайте эту галочку, только если уже сказали ему сами.')}</p>
+   <textarea id="od-move-text" rows="6" readonly></textarea>`
+       : ''
+   }`,
         async (wrap) => {
           const queued = wrap.querySelector('#od-move-mode').value === 'queue';
-          if (confirmed && !wrap.querySelector('#od-move-agreed').checked) throw new Error('CONFIRMED_CHANGE_REQUIRES_AGREEMENT');
+          const wholeDay = !queued && wrap.querySelector('#od-move-whole')?.checked;
           const data = { address_id: a.id, version: a.collection_version, agreed: confirmed };
           if (queued) {
             data.to_queue = true;
@@ -1537,10 +1573,13 @@
           } else {
             const d = wrap.querySelector('#od-move-date').value,
               st = wrap.querySelector('#od-move-start').value;
-            if (!d || !st) throw new Error('SLOT_INVALID');
-            const m = C.minute(st);
-            if (!Number.isFinite(m) || m + 30 > 1440) throw new Error('SLOT_INVALID');
-            Object.assign(data, { day: d, start: st, end: C.hm(m + 30) });
+            if (!d || (!wholeDay && !st)) throw new Error('SLOT_INVALID');
+            if (wholeDay) Object.assign(data, { day: d, mode: 'day' });
+            else {
+              const m = C.minute(st);
+              if (!Number.isFinite(m) || m + 30 > 1440) throw new Error('SLOT_INVALID');
+              Object.assign(data, { day: d, start: st, end: C.hm(m + 30) });
+            }
             online(this.o);
             try {
               await warm(this.o, d, [a.id]);
@@ -1548,9 +1587,26 @@
           }
           const r = await this.sb.rpc('subnex_move_request', { p_data: data });
           if (r.error) throw r.error;
+          let tail = '';
+          /* Перенос подтверждённого сбора — клиент должен узнать новое время сам, без вопросов. */
+          if (confirmed && !queued && wrap.querySelector('#od-move-sms')?.checked) {
+            try {
+              if (!window.Ops?.api) throw new Error(T('Модуль переписки не загружен.'));
+              const thread = await Ops.api(this.sb, 'create', { address_id: a.id });
+              if (!thread?.thread_id) throw new Error(T('Не удалось открыть переписку.'));
+              await Ops.api(this.sb, 'send', {
+                thread_id: thread.thread_id,
+                kind: 'reply',
+                body: wrap.querySelector('#od-move-text').value,
+                request_id: crypto.randomUUID(),
+              });
+            } catch (e) {
+              tail = T(' Сообщение не ушло: ') + error(e) + T(' Напишите клиенту из «Переписки».');
+            }
+          }
           await this.reload();
           this.render();
-          this.notice(queued ? T('Заявка вернулась в очередь — подберите время заново.') : T('Заявка перенесена.'));
+          this.notice((queued ? T('Заявка вернулась в очередь — подберите время заново.') : T('Заявка перенесена.')) + tail);
           await this.o.onChanged?.();
         },
         T('Перенести'),
@@ -1559,6 +1615,26 @@
         slot = w.querySelector('#od-move-slot'),
         nb = w.querySelector('#od-move-nbwrap'),
         help = w.querySelector('#od-move-help');
+      const sms = w.querySelector('#od-move-sms'),
+        warn = w.querySelector('#od-move-warn'),
+        box = w.querySelector('#od-move-text');
+      const whole = w.querySelector('#od-move-whole'),
+        timeWrap = w.querySelector('#od-move-timewrap'),
+        wholeWrap = w.querySelector('#od-move-wholewrap');
+      const fillText = () => {
+        const q = mode.value === 'queue',
+          d = w.querySelector('#od-move-date').value,
+          st = w.querySelector('#od-move-start').value;
+        const wholeDay = !q && !!whole?.checked;
+        if (timeWrap) timeWrap.hidden = wholeDay;
+        if (wholeWrap) wholeWrap.hidden = q;
+        if (!box) return;
+        const on = !q && !!sms?.checked;
+        box.hidden = !on;
+        if (warn) warn.hidden = q || !!sms?.checked;
+        if (sms) sms.closest('label').hidden = q;
+        if (on && d) box.value = this.moveText(a, a.collection_source, d, wholeDay ? null : st, wholeDay ? null : C.hm(C.minute(st) + 30));
+      };
       mode.onchange = () => {
         const q = mode.value === 'queue';
         slot.hidden = q;
@@ -1566,7 +1642,13 @@
         help.textContent = q
           ? T('Дата снимется, заявка вернётся в очередь. Планировщик подберёт день заново.')
           : T('Клиенту обещается интервал 30 минут. Новое место проверяется по дороге, рабочим часам и дню выезда зоны.');
+        fillText();
       };
+      w.querySelector('#od-move-date').addEventListener('change', fillText);
+      w.querySelector('#od-move-start').addEventListener('change', fillText);
+      sms?.addEventListener('change', fillText);
+      whole?.addEventListener('change', fillText);
+      fillText();
     }
     /* Убрать заявку из базы. Это не «закрыть сбор»: история и переписка не сохраняются,
     поэтому для заявок с перепиской путь один — «Переписка → Закрыть заявку». */

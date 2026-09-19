@@ -188,6 +188,28 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   'Для нового предложения укажите интервал в 30 минут.': 'A new offer needs a 30-minute slot.',
   'Укажите интервал в 30 минут или отметьте «Только дата».': 'Use a 30-minute slot, or tick “Date only”.',
   'Сообщить клиенту SMS о новом времени.': 'Text the customer the new time.',
+  'В течение дня — окно уйдёт утром': 'During the day — the window goes out in the morning',
+  'В течение дня — окно прибытия уйдёт клиенту утром': 'During the day — the customer gets the arrival window in the morning',
+  'автоподбор выключен в настройках': 'auto-planning is off in settings',
+  'не назначен водитель': 'no driver assigned',
+  'ждём координаты адреса': 'waiting for the address coordinates',
+  'идёт ручное согласование в переписке': 'a manual conversation is in progress',
+  'нет британского мобильного — предложите вручную': 'no UK mobile — offer a day by hand',
+  'тот же номер, что у другой заявки — ждёт её': 'same number as another request — waiting for it',
+  'повтор по дому — решает человек': 'repeat at this house — needs a person',
+  'автопредложение уже было — предложите вручную': 'the automatic offer was already used — offer a day by hand',
+  'район не настроен': 'this area is not set up',
+  'район выключен': 'this area is switched off',
+  'нет подходящего дня в горизонте': 'no suitable day within the horizon',
+  '— уйдёт SMS с предложенной датой. Адрес встанет в маршрут после ответа YES, окно прибытия уйдёт утром.':
+    '— a text goes out with the proposed date. The address joins the route after a YES; the arrival window goes out in the morning.',
+  'Обещать точное время (интервал 30 минут)': 'Promise an exact time (30-minute slot)',
+  'Клиенту уйдёт получасовое окно. В день помещается меньше адресов.':
+    'The customer gets a half-hour slot. Fewer addresses fit into a day.',
+  'Клиенту уйдёт только дата. Окно прибытия он получит утром, когда водитель начнёт маршрут.':
+    'The customer gets a date only. They get the arrival window in the morning, when the driver starts the route.',
+  'Время Великобритании. Клиенту обещается день, окно прибытия уйдёт утром при старте маршрута.':
+    'UK time. The customer is promised a day; the arrival window goes out in the morning when the route starts.',
   'Клиент согласовал эту дату в переписке или по телефону.': 'The customer agreed this date by text or on the phone.',
   'Сбор встанет на этот день без времени. Окно прибытия уйдёт клиенту утром, когда водитель начнёт маршрут.':
     'The collection is set for that day with no time. The arrival window goes out in the morning, when the driver starts the route.',

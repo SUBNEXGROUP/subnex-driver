@@ -12,10 +12,18 @@
   /* Бренд в SMS решается в одном месте. Сервер знает collection_source — он главный;
      intake_channel — запасной путь для строк, где collection_source ещё не проставлен. */
   const brandOf = (a) =>
-    (a && a.collection_source ? a.collection_source === 'subnex' : sourceOf(a || {}) === 'subnex_website') ? 'SUBNEX' : 'We Recycle Clothes';
+    (a && a.collection_source ? a.collection_source === 'subnex' : sourceOf(a || {}) === 'subnex_website')
+      ? 'SUBNEX'
+      : 'We Recycle Clothes';
   /* Источник для шаблона SMS: subnex / partner / missing — так его называет сервер. */
   const templateSource = (a) =>
-    a && a.collection_source ? a.collection_source : sourceOf(a || {}) === 'subnex_website' ? 'subnex' : sourceOf(a || {}) === 'missing' ? 'missing' : 'partner';
+    a && a.collection_source
+      ? a.collection_source
+      : sourceOf(a || {}) === 'subnex_website'
+        ? 'subnex'
+        : sourceOf(a || {}) === 'missing'
+          ? 'missing'
+          : 'partner';
   const postcode = (s) => {
     const m = String(s || '')
       .toUpperCase()
@@ -422,7 +430,11 @@
     const d = new Date(Date.parse(c + 'T12:00:00Z') + planParam(config, 'sla_days') * 86400000);
     return d.toISOString().slice(0, 10);
   };
-  function placements(day, request, config, roads) {
+  /* dayMode — основной режим: клиенту обещается день, а не получасовое окно.
+     Узел остаётся непривязанным (earliest = открытие, latest = закрытие), поэтому маршрут
+     свободен уложить адрес где угодно внутри дня, и в день помещается заметно больше точек.
+     dayMode = false оставлен для адресов, которым действительно обещают точное время. */
+  function placements(day, request, config, roads, dayMode = true) {
     if (day.started_at || day.hours?.closed || (request.not_before && day.day < request.not_before)) return [];
     const rule = zoneRule(config, request.text);
     if (!rule || rule.mode === 'off') return [];
@@ -456,6 +468,30 @@
     const deadline = slaDeadline(request, config),
       late = deadline && day.day > deadline;
     const result = [];
+    if (dayMode) {
+      for (let i = 0; i <= order.length; i++) {
+        const candidate = [...order.slice(0, i), node.key, ...order.slice(i)];
+        const fit = evaluate([...nodes, node], candidate, config, day.hours, roads, day.start_minute);
+        if (!fit.ok || fit.kg > config.capacity_kg - config.reserve_kg || fit.free_minutes < config.reserve_minutes) continue;
+        const extra = fit.drive - (nodes.length ? base.drive : 0);
+        // Простоя из-за обещанного окна здесь нет: адрес можно взять в любой момент дня.
+        const score = extra + (nodes.length ? 0 : planParam(config, 'empty_day_penalty')) + (late ? planParam(config, 'sla_penalty') : 0);
+        result.push({
+          day: day.day,
+          address_id: request.id,
+          start: day.hours.opens.slice(0, 5),
+          end: day.hours.closes.slice(0, 5),
+          day_only: true,
+          node,
+          fit,
+          extra_minutes: extra,
+          wait_minutes: 0,
+          score,
+          late: !!late,
+        });
+      }
+      return result.sort((a, b) => a.score - b.score);
+    }
     for (let i = 0; i <= order.length; i++) {
       const candidate = [...order.slice(0, i), node.key, ...order.slice(i)];
       const probe = evaluate([...nodes, node], candidate, config, day.hours, roads, day.start_minute);
@@ -501,10 +537,10 @@
     }
     return result.sort((a, b) => a.score - b.score || a.start.localeCompare(b.start));
   }
-  const dayOptions = (work, r, config, roads) =>
+  const dayOptions = (work, r, config, roads, dayMode = true) =>
     work
       .flatMap((d, i) =>
-        placements(d, r, config, roads)
+        placements(d, r, config, roads, dayMode)
           .slice(0, 3)
           .map((p) => ({ ...p, score: p.score + i * planParam(config, 'day_penalty_minutes') })),
       )
@@ -600,7 +636,7 @@
     // Считаем не правки, а результат: сколько соседних адресов делят одно окно.
     return sharedPairs(work);
   }
-  async function planBatch(days, requests, config, roads, onProgress = () => {}) {
+  async function planBatch(days, requests, config, roads, onProgress = () => {}, dayMode = true) {
     const work = days.map((d) => ({ ...d, nodes: [...d.nodes], order: ordered(d.nodes, d.order) })),
       remaining = [...requests],
       assigned = [],
@@ -610,7 +646,7 @@
     while (remaining.length) {
       let best = null;
       for (const r of remaining) {
-        const options = dayOptions(work, r, config, roads);
+        const options = dayOptions(work, r, config, roads, dayMode);
         if (!options.length) continue;
         const choice = { request: r, options };
         if (
@@ -643,7 +679,7 @@
           r = byId.get(a.address_id);
         if (!r) continue;
         removeFrom(work, a.address_id);
-        const options = dayOptions(work, r, config, roads);
+        const options = dayOptions(work, r, config, roads, dayMode);
         const current = options.find((o) => o.day === a.day && o.start === a.start),
           bestOpt = options[0];
         if (bestOpt && (!current || bestOpt.score < current.score - 1) && !(bestOpt.day === a.day && bestOpt.start === a.start)) {
@@ -659,7 +695,7 @@
       }
       // 3. Заявки без места пробуем ещё раз — после перестановок оно могло появиться.
       for (const r of [...remaining]) {
-        const options = dayOptions(work, r, config, roads);
+        const options = dayOptions(work, r, config, roads, dayMode);
         if (options.length) {
           applyChoice(work, options[0]);
           options[0].request_token = r.dispatch_token;
@@ -987,13 +1023,16 @@
     стационарные номера и строки с одной только почтой. Раньше такие терялись. */
     if (['subnex_website', 'partner_email'].includes(row.intake_channel) && !/^\+447\d{9}$/.test(p))
       out.push(
-        p ? T('Это не британский мобильный — SMS не уйдёт, связывайтесь по email.') : T('Телефона нет — SMS не уйдёт, связывайтесь по email.'),
+        p
+          ? T('Это не британский мобильный — SMS не уйдёт, связывайтесь по email.')
+          : T('Телефона нет — SMS не уйдёт, связывайтесь по email.'),
       );
     if (!p) return out;
     const twin = (existing || []).find(
       (a) => ['new', 'planned'].includes(a.status) && phone(a.phone) === p && !samePlace(a.text, row.text),
     );
-    if (twin) out.push(T('Этот номер уже у заявки «') + twin.text + T('». Если это другой дом — всё в порядке, предложения уйдут по очереди.'));
+    if (twin)
+      out.push(T('Этот номер уже у заявки «') + twin.text + T('». Если это другой дом — всё в порядке, предложения уйдут по очереди.'));
     else if ((previous || []).some((a) => phone(a.phone) === p && !samePlace(a.text, row.text)))
       out.push(T('Этот номер уже есть выше в этой пачке — проверьте, не один ли это дом.'));
     return out;
