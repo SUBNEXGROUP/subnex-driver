@@ -1,7 +1,6 @@
-
-const SUPABASE_URL = 'https://hgnihlkiccfbrejbpojp.supabase.co';
-const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhnbmlobGtpY2NmYnJlamJwb2pwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2OTU2MDMsImV4cCI6MjA5OTI3MTYwM30.AqPTMYqWt_Kc1IZX5pkB9MvrGL1IXr_PAVlH9I0g3ZQ';
-const INTAKE_SECRET = '7d3a8f3e1bd747c5bd9e7b6896505df028c84e79194842dc80d834cfb3f54f3b';
+const SUPABASE_URL = 'ВСТАВЬТЕ: https://….supabase.co';
+const ANON_KEY = 'ВСТАВЬТЕ: anon-ключ из config.js';
+const INTAKE_SECRET = 'ВСТАВЬТЕ: секрет приёма (Пульт → Настройки → Приём заявок)';
 
 /**
  * SUBNEX — приём заявок из почты партнёров. Версия 3 (19.09.2026).
