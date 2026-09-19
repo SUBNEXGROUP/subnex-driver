@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <meta name="theme-color" content="#0B1813" />
+    <meta name="theme-color" content="#0B0E10" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -15,11 +15,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
     />
-    <link rel="stylesheet" href="subnex-ui.css?v=20260916-chatfix" />
-    <link rel="stylesheet" href="ops-chat.css?v=20260916-console" />
-    <link rel="stylesheet" href="ops-dispatch.css?v=20260916-replan" />
+    <link rel="stylesheet" href="subnex-ui.css?v=20260919-dark" />
+    <link rel="stylesheet" href="ops-chat.css?v=20260919-dark" />
+    <link rel="stylesheet" href="ops-dispatch.css?v=20260919-dark" />
     <script src="i18n.js?v=20260919-lang"></script>
     <script src="ops-chat.js?v=20260919-lang"></script>
     <script src="ops-dispatch-core.js?v=20260919-lang"></script>
@@ -39,17 +39,17 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        font-weight: 800;
+        font-weight: 700;
         font-family: var(--display);
-        font-size: 12px;
-        border: 2px solid #fff;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+        font-size: 13px;
+        border: 2px solid rgba(255, 255, 255, 0.92);
+        box-shadow: 0 1px 6px rgba(0, 0, 0, 0.75);
       }
       .mk.sq {
         border-radius: 7px;
         background: var(--accent);
         color: var(--accent-ink);
-        border-color: var(--ink);
+        border-color: rgba(255, 255, 255, 0.92);
       }
       .addrbox {
         background: var(--surface);
@@ -277,7 +277,7 @@
           <h1 id="ai-head"></h1>
           <div class="sum" id="ai-sum"></div>
         </div>
-        <button class="ph-cta brand" onclick="navToCurrent()">
+        <button class="ph-cta" onclick="navToCurrent()">
           <svg class="ic" style="fill: currentColor; stroke: none"><use href="#i-nav" /></svg> <span data-i18n="navigate">Навигация</span>
         </button>
         <div class="addrbox">
@@ -1811,7 +1811,7 @@
             if (!hasCoords(a)) return;
             pts.push([a.lat, a.lng]);
             const col =
-              a.status === 'done' ? '#17764F' : a.status === 'noanswer' ? '#A22B22' : a.status === 'problem' ? '#D9A300' : '#0E1A15';
+              a.status === 'done' ? '#1F9A63' : a.status === 'noanswer' ? '#D24232' : a.status === 'problem' ? '#D9A300' : '#48606C';
             L.marker([a.lat, a.lng], {
               icon: L.divIcon({
                 className: '',
@@ -1838,7 +1838,7 @@
           const r = LOCAL.routes[ds];
           if (r && r.geometry && r.geometry.length) {
             L.polyline(r.geometry, {
-              color: '#0F6B4F',
+              color: '#2FD07A',
               weight: 4,
               opacity: 0.85,
               dashArray: r.sketch ? '8 8' : null,

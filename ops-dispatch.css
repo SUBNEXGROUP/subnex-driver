@@ -1,26 +1,26 @@
 /* SUBNEX Dispatch — заявки, импорт, план, параметры. Стили на переменных subnex-ui.css.
    .od-root — всплывающее окно (телефон); .od-root.od-inline — встроено в страницу пульта. */
-.od-root{position:fixed;inset:0;z-index:21000;background:rgba(11,24,19,.5);display:flex;align-items:center;justify-content:center;padding:24px;color:var(--ink);font:14.5px/1.45 var(--body)}
+.od-root{position:fixed;inset:0;z-index:21000;background:var(--scrim);display:flex;align-items:center;justify-content:center;padding:24px;color:var(--ink);font:14.5px/1.45 var(--body)}
 .od-root.od-inline{position:relative;inset:auto;z-index:auto;background:transparent;padding:0;display:block}
 .od-root *{box-sizing:border-box}
 .od-panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-l);width:1040px;max-width:100%;max-height:94dvh;display:flex;flex-direction:column;box-shadow:var(--shadow-2)}
 .od-inline .od-panel{width:100%;max-height:none;box-shadow:var(--shadow-1)}
-.od-top{flex-shrink:0;display:flex;justify-content:space-between;align-items:center;gap:20px;padding:16px 22px;background:var(--rail);color:#fff;border-radius:var(--r-l) var(--r-l) 0 0}
+.od-top{flex-shrink:0;display:flex;justify-content:space-between;align-items:center;gap:20px;padding:16px 22px;background:var(--rail);color:var(--rail-ink);border-bottom:1px solid var(--line);border-radius:var(--r-l) var(--r-l) 0 0}
 .od-top small{color:var(--accent);font-weight:700;letter-spacing:.06em;font-size:11.5px;text-transform:uppercase}
 .od-root h2{font-size:20px;margin:3px 0 0;font-family:var(--display);font-weight:800}
 .od-root h3{font-size:15px;margin:0 0 8px;font-family:var(--display);font-weight:700}
 .od-root p{margin:8px 0 14px}
 .od-root button,.od-root input,.od-root textarea,.od-root select{font:inherit}
-.od-root button{background:var(--surface);border:1px solid var(--line-2);border-radius:9px;color:var(--ink);cursor:pointer;padding:8px 13px;min-height:38px;font-weight:600;font-size:13.5px}
-.od-root button:hover{border-color:var(--ink-2);background:var(--surface-3)}
+.od-root button{background:var(--surface-2);border:1px solid var(--line-2);border-radius:9px;color:var(--ink);cursor:pointer;padding:8px 13px;min-height:38px;font-weight:600;font-size:13.5px}
+.od-root button:hover{border-color:var(--line-2);background:var(--hover)}
 .od-root button:disabled{opacity:.5;cursor:default}
 .od-root :focus-visible{outline:2px solid var(--brand);outline-offset:2px}
 .od-root .od-primary{background:var(--accent);border-color:var(--accent-2);color:var(--accent-ink);font-weight:700}
-.od-root .od-primary:hover{background:#FFC826}
-.od-top button{background:var(--rail-2);border-color:rgba(255,255,255,.15);color:#fff;min-height:34px}
+.od-root .od-primary:hover{background:var(--accent-2)}
+.od-top button{background:var(--rail-2);border-color:var(--line-2);color:var(--rail-ink);min-height:34px}
 .od-tabs{display:flex;gap:6px;padding:12px 22px;border-bottom:1px solid var(--line);overflow:auto;flex-shrink:0}
 .od-tabs button{white-space:nowrap;border-radius:999px;min-height:34px;padding:6px 13px;font-size:13px}
-.od-tabs button[aria-current=page]{background:var(--ink);border-color:var(--ink);color:#fff}
+.od-tabs button[aria-current=page]{background:var(--ink);border-color:var(--ink);color:var(--ground)}
 .od-notice{padding:11px 22px;background:var(--ok-soft);color:var(--ok);border-bottom:1px solid var(--line);white-space:pre-wrap;max-height:145px;overflow:auto;flex-shrink:0;font-size:13px;font-weight:500}
 .od-notice.bad{background:var(--warn-soft);color:var(--warn)}
 .od-content{padding:20px 22px;overflow:auto;min-height:0;flex:1}
@@ -28,18 +28,22 @@
 .od-intro{margin-bottom:16px}
 .od-intro p,.od-muted{color:var(--muted);font-size:13px}
 .od-root label{text-transform:none;letter-spacing:normal;font-size:12.5px;display:block;font-weight:600;margin:8px 0;color:var(--ink-2)}
-.od-root input:not([type=checkbox]),.od-root select,.od-root textarea{display:block;width:100%;padding:10px 12px;border:1px solid var(--line-2);border-radius:9px;background:var(--surface);color:var(--ink);margin-top:5px;min-height:40px;font-size:14px}
+.od-root input:not([type=checkbox]),.od-root select,.od-root textarea{display:block;width:100%;padding:10px 12px;border:1px solid var(--line-2);border-radius:9px;background:var(--input);color:var(--ink);margin-top:5px;min-height:40px;font-size:14px}
 .od-root input:focus,.od-root select:focus,.od-root textarea:focus{outline:2px solid var(--brand);outline-offset:0;border-color:var(--brand)}
 .od-root textarea{resize:vertical}
 .od-root input[type=checkbox]{accent-color:var(--brand);width:16px;height:16px;vertical-align:middle;margin:0 8px 2px 0}
 .od-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 16px}
-.od-card{padding:16px;margin:10px 0;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-m)}
+.od-card{padding:16px;margin:10px 0;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-m)}
 .od-invalid{border-color:var(--crit);box-shadow:inset 3px 0 var(--crit)}
 .od-row-issues{color:var(--crit);font-size:12.5px;font-weight:500}
 .od-between{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .od-select{flex:1;display:flex!important;align-items:flex-start;gap:4px;margin:0!important}
 .od-select strong{overflow-wrap:anywhere;font-size:13.8px}
-.od-chip{background:var(--surface-2);border-radius:999px;padding:4px 9px;font-size:11.5px;font-weight:600;white-space:nowrap;color:var(--ink-2)}
+.od-chip{background:var(--surface-3);border:1px solid var(--line-2);border-radius:999px;padding:4px 9px;font-size:11.5px;font-weight:600;white-space:nowrap;color:var(--ink-2)}
+/* В таблице длинная подпись состояния переносится: иначе таблица уезжает за правый край. */
+table.t td.od-state .od-chip{white-space:normal;display:inline-block;max-width:270px;line-height:1.35}
+table.t td.od-actions{vertical-align:top}
+table.t td.od-actions button{width:100%;justify-content:center}
 .od-slot{font-weight:600;color:var(--brand);font-family:var(--mono);font-size:13px}
 .od-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .od-actions button{min-height:32px;padding:5px 10px;font-size:12.5px;border-radius:7px}
@@ -62,7 +66,7 @@
 .od-root details{margin:12px 0}
 .od-root summary{cursor:pointer;font-weight:600;color:var(--ink-2)}
 .od-selection{margin:12px 0}
-.od-dialog{position:absolute;inset:0;background:rgba(11,24,19,.55);display:flex;align-items:center;justify-content:center;padding:20px;z-index:3}
+.od-dialog{position:absolute;inset:0;background:var(--scrim);display:flex;align-items:center;justify-content:center;padding:20px;z-index:3}
 .od-inline .od-dialog{position:fixed;z-index:1600}
 .od-dialog>section{padding:22px;background:var(--surface);border:1px solid var(--line);border-radius:16px;width:650px;max-width:100%;max-height:90dvh;overflow:auto;box-shadow:var(--shadow-2)}
 .od-dialog-error{color:var(--crit);white-space:pre-wrap;font-size:13px;font-weight:500}

@@ -4,14 +4,14 @@
 .ops-root.ops-inline{position:relative;inset:auto;z-index:auto;background:transparent;min-height:0}
 .ops-root *{box-sizing:border-box}
 .ops-root button,.ops-root input,.ops-root select,.ops-root textarea{font:inherit}
-.ops-root button{cursor:pointer;border:1px solid var(--line-2);border-radius:9px;padding:8px 13px;background:var(--surface);color:var(--ink);box-shadow:none;min-height:38px;font-weight:600;font-size:13.5px}
-.ops-root button:hover{background:var(--surface-3);border-color:var(--ink-2)}
+.ops-root button{cursor:pointer;border:1px solid var(--line-2);border-radius:9px;padding:8px 13px;background:var(--surface-2);color:var(--ink);box-shadow:none;min-height:38px;font-weight:600;font-size:13.5px}
+.ops-root button:hover{background:var(--hover);border-color:var(--line-2)}
 .ops-root button:disabled{opacity:.45;cursor:default}
 .ops-root .oc-primary{background:var(--accent);border-color:var(--accent-2);color:var(--accent-ink);font-weight:700}
-.ops-root .oc-primary:hover{background:#FFC826}
-.ops-root .oc-green{background:var(--brand);border-color:var(--brand);color:#fff}
-.ops-root .oc-green:hover{background:var(--brand-2)}
-.ops-root input:not([type=checkbox]),.ops-root select,.ops-root textarea{width:100%;border:1px solid var(--line-2);border-radius:9px;padding:10px 12px;margin:0;background:var(--surface);color:var(--ink);min-width:0;min-height:40px;font-size:14px}
+.ops-root .oc-primary:hover{background:var(--accent-2)}
+.ops-root .oc-green{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
+.ops-root .oc-green:hover{background:var(--brand-2);border-color:var(--brand-2)}
+.ops-root input:not([type=checkbox]),.ops-root select,.ops-root textarea{width:100%;border:1px solid var(--line-2);border-radius:9px;padding:10px 12px;margin:0;background:var(--input);color:var(--ink);min-width:0;min-height:40px;font-size:14px}
 .ops-root input:focus,.ops-root select:focus,.ops-root textarea:focus{outline:2px solid var(--brand);outline-offset:0;border-color:var(--brand)}
 .ops-root textarea{resize:vertical;min-height:84px}
 .ops-root label{display:block;font-size:12.5px;font-weight:600;margin:0;color:var(--ink-2);text-transform:none;letter-spacing:normal}
@@ -20,13 +20,13 @@
 .ops-root :focus-visible{outline:2px solid var(--brand);outline-offset:2px}
 
 /* шапка — только во всплывающем режиме */
-.oc-top{height:62px;padding:10px 20px;background:var(--rail);color:#fff;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-shrink:0;flex-wrap:nowrap}
+.oc-top{height:62px;padding:10px 20px;background:var(--rail);color:var(--rail-ink);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:14px;flex-shrink:0;flex-wrap:nowrap}
 .oc-brand{font-family:var(--display);font-size:19px;font-weight:800;letter-spacing:.02em}
 .oc-brand .oc-brand-acc{color:var(--accent)}
 .oc-brand small{font-size:12.5px;font-weight:500;color:var(--rail-muted);letter-spacing:0;margin-left:14px;font-family:var(--body)}
 .oc-top nav{display:flex;gap:8px;position:static;background:none;border:0;box-shadow:none;padding:0}
-.oc-top nav button{min-height:34px;padding:5px 11px;background:var(--rail-2);border-color:rgba(255,255,255,.15);color:#fff;font-size:12.5px;display:block;flex:none}
-.oc-top nav button:hover{background:#1a3329}
+.oc-top nav button{min-height:34px;padding:5px 11px;background:var(--rail-2);border-color:var(--line-2);color:var(--rail-ink);font-size:12.5px;display:block;flex:none}
+.oc-top nav button:hover{background:var(--hover)}
 
 .oc-body{display:grid;grid-template-columns:320px minmax(0,1fr);max-width:1480px;margin:0 auto;width:100%;min-height:0;flex:1;border:1px solid var(--line);background:var(--surface);border-radius:var(--r-l);overflow:hidden}
 .ops-root.ops-inline{flex:1;min-height:0}
@@ -38,20 +38,20 @@
 .oc-filters{padding:14px;display:grid;gap:9px;border-bottom:1px solid var(--line)}
 .oc-list{overflow:auto;flex:1;min-height:0}
 .ops-root .oc-thread{width:100%;text-align:left;border:0;border-radius:0;border-bottom:1px solid var(--line);padding:13px 16px;display:block;min-height:88px;font-weight:400;background:transparent}
-.ops-root .oc-thread:hover{background:var(--surface-3)}
+.ops-root .oc-thread:hover{background:var(--surface-2)}
 .ops-root .oc-thread.active{background:var(--brand-soft);box-shadow:inset 3px 0 var(--brand)}
 .oc-thread strong{display:block;font-size:13.5px;font-family:var(--mono);font-weight:600}
 .oc-thread p{margin:3px 0;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12.8px}
 .oc-thread small{color:var(--muted);font-size:11.5px}
 .oc-dot{display:inline-block;width:7px;height:7px;background:var(--accent-2);border-radius:50%;margin-right:6px;vertical-align:1px}
-.oc-conversation{background:var(--surface-3);min-height:0;display:flex;flex-direction:column;position:relative}
+.oc-conversation{background:var(--ground);min-height:0;display:flex;flex-direction:column;position:relative}
 .oc-head{padding:14px 20px;border-bottom:1px solid var(--line);background:var(--surface);flex-shrink:0}
 .oc-head strong{font-size:17px;font-family:var(--mono);font-weight:600}
 .oc-head p{margin:4px 0;font-size:13.5px;font-weight:500}
 .oc-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .oc-between{justify-content:space-between}
 .oc-muted{color:var(--muted);font-size:12.5px}
-.oc-chip{display:inline-block;font-size:11.5px;padding:3px 8px;border-radius:999px;background:var(--surface-2);color:var(--ink-2);margin-right:5px;margin-top:5px;font-weight:600;border:0;min-height:0;line-height:1.3}
+.oc-chip{display:inline-block;font-size:11.5px;padding:3px 8px;border-radius:999px;background:var(--surface-3);color:var(--ink-2);margin-right:5px;margin-top:5px;font-weight:600;border:0;min-height:0;line-height:1.3}
 .ops-root button.oc-chip{cursor:pointer}
 .oc-chip.warn{background:var(--warn-soft);color:var(--warn)}
 .oc-chip.ok{background:var(--ok-soft);color:var(--ok)}
@@ -64,9 +64,9 @@
 .oc-compose{border-top:1px solid var(--line);padding:12px 20px 14px;background:var(--surface);flex-shrink:0;max-height:54dvh;overflow:auto}
 .oc-compose .oc-controls{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
 .oc-compose .oc-controls button{min-height:34px;padding:6px 11px;font-size:12.5px;border-radius:999px}
-.oc-compose .oc-controls button.active{background:var(--ink);border-color:var(--ink);color:#fff}
+.oc-compose .oc-controls button.active{background:var(--ink);border-color:var(--ink);color:var(--ground)}
 .oc-slots{display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:10px;margin:8px 0 12px}
-.oc-preview{font-size:12.5px;color:var(--ink-2);white-space:pre-wrap;background:var(--surface-3);border:1px solid var(--line);border-radius:8px;padding:10px;margin:8px 0}
+.oc-preview{font-size:12.5px;color:var(--ink-2);white-space:pre-wrap;background:var(--input);border:1px solid var(--line);border-radius:8px;padding:10px;margin:8px 0}
 .oc-help{font-size:12.3px;color:var(--muted);margin:8px 0}
 .oc-notice{padding:9px 20px;background:var(--warn-soft);color:var(--warn);font-size:13px;flex-shrink:0;display:none;font-weight:500}
 .oc-notice.on{display:block}
@@ -74,7 +74,7 @@
 .oc-empty{margin:auto;padding:32px;text-align:center;color:var(--muted)}
 .oc-empty strong{display:block;font-size:20px;color:var(--ink);margin-bottom:8px;font-family:var(--display)}
 .oc-form{display:grid;gap:12px}
-.oc-modal-wrap{position:absolute;inset:0;background:rgba(11,24,19,.55);display:flex;align-items:center;justify-content:center;padding:20px;z-index:2}
+.oc-modal-wrap{position:absolute;inset:0;background:var(--scrim);display:flex;align-items:center;justify-content:center;padding:20px;z-index:2}
 .ops-inline .oc-modal-wrap{position:fixed;z-index:1600}
 .oc-modal{background:var(--surface);border-radius:16px;padding:22px;width:540px;max-width:100%;max-height:90dvh;overflow:auto;box-shadow:var(--shadow-2);border:1px solid var(--line)}
 .oc-modal h2{margin:0 0 14px;font-size:19px;font-family:var(--display);font-weight:800}
@@ -88,7 +88,7 @@
 .oc-back{display:none!important}
 .oc-auth-note{font-size:13px;color:var(--muted);margin-top:10px}
 .oc-login label{display:block;text-align:left;margin-top:14px}
-.oc-login input{width:100%;padding:13px;border:1px solid var(--line-2);border-radius:9px;font:inherit}
+.oc-login input{width:100%;padding:13px;border:1px solid var(--line-2);border-radius:9px;font:inherit;background:var(--input);color:var(--ink)}
 .oc-login button{width:100%;margin-top:20px;padding:13px;font:inherit;font-weight:700;border:1px solid var(--accent-2);border-radius:10px;background:var(--accent);color:var(--accent-ink)}
 .ops-slot-label{display:block;font-size:12.5px;font-weight:600;color:var(--brand);margin-top:4px;font-family:var(--mono)}
 

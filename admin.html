@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#0B1813" />
+    <meta name="theme-color" content="#0B0E10" />
     <title>SUBNEX Пульт</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -15,11 +15,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
     />
-    <link rel="stylesheet" href="subnex-ui.css?v=20260916-chatfix" />
-    <link rel="stylesheet" href="ops-chat.css?v=20260916-console" />
-    <link rel="stylesheet" href="ops-dispatch.css?v=20260916-replan" />
+    <link rel="stylesheet" href="subnex-ui.css?v=20260919-dark" />
+    <link rel="stylesheet" href="ops-chat.css?v=20260919-dark" />
+    <link rel="stylesheet" href="ops-dispatch.css?v=20260919-dark" />
     <script src="i18n.js?v=20260919-lang"></script>
     <script src="ops-chat.js?v=20260919-lang"></script>
     <script src="ops-dispatch-core.js?v=20260919-lang"></script>
@@ -36,17 +36,17 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        font-weight: 800;
+        font-weight: 700;
         font-family: var(--display);
-        font-size: 12px;
-        border: 2px solid #fff;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+        font-size: 13px;
+        border: 2px solid rgba(255, 255, 255, 0.92);
+        box-shadow: 0 1px 6px rgba(0, 0, 0, 0.75);
       }
       .mk.sq {
         border-radius: 7px;
         background: var(--accent);
         color: var(--accent-ink);
-        border-color: var(--ink);
+        border-color: rgba(255, 255, 255, 0.92);
       }
       .mk.truck {
         width: 34px;
@@ -64,7 +64,7 @@
         border: 1px solid var(--line);
         border-radius: 9px;
         padding: 9px 11px;
-        background: var(--surface);
+        background: var(--surface-2);
         text-align: left;
         font: inherit;
         color: inherit;
@@ -1220,7 +1220,7 @@
         cancelled: T('Отменено'),
       };
       const ST = (x) => STATUS_RU[x] || x;
-      const DRIVER_COLORS = ['#0F6B4F', '#C2461F', '#2B5C9E', '#8E44AD', '#B7950B', '#148F9E', '#A93254', '#5D6D2E'];
+      const DRIVER_COLORS = ['#2FD07A', '#FF8A5B', '#6BC4FF', '#C79BFF', '#F2B807', '#3FD9D0', '#FF7FA8', '#B6D94C'];
       const BANKPL = `<span class="chip bank">${T('Контейнер')}</span>`;
       const C = window.SubnexDispatchCore;
       const todayStr = () => C.ukDay();
@@ -1476,9 +1476,9 @@
         const p = await driverPoints(d.id);
         const pc = (t) => (C.postcode(t || '') || t || '').trim();
         document.getElementById('rail-points').innerHTML =
-          (C.validPoint(p.home) ? T('Старт ') + esc(pc(p.home.text) || T('задан')) : `<span style="color:#E8A0A0">${T('Старт не задан')}</span>`) +
+          (C.validPoint(p.home) ? T('Старт ') + esc(pc(p.home.text) || T('задан')) : `<span style="color:var(--crit)">${T('Старт не задан')}</span>`) +
           '<br>' +
-          (C.validPoint(p.depot) ? T('Склад ') + esc(pc(p.depot.text) || T('задан')) : `<span style="color:#E8A0A0">${T('Склад не задан')}</span>`) +
+          (C.validPoint(p.depot) ? T('Склад ') + esc(pc(p.depot.text) || T('задан')) : `<span style="color:var(--crit)">${T('Склад не задан')}</span>`) +
           '<br>' +
           (p.enabled ? `<span style="color:var(--rail-ink)">${T('Планировщик включён')}</span>` : T('Планировщик подготовлен, не включён'));
       }
@@ -2285,7 +2285,7 @@
           if (!hasCoords(a)) return;
           pts.push([a.lat, a.lng]);
           const col =
-            a.status === 'done' ? '#17764F' : a.status === 'noanswer' ? '#A22B22' : a.status === 'problem' ? '#D9A300' : '#0E1A15';
+            a.status === 'done' ? '#1F9A63' : a.status === 'noanswer' ? '#D24232' : a.status === 'problem' ? '#D9A300' : '#48606C';
           L.marker([a.lat, a.lng], {
             icon: L.divIcon({
               className: '',
@@ -2312,7 +2312,7 @@
             .bindTooltip(lab + (pt.text ? ' · ' + esc(pt.text) : ''));
         }
         if (geometry && geometry.length) {
-          L.polyline(geometry, { color: '#0F6B4F', weight: 4, opacity: 0.85, dashArray: DAY.route?.sketch ? '8 8' : null }).addTo(DAY.map);
+          L.polyline(geometry, { color: '#2FD07A', weight: 4, opacity: 0.9, dashArray: DAY.route?.sketch ? '8 8' : null }).addTo(DAY.map);
         }
         const cutoff = Date.now() - 30 * 60000;
         let live = 0;
@@ -2338,8 +2338,8 @@
         if (pts.length) DAY.map.fitBounds(L.latLngBounds(pts).pad(0.2));
         else DAY.map.setView([51.6, -3.4], 9);
         document.getElementById('day-legend').innerHTML =
-          `<span><span class="sw" style="background:#0E1A15"></span>${T('в работе')}</span><span><span class="sw" style="background:#17764F"></span>${T('выполнено')}</span><span><span class="sw" style="background:#A22B22"></span>${T('не отвечает')}</span><span><span class="sw" style="background:#D9A300"></span>${T('проблема')}</span>` +
-          (live ? `<span><span class="sw" style="background:#0B1813;box-shadow:0 0 0 2px #F2B807"></span>${T('водитель онлайн')}</span>` : '') +
+          `<span><span class="sw" style="background:#48606C"></span>${T('в работе')}</span><span><span class="sw" style="background:#1F9A63"></span>${T('выполнено')}</span><span><span class="sw" style="background:#D24232"></span>${T('не отвечает')}</span><span><span class="sw" style="background:#D9A300"></span>${T('проблема')}</span>` +
+          (live ? `<span><span class="sw" style="background:#101416;box-shadow:0 0 0 2px #F2B807"></span>${T('водитель онлайн')}</span>` : '') +
           (DAY.route?.sketch ? `<span style="color:var(--warn)">${T('Пунктир: дорога не рассчитана, точки соединены по порядку')}</span>` : '');
       }
       function updateGmaps(list, p) {
