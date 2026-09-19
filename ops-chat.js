@@ -238,6 +238,23 @@
     undelivered: T('Не доставлено'),
     canceled: T('Отменено'),
   };
+  /* Коды Twilio по-человечески: номер сам по себе ничего не говорит тому, кто разбирает переписку.
+     Всё, что не в списке, показываем как есть — код виден и его можно найти в Twilio. */
+  const smsErrors = {
+    20003: T('Twilio отказал в доступе: чаще всего кончились деньги на счёте или не подходят ключи'),
+    21211: T('Номер получателя неверный'),
+    21408: T('Отправка в эту страну не разрешена в Twilio'),
+    21610: T('Клиент отписался словом STOP — писать ему нельзя'),
+    21612: T('Нет маршрута до этого номера'),
+    21614: T('Это не мобильный номер'),
+    30003: T('Телефон выключен или вне сети'),
+    30004: T('Номер заблокировал приём сообщений'),
+    30005: T('Такого номера не существует'),
+    30006: T('Стационарный номер — SMS не принимает'),
+    30007: T('Оператор отклонил сообщение как спам'),
+    30008: T('Оператор не принял сообщение, причину не назвал'),
+  };
+  const smsErrorText = (code) => (code && smsErrors[+code]) || '';
   let current = null;
   function close() {
     current?.close();
@@ -551,7 +568,7 @@
         messages
           .map(
             (m) =>
-              `<article class="oc-message ${m.direction === 'out' ? 'out' : ''}"><div class="oc-text">${esc(m.body)}</div>${m.num_media ? `<div class="oc-help">${T('Вложений:')} ` + m.num_media + ` ${T('(файлы не загружены)')}</div>` : ''}<footer><span class="${['unknown', 'failed', 'undelivered', 'dispatching'].includes(m.status) ? 'oc-error' : ''}">${esc(statuses[m.status] || m.status)}${m.error_code ? ' · ' + esc(m.error_code) : ''}</span> · ${esc(ukDate(m.created_at))} ${esc(ukTime(m.created_at))}</footer></article>`,
+              `<article class="oc-message ${m.direction === 'out' ? 'out' : ''}"><div class="oc-text">${esc(m.body)}</div>${m.num_media ? `<div class="oc-help">${T('Вложений:')} ` + m.num_media + ` ${T('(файлы не загружены)')}</div>` : ''}<footer><span class="${['unknown', 'failed', 'undelivered', 'dispatching'].includes(m.status) ? 'oc-error' : ''}">${esc(statuses[m.status] || m.status)}${m.error_code ? ' · ' + esc(m.error_code) + (smsErrorText(m.error_code) ? ' · ' + esc(smsErrorText(m.error_code)) : '') : ''}</span> · ${esc(ukDate(m.created_at))} ${esc(ukTime(m.created_at))}</footer></article>`,
           )
           .join('');
       if (box.innerHTML !== html) box.innerHTML = html || `<div class="oc-empty">${T('Напишите первое сообщение.')}</div>`;
@@ -809,19 +826,18 @@
       const w = this.modal(
         T('Перенести сбор'),
         `<p><b>${esc(a.text)}</b></p>
-   <p class="oc-help">${T('Сейчас согласовано:')} ${esc(slotLabel(a))}${T('. Перенос изменит договорённость с клиентом.')}</p>
+   <p class="oc-help">${T('Сейчас согласовано:')} ${esc(slotLabel(a))}${T('. Сбор переедет сразу — ответа клиента ждать не нужно.')}</p>
    <label>${T('Новая дата')}<input id="oc-mv-day" type="date" min="${ukDate()}" value="${esc(a.date || ukDate())}"></label>
    <label>${T('Время')}<select id="oc-mv-time"><option value="">${T('Считаю…')}</option></select></label>
    <p class="oc-help" id="oc-mv-note">${T('Время подбирается по маршруту выбранного дня — первым идёт самое выгодное по дороге.')}</p>
-   <label><input id="oc-mv-agreed" type="checkbox">${T('Клиент согласовал перенос.')}</label>
-   <label><input id="oc-mv-sms" type="checkbox" checked>${T('Отправить клиенту сообщение о переносе.')}</label>
+   <label><input id="oc-mv-sms" type="checkbox" checked>${T('Сообщить клиенту SMS о новом времени.')}</label>
+   <p class="oc-help" id="oc-mv-warn" hidden>${T('Без сообщения клиент будет ждать в прежнее время. Снимайте эту галочку, только если уже сказали ему сами.')}</p>
    <textarea id="oc-mv-text" rows="7" readonly></textarea>`,
         async (wrap) => {
           const day = wrap.querySelector('#oc-mv-day').value,
             pick = wrap.querySelector('#oc-mv-time').value;
           const slot = slots[+pick];
           if (!day || !slot) throw new Error(T('Выберите дату и свободное время.'));
-          if (!wrap.querySelector('#oc-mv-agreed').checked) throw new Error(codes.CONFIRMED_CHANGE_REQUIRES_AGREEMENT);
           const r = await this.sb.rpc('subnex_move_request', {
             p_data: { address_id: a.id, version: a.collection_version, day, start: slot.start, end: slot.end, agreed: true },
           });
@@ -898,6 +914,15 @@
       };
       w.querySelector('#oc-mv-day').addEventListener('change', load);
       w.querySelector('#oc-mv-time').addEventListener('change', text);
+      const sms = w.querySelector('#oc-mv-sms'),
+        warn = w.querySelector('#oc-mv-warn'),
+        box = w.querySelector('#oc-mv-text');
+      const smsToggle = () => {
+        warn.hidden = sms.checked;
+        box.hidden = !sms.checked;
+      };
+      sms.addEventListener('change', smsToggle);
+      smsToggle();
       load();
     }
     async pickTime() {

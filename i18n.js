@@ -187,6 +187,23 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   'Для заявки уже предложено время. Откройте согласование.': 'A time has already been offered for this request. Open the conversation.',
   'Для нового предложения укажите интервал в 30 минут.': 'A new offer needs a 30-minute slot.',
   'Укажите интервал в 30 минут или отметьте «Только дата».': 'Use a 30-minute slot, or tick “Date only”.',
+  'Сообщить клиенту SMS о новом времени.': 'Text the customer the new time.',
+  'Twilio отказал в доступе: чаще всего кончились деньги на счёте или не подходят ключи':
+    'Twilio refused access — usually an empty balance or the wrong credentials',
+  'Номер получателя неверный': 'The recipient number is not valid',
+  'Отправка в эту страну не разрешена в Twilio': 'Sending to this country is not enabled in Twilio',
+  'Клиент отписался словом STOP — писать ему нельзя': 'The customer replied STOP — we must not text them',
+  'Нет маршрута до этого номера': 'No route to this number',
+  'Это не мобильный номер': 'Not a mobile number',
+  'Телефон выключен или вне сети': 'The phone is switched off or out of coverage',
+  'Номер заблокировал приём сообщений': 'This number blocks incoming messages',
+  'Такого номера не существует': 'No such number',
+  'Стационарный номер — SMS не принимает': 'Landline — it cannot receive texts',
+  'Оператор отклонил сообщение как спам': 'The carrier rejected the message as spam',
+  'Оператор не принял сообщение, причину не назвал': 'The carrier rejected the message without giving a reason',
+  'Без сообщения клиент будет ждать в прежнее время. Снимайте эту галочку, только если уже сказали ему сами.':
+    'Without a message the customer will be waiting at the old time. Only untick this if you have already told them yourself.',
+  '. Сбор переедет сразу — ответа клиента ждать не нужно.': '. The collection moves straight away — no reply needed.',
   'У клиента уже подтверждено время. Откройте «Переписку» и предложите новое.':
     'This customer already has a confirmed time. Open Conversation and offer a new one.',
   'У клиента уже подтверждено время. Оно останется в силе, пока клиент не ответит YES на новое предложение.':
