@@ -188,6 +188,11 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   'Для нового предложения укажите интервал в 30 минут.': 'A new offer needs a 30-minute slot.',
   'Укажите интервал в 30 минут или отметьте «Только дата».': 'Use a 30-minute slot, or tick “Date only”.',
   'Сообщить клиенту SMS о новом времени.': 'Text the customer the new time.',
+  'Клиент согласовал эту дату в переписке или по телефону.': 'The customer agreed this date by text or on the phone.',
+  'Сбор встанет на этот день без времени. Окно прибытия уйдёт клиенту утром, когда водитель начнёт маршрут.':
+    'The collection is set for that day with no time. The arrival window goes out in the morning, when the driver starts the route.',
+  'Дата сохранена. Окно прибытия уйдёт утром при старте маршрута.':
+    'Date saved. The arrival window goes out in the morning when the route starts.',
   'Twilio отказал в доступе: чаще всего кончились деньги на счёте или не подходят ключи':
     'Twilio refused access — usually an empty balance or the wrong credentials',
   'Номер получателя неверный': 'The recipient number is not valid',
