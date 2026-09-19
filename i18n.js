@@ -88,6 +88,8 @@
 
 /* ---------- Словарь EN: русский текст → английский ---------- */
 Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.EN, {
+  'Сначала выполненные, затем проблемы, закрытые и запланированные. Ждущие ответа берутся из текущей очереди и от месяца не зависят, остальное — за выбранный месяц: дата сбора, а у закрытых — дата закрытия. PDF и CSV всегда по-английски, в CSV — все поля.':
+    'Completed first, then problems, closed and scheduled. Those awaiting a reply come from the current queue and do not depend on the month; the rest is for the chosen month: the collection date, or the closing date for closed requests. PDF and CSV are always in English; the CSV has every field.',
   'SMS: ': 'SMS: ',
   'дата предложена автоматически': 'date offered automatically',
   предложено: 'offered',
@@ -118,8 +120,6 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   КОГДА: 'WHEN',
   'ПРИЧИНА / ЗАМЕТКА': 'REASON / NOTE',
   ТЕЛЕФОН: 'PHONE',
-  'Сверху то, что требует внимания. Ждущие ответа берутся из текущей очереди и от месяца не зависят, остальное — за выбранный месяц: дата сбора, а у закрытых — дата закрытия. Полная таблица со всеми полями — кнопка «CSV».':
-    'What needs attention is at the top. Those awaiting a reply come from the current queue and do not depend on the month; the rest is for the chosen month: the collection date, or the closing date for closed requests. The full table with every field — the “CSV” button.',
   'Таблица (CSV для Excel)': 'Table (CSV for Excel)',
   'Причина / заметка': 'Reason / note',
   'Согласование с клиентом': 'Agreement',
@@ -1414,8 +1414,6 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   'Список (PDF)': 'List (PDF)',
   'Что произошло': 'What happened',
   Заметка: 'Note',
-  'Сверху то, что требует внимания. Ждущие ответа берутся из текущей очереди и от месяца не зависят, остальное — за выбранный месяц.':
-    'What needs attention is at the top. Those awaiting a reply come from the current queue and do not depend on the month; the rest is for the chosen month.',
   'Все отчёты хостам (PDF)': 'All host reports (PDF)',
   Площадка: 'Site',
   Условия: 'Terms',

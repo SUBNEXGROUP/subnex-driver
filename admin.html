@@ -627,8 +627,9 @@
               </div>
               <div class="tfoot">
                 <span class="muted"
-                  >Сверху то, что требует внимания. Ждущие ответа берутся из текущей очереди и от месяца не зависят, остальное — за
-                  выбранный месяц: дата сбора, а у закрытых — дата закрытия. Полная таблица со всеми полями — кнопка «CSV».</span
+                  >Сначала выполненные, затем проблемы, закрытые и запланированные. Ждущие ответа берутся из текущей очереди и от месяца
+                  не зависят, остальное — за выбранный месяц: дата сбора, а у закрытых — дата закрытия. PDF и CSV всегда по-английски, в
+                  CSV — все поля.</span
                 >
               </div>
             </div>
@@ -3750,17 +3751,35 @@
       /* ---------- рабочий список: что случилось с адресами ----------
    Отдельно от партнёрских отчётов: тут по-русски, с адресами и заметками,
    и сюда попадает то, что требует действия. */
-      const EV_LABEL = {
-        done: T('Выполнено'),
-        noanswer: T('Не открыли дверь'),
-        problem: T('Проблема на адресе'),
-        cancelled: T('Заявка закрыта'),
-        planned: T('Запланировано'),
-        new: T('Ждёт распределения'),
-      };
+      /* Подписи отчёта считаются на нужном языке: на экране — язык пульта, в PDF и CSV — всегда
+         английский (отчёты идут в UK). TL(key, lang) — перевод для конкретного языка. */
+      const TL = (k, lang) => (lang === 'en' ? (SubnexI18n.EN[k] !== undefined ? SubnexI18n.EN[k] : k) : k);
+      const dayShortL = (d, lang) =>
+        new Intl.DateTimeFormat(lang === 'en' ? 'en-GB' : 'ru-RU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(
+          new Date(d + 'T12:00:00Z'),
+        );
+      const evLabel = (status, L) =>
+        ({
+          done: TL('Выполнено', L),
+          noanswer: TL('Не открыли дверь', L),
+          problem: TL('Проблема на адресе', L),
+          cancelled: TL('Заявка закрыта', L),
+          planned: TL('Запланировано', L),
+          new: TL('Ждёт распределения', L),
+        })[status] || status;
       const EV_PROBLEM = new Set(['noanswer', 'problem']);
-      const EV_WAIT = T('Не ответил на предложение');
+      const evWait = (L) => TL('Не ответил на предложение', L);
+      const REASON_RU = {
+        customer_cancelled: TL('Клиент отменил сбор', 'ru'),
+        already_collected: TL('Уже забрали', 'ru'),
+        no_bags: TL('Мешков для сбора нет', 'ru'),
+        duplicate: TL('Повторная заявка', 'ru'),
+        other: TL('Другая причина', 'ru'),
+        no_reply: TL('Не ответил на предложение', 'ru'),
+      };
+      const reasonL = (code, L) => (REASON_RU[code] ? TL(REASON_RU[code], L) : code || '');
       let EV_ROWS = [];
+      let EV_RAW = { waiting: [], log: [] };
 
       /* Ждущие ответа живут не в addresses, а в очереди планировщика — берём оттуда. */
       async function pendingOffers() {
@@ -3793,51 +3812,40 @@
           }));
         }
       }
-      const tsShort = (iso) => {
+      const tsShortL = (iso, L) => {
         if (!iso) return '';
         const d = new Date(iso);
-        return dayShort(C.ukDay(d)) + ' ' + C.hm(C.ukMinute(d));
+        return dayShortL(C.ukDay(d), L) + ' ' + C.hm(C.ukMinute(d));
       };
-      const evOutcome = (r) => {
-        if (r.status === 'cancelled') return T('Заявка закрыта');
-        return EV_LABEL[r.status] || r.status;
-      };
-      const evReason = (r) => {
+      const evReasonL = (r, L) => {
         const parts = [];
-        if (r.status === 'cancelled') parts.push(Ops.reasonLabel(r.cancellation_reason || r.closed_reason));
+        if (r.status === 'cancelled') parts.push(reasonL(r.cancellation_reason || r.closed_reason, L));
         if ((r.result_note || '').trim()) parts.push(r.result_note.trim());
-        return parts.join(' · ');
+        return parts.filter(Boolean).join(' · ');
       };
-      const evWindow = (r) => {
-        if (Number.isFinite(r.eta_from) && Number.isFinite(r.eta_to)) return T('SMS: ') + C.hm(r.eta_from) + '–' + C.hm(r.eta_to);
+      const evWindowL = (r, L) => {
+        if (Number.isFinite(r.eta_from) && Number.isFinite(r.eta_to)) return TL('SMS: ', L) + C.hm(r.eta_from) + '–' + C.hm(r.eta_to);
         if (!r.collection_start) return '';
-        if (r.arrival_mode === 'day' || C.isDaySpan(r.collection_start, r.collection_end)) return T('в течение дня');
+        if (r.arrival_mode === 'day' || C.isDaySpan(r.collection_start, r.collection_end)) return TL('в течение дня', L);
         return C.hm(C.ukMinute(r.collection_start)) + '–' + C.hm(C.ukMinute(r.collection_end));
       };
-      const evAgreement = (r) => {
+      const evAgreementL = (r, L) => {
         const parts = [];
-        if (r.offered_at) parts.push((r.offer_auto ? T('дата предложена автоматически') : T('предложено')) + ' ' + tsShort(r.offered_at));
-        if (r.reminded_at) parts.push(T('напоминание') + ' ' + tsShort(r.reminded_at));
-        if (r.confirmed_by === 'yes') parts.push('YES ' + tsShort(r.collection_confirmed_at));
-        else if (r.confirmed_by === 'manual') parts.push(T('подтверждено вручную') + ' ' + tsShort(r.collection_confirmed_at));
-        else if (r.collection_confirmed_at && !r.offered_at) parts.push(T('подтверждено') + ' ' + tsShort(r.collection_confirmed_at));
-        if (!parts.length && r.offer_state === 'awaiting') parts.push(T('ждём YES'));
+        if (r.offered_at) parts.push((r.offer_auto ? TL('дата предложена автоматически', L) : TL('предложено', L)) + ' ' + tsShortL(r.offered_at, L));
+        if (r.reminded_at) parts.push(TL('напоминание', L) + ' ' + tsShortL(r.reminded_at, L));
+        if (r.confirmed_by === 'yes') parts.push('YES ' + tsShortL(r.collection_confirmed_at, L));
+        else if (r.confirmed_by === 'manual') parts.push(TL('подтверждено вручную', L) + ' ' + tsShortL(r.collection_confirmed_at, L));
+        else if (r.collection_confirmed_at && !r.offered_at) parts.push(TL('подтверждено', L) + ' ' + tsShortL(r.collection_confirmed_at, L));
+        if (!parts.length && r.offer_state === 'awaiting') parts.push(TL('ждём YES', L));
         return parts.join(' · ');
       };
-
-      async function renderEvents() {
-        const mEl = document.getElementById('ev-month');
-        if (!mEl.value) mEl.value = ymNow();
-        const ym = mEl.value,
-          src = document.getElementById('ev-source').value;
-        const only = document.getElementById('ev-problems').checked;
-        const tb = document.getElementById('ev-tbody');
-        tb.innerHTML = `<tr><td colspan="13" class="empty"><span class="spin"></span> ${T('Собираю…')}</td></tr>`;
-
-        const [waiting, log] = await Promise.all([pendingOffers(), monthLog(ym)]);
+      /* Порядок в отчёте: сначала выполненные, затем не открыли/проблема, закрытые,
+         запланированные, и в конце ждущие ответа. Внутри — по дате, новые выше. */
+      const EV_ORDER = { done: 0, noanswer: 1, problem: 1, cancelled: 2, planned: 3, new: 3, waiting: 4 };
+      function buildEventRows(L, src, only) {
         const rows = [];
         const seen = new Set();
-        for (const a of waiting) {
+        for (const a of EV_RAW.waiting) {
           if (src && C.sourceOf(a) !== src) continue;
           seen.add(a.id);
           const day = C.ukDay(a.offered_start);
@@ -3851,41 +3859,57 @@
             offer_auto: a.offer_auto,
             offer_state: 'awaiting',
             reminded_at: a.reminded_at,
-            windowText: C.isDaySpan(a.offered_start, a.offered_end) ? T('в течение дня') : C.hm(C.ukMinute(a.offered_start)) + '–' + C.hm(C.ukMinute(a.offered_end || a.offered_start)),
-            what: EV_WAIT,
+            windowText: C.isDaySpan(a.offered_start, a.offered_end) ? TL('в течение дня', L) : C.hm(C.ukMinute(a.offered_start)) + '–' + C.hm(C.ukMinute(a.offered_end || a.offered_start)),
+            what: evWait(L),
             when: '',
-            reason: T('Предложено ') + dayShort(day) + T(', ответа нет'),
+            reason: TL('Предложено ', L) + dayShortL(day, L) + TL(', ответа нет', L),
             problem: true,
-            order: 0,
+            order: EV_ORDER.waiting,
           });
         }
-        for (const r of log) {
+        for (const r of EV_RAW.log) {
           if (seen.has(r.id)) continue;
           if (src && r.source !== src) continue;
           const problem = EV_PROBLEM.has(r.status);
           rows.push({
             ...r,
-            windowText: evWindow(r),
-            what: evOutcome(r),
-            when: r.status === 'cancelled' ? tsShort(r.closed_at || r.collection_cancelled_at) : ['done', 'noanswer', 'problem'].includes(r.status) ? tsShort(r.done_at) : '',
-            reason: evReason(r),
+            windowText: evWindowL(r, L),
+            what: evLabel(r.status, L),
+            when: r.status === 'cancelled' ? tsShortL(r.closed_at || r.collection_cancelled_at, L) : ['done', 'noanswer', 'problem'].includes(r.status) ? tsShortL(r.done_at, L) : '',
+            reason: evReasonL(r, L),
             problem,
-            order: problem ? 1 : 2,
+            order: EV_ORDER[r.status] ?? 3,
           });
         }
-        EV_ROWS = rows
+        return rows
           .filter((r) => !only || r.problem)
           .sort((x, y) => x.order - y.order || (y.day || '').localeCompare(x.day || '') || x.text.localeCompare(y.text));
+      }
 
-        const n = (w) => rows.filter((r) => r.what === w).length;
+      async function renderEvents() {
+        const mEl = document.getElementById('ev-month');
+        if (!mEl.value) mEl.value = ymNow();
+        const ym = mEl.value,
+          src = document.getElementById('ev-source').value;
+        const only = document.getElementById('ev-problems').checked;
+        const tb = document.getElementById('ev-tbody');
+        tb.innerHTML = `<tr><td colspan="13" class="empty"><span class="spin"></span> ${T('Собираю…')}</td></tr>`;
+
+        const [waiting, log] = await Promise.all([pendingOffers(), monthLog(ym)]);
+        EV_RAW = { waiting, log };
+        const L = SubnexI18n.lang;
+        const all = buildEventRows(L, src, false);
+        EV_ROWS = only ? all.filter((r) => r.problem) : all;
+
+        const n = (w) => all.filter((r) => r.what === w).length;
         const chips = [
-          [T('Всего'), rows.length, ''],
-          [EV_WAIT, n(EV_WAIT), 'crit'],
-          [T('Не открыли дверь'), n(T('Не открыли дверь')), 'crit'],
-          [T('Проблема на адресе'), n(T('Проблема на адресе')), 'crit'],
-          [T('Выполнено'), n(T('Выполнено')), 'ok'],
-          [T('Запланировано'), n(T('Запланировано')), ''],
-          [T('Заявка закрыта'), n(T('Заявка закрыта')), ''],
+          [TL('Всего', L), all.length, ''],
+          [TL('Выполнено', L), n(TL('Выполнено', L)), 'ok'],
+          [TL('Не открыли дверь', L), n(TL('Не открыли дверь', L)), 'crit'],
+          [TL('Проблема на адресе', L), n(TL('Проблема на адресе', L)), 'crit'],
+          [TL('Заявка закрыта', L), n(TL('Заявка закрыта', L)), ''],
+          [TL('Запланировано', L), n(TL('Запланировано', L)), ''],
+          [evWait(L), n(evWait(L)), 'crit'],
         ];
         document.getElementById('ev-counts').innerHTML = chips
           .filter((c) => c[1])
@@ -3907,53 +3931,64 @@
             `<td style="font-size:12.5px">${esc(C.sourceNames[r.source] || r.source || '')}</td>` +
             `<td style="font-size:12.5px">${r.charity ? esc(r.charity) : dash}</td>` +
             `<td style="font-size:12.5px;white-space:nowrap">${r.bags ? esc(r.bags) : dash}</td>` +
-            `<td class="mono" style="white-space:nowrap;font-size:12.3px">${r.day ? esc(dayShort(r.day)) : dash}</td>` +
+            `<td class="mono" style="white-space:nowrap;font-size:12.3px">${r.day ? esc(dayShortL(r.day, L)) : dash}</td>` +
             `<td style="font-size:12.3px;white-space:nowrap">${r.windowText ? esc(r.windowText) : dash}</td>` +
-            `<td style="font-size:12px">${esc(evAgreement(r)) || dash}</td>` +
-            `<td><span class="chip ${r.problem ? 'st-bad' : r.what === T('Выполнено') ? 'st-done' : 'ghost'}">${esc(r.what)}</span></td>` +
+            `<td style="font-size:12px">${esc(evAgreementL(r, L)) || dash}</td>` +
+            `<td><span class="chip ${r.problem ? 'st-bad' : r.status === 'done' ? 'st-done' : 'ghost'}">${esc(r.what)}</span></td>` +
             `<td class="mono" style="white-space:nowrap;font-size:12px">${r.when ? esc(r.when) : dash}</td>` +
             `<td style="font-size:12.5px">${r.reason ? esc(r.reason) : dash}</td>` +
             `<td class="mono" style="font-size:12px;white-space:nowrap">${r.phone ? esc(r.phone) : dash}${r.contact_name ? `<br><span class="muted" style="font-size:11.5px">${esc(r.contact_name)}</span>` : ''}</td>` +
-            `<td class="mono" style="white-space:nowrap;font-size:12px">${r.received_at ? esc(tsShort(r.received_at)) : dash}</td>` +
+            `<td class="mono" style="white-space:nowrap;font-size:12px">${r.received_at ? esc(tsShortL(r.received_at, L)) : dash}</td>` +
             `<td style="font-size:12.5px">${r.photos ? esc(String(r.photos)) : dash}</td></tr>`,
         ).join('');
       }
 
+      /* Выгрузки отчёта — всегда по-английски: отчёты идут в UK.
+         Имя evExportRows, а не exportRows: в Настройках → Данные уже есть своя exportRows,
+         и одноимённая функция в том же файле молча перекрывала эту (в CSV уходили сырые адреса). */
+      function evExportRows() {
+        const src = document.getElementById('ev-source').value,
+          only = document.getElementById('ev-problems').checked;
+        return buildEventRows('en', src, only);
+      }
+      const E = (k) => TL(k, 'en');
+
       /* Все поля — в таблицу для Excel. Разделитель — точка с запятой, кодировка UTF-8 с BOM. */
       function eventsCsv() {
-        if (!EV_ROWS.length) {
+        const rows = evExportRows();
+        if (!rows.length) {
           toast(T('Нечего выгружать'));
           return;
         }
         const ym = document.getElementById('ev-month').value || ymNow();
         const cols = [
-          [T('Адрес'), (r) => r.text],
-          [T('Район'), (r) => r.zone],
-          [T('Источник'), (r) => C.sourceNames[r.source] || r.source],
+          [E('Адрес'), (r) => r.text],
+          [E('Район'), (r) => r.zone],
+          [E('Источник'), (r) => C.sourceNames[r.source] || r.source],
           ['Charity', (r) => r.charity],
-          [T('Мешки'), (r) => r.bags],
-          [T('Телефон'), (r) => r.phone],
-          [T('Контакт'), (r) => r.contact_name],
+          [E('Мешки'), (r) => r.bags],
+          [E('Телефон'), (r) => r.phone],
+          [E('Контакт'), (r) => r.contact_name],
           ['Email', (r) => r.contact_email],
-          [T('Заявка получена'), (r) => r.received_at],
-          [T('Дата сбора'), (r) => r.day],
-          [T('Окно'), (r) => r.windowText],
-          [T('Режим'), (r) => r.arrival_mode],
-          [T('Предложение отправлено'), (r) => r.offered_at],
-          [T('Автопредложение'), (r) => (r.offer_auto === true ? T('да') : r.offer_auto === false ? T('нет') : '')],
-          [T('Напоминание'), (r) => r.reminded_at],
-          [T('Подтверждено'), (r) => r.collection_confirmed_at],
-          [T('Как подтверждено'), (r) => (r.confirmed_by === 'yes' ? 'YES' : r.confirmed_by === 'manual' ? T('вручную') : '')],
-          [T('Окно из утренней SMS'), (r) => (Number.isFinite(r.eta_from) ? C.hm(r.eta_from) + '–' + C.hm(r.eta_to) : '')],
-          [T('Что произошло'), (r) => r.what],
-          [T('Когда'), (r) => (r.status === 'cancelled' ? r.closed_at || r.collection_cancelled_at : r.done_at)],
-          [T('Причина закрытия'), (r) => (r.status === 'cancelled' ? Ops.reasonLabel(r.cancellation_reason || r.closed_reason) : '')],
-          [T('Заметка о результате'), (r) => r.result_note],
-          [T('Примечание'), (r) => r.note],
-          [T('Водитель'), (r) => r.driver],
-          [T('SMS исходящих'), (r) => r.sms_out],
-          [T('SMS входящих'), (r) => r.sms_in],
-          [T('Фото'), (r) => r.photos],
+          [E('Заявка получена'), (r) => r.received_at],
+          [E('Дата сбора'), (r) => r.day],
+          [E('Окно'), (r) => r.windowText],
+          [E('Режим'), (r) => r.arrival_mode],
+          [E('Предложение отправлено'), (r) => r.offered_at],
+          [E('Автопредложение'), (r) => (r.offer_auto === true ? E('да') : r.offer_auto === false ? E('нет') : '')],
+          [E('Напоминание'), (r) => r.reminded_at],
+          [E('Подтверждено'), (r) => r.collection_confirmed_at],
+          [E('Как подтверждено'), (r) => (r.confirmed_by === 'yes' ? 'YES' : r.confirmed_by === 'manual' ? E('вручную') : '')],
+          [E('Окно из утренней SMS'), (r) => (Number.isFinite(r.eta_from) ? C.hm(r.eta_from) + '–' + C.hm(r.eta_to) : '')],
+          [E('Что произошло'), (r) => r.what],
+          [E('Когда'), (r) => (r.status === 'cancelled' ? r.closed_at || r.collection_cancelled_at : r.done_at)],
+          [E('Причина закрытия'), (r) => (r.status === 'cancelled' ? reasonL(r.cancellation_reason || r.closed_reason, 'en') : '')],
+          [E('Заметка о результате'), (r) => r.result_note],
+          [E('Примечание'), (r) => r.note],
+          [E('Водитель'), (r) => r.driver],
+          [E('SMS исходящих'), (r) => r.sms_out],
+          [E('SMS входящих'), (r) => r.sms_in],
+          [E('Фото'), (r) => r.photos],
           ['id', (r) => r.id],
         ];
         const cell = (v) => {
@@ -3961,7 +3996,7 @@
           return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
         };
         const lines = [cols.map((c) => cell(c[0])).join(';')];
-        EV_ROWS.forEach((r) => lines.push(cols.map((c) => cell(c[1](r))).join(';')));
+        rows.forEach((r) => lines.push(cols.map((c) => cell(c[1](r))).join(';')));
         const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
@@ -3975,16 +4010,17 @@
       }
 
       async function eventsPdf() {
-        if (!EV_ROWS.length) {
+        const rows0 = evExportRows();
+        if (!rows0.length) {
           toast(T('Нечего выгружать'));
           return;
         }
         const ym = document.getElementById('ev-month').value || ymNow();
         toast(T('Готовлю PDF…'));
-        const probs = EV_ROWS.filter((r) => r.problem);
+        const probs = rows0.filter((r) => r.problem);
         const body = [
-          { text: T('Что случилось с адресами — ') + ymLabel(ym), style: 'h1' },
-          { text: T('Рабочий список для себя. Партнёрам не отправляется.'), margin: [0, 0, 0, 14], color: '#3A3A38' },
+          { text: E('Что случилось с адресами — ') + ymLabel(ym), style: 'h1' },
+          { text: E('Рабочий список для себя. Партнёрам не отправляется.'), margin: [0, 0, 0, 14], color: '#3A3A38' },
         ];
         body.push({
           table: {
@@ -3993,26 +4029,26 @@
               [
                 {
                   stack: [
-                    { text: T('ВСЕГО'), style: 'lbl' },
-                    { text: String(EV_ROWS.length), fontSize: 19, bold: true, margin: [0, 3, 0, 0] },
+                    { text: E('ВСЕГО'), style: 'lbl' },
+                    { text: String(rows0.length), fontSize: 19, bold: true, margin: [0, 3, 0, 0] },
                   ],
                 },
                 {
                   stack: [
-                    { text: T('ТРЕБУЮТ ВНИМАНИЯ'), style: 'lbl' },
-                    { text: String(probs.length), fontSize: 19, bold: true, color: '#B3261E', margin: [0, 3, 0, 0] },
-                  ],
-                },
-                {
-                  stack: [
-                    { text: T('ВЫПОЛНЕНО'), style: 'lbl' },
+                    { text: E('ВЫПОЛНЕНО'), style: 'lbl' },
                     {
-                      text: String(EV_ROWS.filter((r) => r.what === T('Выполнено')).length),
+                      text: String(rows0.filter((r) => r.status === 'done').length),
                       fontSize: 19,
                       bold: true,
                       color: BRAND.dgreen,
                       margin: [0, 3, 0, 0],
                     },
+                  ],
+                },
+                {
+                  stack: [
+                    { text: E('ТРЕБУЮТ ВНИМАНИЯ'), style: 'lbl' },
+                    { text: String(probs.length), fontSize: 19, bold: true, color: '#B3261E', margin: [0, 3, 0, 0] },
                   ],
                 },
               ],
@@ -4022,43 +4058,43 @@
         });
         const rows = [
           [
-            { text: T('АДРЕС'), style: 'th' },
-            { text: T('ИСТОЧНИК'), style: 'th' },
+            { text: E('АДРЕС'), style: 'th' },
+            { text: E('ИСТОЧНИК'), style: 'th' },
             { text: 'CHARITY', style: 'th' },
-            { text: T('МЕШКИ'), style: 'th' },
-            { text: T('ДАТА'), style: 'th' },
-            { text: T('ОКНО'), style: 'th' },
-            { text: T('СОГЛАСОВАНИЕ'), style: 'th' },
-            { text: T('ЧТО ПРОИЗОШЛО'), style: 'th' },
-            { text: T('КОГДА'), style: 'th' },
-            { text: T('ПРИЧИНА / ЗАМЕТКА'), style: 'th' },
-            { text: T('ТЕЛЕФОН'), style: 'th' },
+            { text: E('МЕШКИ'), style: 'th' },
+            { text: E('ДАТА'), style: 'th' },
+            { text: E('ОКНО'), style: 'th' },
+            { text: E('СОГЛАСОВАНИЕ'), style: 'th' },
+            { text: E('ЧТО ПРОИЗОШЛО'), style: 'th' },
+            { text: E('КОГДА'), style: 'th' },
+            { text: E('ПРИЧИНА / ЗАМЕТКА'), style: 'th' },
+            { text: E('ТЕЛЕФОН'), style: 'th' },
           ],
         ];
-        EV_ROWS.forEach((r) =>
+        rows0.forEach((r) =>
           rows.push([
             { text: r.text + (r.zone ? '\n' + r.zone : ''), bold: true },
             C.sourceNames[r.source] || r.source || '—',
             r.charity || '—',
             r.bags || '—',
-            r.day ? dayShort(r.day) : '—',
+            r.day ? dayShortL(r.day, 'en') : '—',
             r.windowText || '—',
-            evAgreement(r) || '—',
-            { text: r.what, color: r.problem ? '#B3261E' : r.what === T('Выполнено') ? BRAND.dgreen : '#1A1A18' },
+            evAgreementL(r, 'en') || '—',
+            { text: r.what, color: r.problem ? '#B3261E' : r.status === 'done' ? BRAND.dgreen : '#1A1A18' },
             r.when || '—',
             r.reason || '—',
             (r.phone || '—') + (r.contact_name ? '\n' + r.contact_name : ''),
           ]),
         );
-        body.push({ text: T('Адреса'), style: 'sec' });
+        body.push({ text: E('Адреса'), style: 'sec' });
         body.push({
           table: { headerRows: 1, widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', '*', 'auto'], body: rows },
           layout: tableL(rows.length),
           fontSize: 7.5,
         });
-        const doc = pdfShell(T('Subnex Group Ltd  ·  Что случилось с адресами  ·  ') + ymLabel(ym), true);
+        const doc = pdfShell(E('Subnex Group Ltd  ·  Что случилось с адресами  ·  ') + ymLabel(ym), true);
         doc.content = body;
-        doc.info = { title: T('Subnex — что случилось с адресами — ') + ymLabel(ym), author: 'Subnex Group Ltd' };
+        doc.info = { title: E('Subnex — что случилось с адресами — ') + ymLabel(ym), author: 'Subnex Group Ltd' };
         return new Promise((res) => pdfMake.createPdf(doc).download('Subnex-events-' + ym + '.pdf', res));
       }
 
