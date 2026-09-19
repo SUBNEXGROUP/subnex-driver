@@ -20,9 +20,10 @@
     <link rel="stylesheet" href="subnex-ui.css?v=20260916-chatfix" />
     <link rel="stylesheet" href="ops-chat.css?v=20260916-console" />
     <link rel="stylesheet" href="ops-dispatch.css?v=20260916-replan" />
-    <script src="ops-chat.js?v=20260919-stage1"></script>
-    <script src="ops-dispatch-core.js?v=20260919-stage1"></script>
-    <script src="ops-dispatch.js?v=20260919-stage1"></script>
+    <script src="i18n.js?v=20260919-lang"></script>
+    <script src="ops-chat.js?v=20260919-lang"></script>
+    <script src="ops-dispatch-core.js?v=20260919-lang"></script>
+    <script src="ops-dispatch.js?v=20260919-lang"></script>
     <style>
       body {
         font-size: 15px;
@@ -203,7 +204,7 @@
           <div>
             <div class="big" id="cnt-today-left">0</div>
             <div class="lab">
-              <span data-i18n="left">Осталось</span> <span class="muted">из <span id="cnt-today">0</span></span>
+              <span data-i18n="left">Осталось</span> <span class="muted"><span data-i18n="ofWord">из</span> <span id="cnt-today">0</span></span>
             </div>
           </div>
           <div class="bar"><i id="today-progress" style="width: 0%"></i></div>
@@ -450,6 +451,7 @@
           addAddress: 'Добавить адрес',
           todayAddresses: 'Адреса на сегодня',
           left: 'Осталось',
+          ofWord: 'из',
           newAddresses: 'Новые адреса без даты',
           calendar: 'Календарь',
           archive: 'Архив',
@@ -611,6 +613,7 @@
           addAddress: 'Add address',
           todayAddresses: "Today's addresses",
           left: 'Left',
+          ofWord: 'of',
           newAddresses: 'New addresses without a date',
           calendar: 'Calendar',
           archive: 'Archive',
@@ -788,6 +791,15 @@
         },
         JSON.parse(localStorage.getItem(LKEY) || '{}'),
       );
+      /* Язык общий с модулями (переписка, очередь): они читают SubnexI18n. Если телефон
+         помнит другой язык, чем модули загрузились, — перезагружаемся один раз. */
+      if (window.SubnexI18n && SubnexI18n.lang !== LOCAL.lang) {
+        SubnexI18n.set(LOCAL.lang);
+        if (!sessionStorage.getItem('subnex_lang_sync')) {
+          sessionStorage.setItem('subnex_lang_sync', '1');
+          location.reload();
+        }
+      }
       function saveLocal() {
         localStorage.setItem(LKEY, JSON.stringify(LOCAL));
       }
@@ -2220,7 +2232,12 @@
         const langChanged = newLang !== LOCAL.lang;
         LOCAL.lang = newLang;
         saveLocal();
-        if (langChanged) applyLang();
+        if (langChanged) {
+          if (window.SubnexI18n) SubnexI18n.set(newLang);
+          applyLang();
+          /* Модули (переписка, очередь) собирают часть подписей при загрузке — перезагружаем. */
+          setTimeout(() => location.reload(), 300);
+        }
         renderSettings();
         toast(t('setSaved'));
       }

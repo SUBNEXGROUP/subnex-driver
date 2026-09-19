@@ -20,9 +20,10 @@
     <link rel="stylesheet" href="subnex-ui.css?v=20260916-chatfix" />
     <link rel="stylesheet" href="ops-chat.css?v=20260916-console" />
     <link rel="stylesheet" href="ops-dispatch.css?v=20260916-replan" />
-    <script src="ops-chat.js?v=20260919-stage1"></script>
-    <script src="ops-dispatch-core.js?v=20260919-stage1"></script>
-    <script src="ops-dispatch.js?v=20260919-stage1"></script>
+    <script src="i18n.js?v=20260919-lang"></script>
+    <script src="ops-chat.js?v=20260919-lang"></script>
+    <script src="ops-dispatch-core.js?v=20260919-lang"></script>
+    <script src="ops-dispatch.js?v=20260919-lang"></script>
     <style>
       .leaflet-container {
         font-family: var(--body);
@@ -192,6 +193,26 @@
               "
             ></select
           ></small>
+          <small style="display: block; margin-top: 6px"
+            >Язык:
+            <select
+              id="ui-lang"
+              onchange="SubnexI18n.set(this.value); location.reload()"
+              style="
+                background: transparent;
+                border: 0;
+                color: var(--rail-ink);
+                font: inherit;
+                font-size: 12px;
+                font-weight: 600;
+                padding: 0;
+                cursor: pointer;
+              "
+            >
+              <option value="ru">Русский</option>
+              <option value="en">English</option>
+            </select></small
+          >
         </div>
         <nav id="nav">
           <button data-page="today">
@@ -662,7 +683,7 @@
                   </div>
                   <button
                     class="btn btn-sm"
-                    onclick="hoursForm({ day: todayStr(), opens: '08:00', closes: '16:00', closed: false }, 'Исключение на дату')"
+                    onclick="hoursForm({ day: todayStr(), opens: '08:00', closes: '16:00', closed: false }, T('Исключение на дату'))"
                   >
                     Исключение на дату
                   </button>
@@ -1162,6 +1183,9 @@
     <script>
       /* ============ SUBNEX Пульт — админка. Логика базы сохранена, оболочка новая. ============ */
       'use strict';
+      /* Язык: разметка переводится один раз при загрузке; всё, что рисует код, идёт через функцию T. */
+      SubnexI18n.translateDom(document);
+      document.getElementById('ui-lang').value = SubnexI18n.lang;
       const CFG = typeof window !== 'undefined' && window.SUBNEX_CONFIG ? window.SUBNEX_CONFIG : {};
       const CFG_URL = CFG.url || '',
         CFG_KEY = CFG.key || '';
@@ -1177,16 +1201,16 @@
         editDrvId = null,
         editBankId = null;
       const STATUS_RU = {
-        new: 'Новый',
-        planned: 'Запланирован',
-        done: 'Выполнено',
-        noanswer: 'Не отвечает',
-        problem: 'Проблема',
-        cancelled: 'Отменено',
+        new: T('Новый'),
+        planned: T('Запланирован'),
+        done: T('Выполнено'),
+        noanswer: T('Не отвечает'),
+        problem: T('Проблема'),
+        cancelled: T('Отменено'),
       };
       const ST = (x) => STATUS_RU[x] || x;
       const DRIVER_COLORS = ['#0F6B4F', '#C2461F', '#2B5C9E', '#8E44AD', '#B7950B', '#148F9E', '#A93254', '#5D6D2E'];
-      const BANKPL = '<span class="chip bank">Контейнер</span>';
+      const BANKPL = `<span class="chip bank">${T('Контейнер')}</span>`;
       const C = window.SubnexDispatchCore;
       const todayStr = () => C.ukDay();
       const esc = (s) =>
@@ -1219,11 +1243,11 @@
         init();
       }
       const dayLabel = (d) =>
-        new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(
+        new Intl.DateTimeFormat(SubnexI18n.locale(), { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(
           new Date(d + 'T12:00:00Z'),
         );
       const dayShort = (d) =>
-        new Intl.DateTimeFormat('ru-RU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(
+        new Intl.DateTimeFormat(SubnexI18n.locale(), { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(
           new Date(d + 'T12:00:00Z'),
         );
       const addDays = (d, n) => new Date(Date.parse(d + 'T12:00:00Z') + n * 86400000).toISOString().slice(0, 10);
@@ -1231,7 +1255,7 @@
       function bagsLabel(a) {
         const raw = a.bags_text ? String(a.bags_text).trim() : a.bags ? String(a.bags) : '';
         if (!raw) return '';
-        return raw.replace(/\s*(?:to|-|–)\s*/i, '–') + ' мешк.';
+        return raw.replace(/\s*(?:to|-|–)\s*/i, '–') + T(' мешк.');
       }
 
       /* ---------- bank holidays ---------- */
@@ -1289,7 +1313,7 @@
         entering = true;
         try {
           const profile = await Ops.profile(sb);
-          if (profile.role !== 'admin') throw new Error('Требуется доступ администратора.');
+          if (profile.role !== 'admin') throw new Error(T('Требуется доступ администратора.'));
           OPS_PROFILE = profile;
           await enterMain();
         } finally {
@@ -1307,7 +1331,7 @@
             email: document.getElementById('admin-email').value.trim(),
             password: document.getElementById('admin-password').value,
           });
-          if (error) throw new Error('Не удалось войти. Проверьте email и пароль.');
+          if (error) throw new Error(T('Не удалось войти. Проверьте email и пароль.'));
           await acceptAdmin();
           document.getElementById('admin-password').value = '';
         } catch (e) {
@@ -1344,11 +1368,11 @@
       async function changePassword() {
         const field = document.getElementById('new-admin-password');
         if (field.value.length < 12) {
-          toast('Минимум 12 символов');
+          toast(T('Минимум 12 символов'));
           return;
         }
         const { error } = await sb.auth.updateUser({ password: field.value });
-        toast(error ? 'Не удалось изменить пароль. Войдите заново.' : 'Пароль изменён');
+        toast(error ? T('Не удалось изменить пароль. Войдите заново.') : T('Пароль изменён'));
         if (!error) field.value = '';
       }
 
@@ -1362,20 +1386,20 @@
         const sel = document.getElementById('drv-select');
         const prev = sel.value || localStorage.getItem('console_driver') || OPS_PROFILE?.driver_id || active[0]?.id || '';
         sel.innerHTML =
-          active.map((d) => `<option value="${d.id}">${esc(d.name)}</option>`).join('') || '<option value="">— нет водителей —</option>';
+          active.map((d) => `<option value="${d.id}">${esc(d.name)}</option>`).join('') || `<option value="">${T('— нет водителей —')}</option>`;
         sel.value = active.some((d) => d.id === prev) ? prev : active[0]?.id || '';
         const opts =
-          '<option value="">— не назначен —</option>' +
-          DRIVERS.map((d) => `<option value="${d.id}">${esc(d.name)}${d.active ? '' : ' (выкл)'}</option>`).join('');
+          `<option value="">${T('— не назначен —')}</option>` +
+          DRIVERS.map((d) => `<option value="${d.id}">${esc(d.name)}${d.active ? '' : T(' (выкл)')}</option>`).join('');
         document.getElementById('ma-driver').innerHTML = opts;
         document.getElementById('fl-driver').innerHTML =
-          '<option value="">Все водители</option><option value="none">Не назначен</option>' +
+          `<option value="">${T('Все водители')}</option><option value="none">${T('Не назначен')}</option>` +
           DRIVERS.map((d) => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
         document.getElementById('ph-driver').innerHTML =
-          '<option value="">Все водители</option>' + DRIVERS.map((d) => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
+          `<option value="">${T('Все водители')}</option>` + DRIVERS.map((d) => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
         document.getElementById('as-driver').innerHTML = active.map((d) => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
         document.getElementById('mm-driver').innerHTML =
-          '<option value="">Не назначен</option>' + active.map((d) => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
+          `<option value="">${T('Не назначен')}</option>` + active.map((d) => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
       }
       document.getElementById('drv-select').addEventListener('change', () => {
         localStorage.setItem('console_driver', document.getElementById('drv-select').value);
@@ -1415,16 +1439,16 @@
         return !!r && C.zoneKey(r) === C.zoneKey(z);
       };
       const tripZoneOn = (d) => C.tripZoneOf({ zones: ZONES }, d);
-      const WEEKDAYS = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+      const WEEKDAYS = [T('Воскресенье'), T('Понедельник'), T('Вторник'), T('Среда'), T('Четверг'), T('Пятница'), T('Суббота')];
       const ORDINALS = {
-        m: { 1: 'первый', 2: 'второй', 3: 'третий', 4: 'четвёртый', 5: 'последний' },
-        f: { 1: 'первая', 2: 'вторая', 3: 'третья', 4: 'четвёртая', 5: 'последняя' },
-        n: { 1: 'первое', 2: 'второе', 3: 'третье', 4: 'четвёртое', 5: 'последнее' },
+        m: { 1: T('первый'), 2: T('второй'), 3: T('третий'), 4: T('четвёртый'), 5: T('последний') },
+        f: { 1: T('первая'), 2: T('вторая'), 3: T('третья'), 4: T('четвёртая'), 5: T('последняя') },
+        n: { 1: T('первое'), 2: T('второе'), 3: T('третье'), 4: T('четвёртое'), 5: T('последнее') },
       };
       const WEEKGENDER = ['n', 'm', 'm', 'f', 'm', 'f', 'f'];
       const weekName = (wk, wd) => ORDINALS[WEEKGENDER[wd] || 'm'][wk] || ORDINALS[WEEKGENDER[wd] || 'm'][5];
       const zoneWhen = (z) =>
-        z.mode === 'monthly' ? `${weekName(z.week_of_month, z.weekday)} ${WEEKDAYS[z.weekday].toLowerCase()} месяца` : '';
+        z.mode === 'monthly' ? `${weekName(z.week_of_month, z.weekday)} ${WEEKDAYS[z.weekday].toLowerCase()} ${T('месяца')}` : '';
       async function driverPoints(driverId) {
         if (POINTS[driverId]) return POINTS[driverId];
         try {
@@ -1441,18 +1465,18 @@
         const p = await driverPoints(d.id);
         const pc = (t) => (C.postcode(t || '') || t || '').trim();
         document.getElementById('rail-points').innerHTML =
-          (C.validPoint(p.home) ? 'Старт ' + esc(pc(p.home.text) || 'задан') : '<span style="color:#E8A0A0">Старт не задан</span>') +
+          (C.validPoint(p.home) ? T('Старт ') + esc(pc(p.home.text) || T('задан')) : `<span style="color:#E8A0A0">${T('Старт не задан')}</span>`) +
           '<br>' +
-          (C.validPoint(p.depot) ? 'Склад ' + esc(pc(p.depot.text) || 'задан') : '<span style="color:#E8A0A0">Склад не задан</span>') +
+          (C.validPoint(p.depot) ? T('Склад ') + esc(pc(p.depot.text) || T('задан')) : `<span style="color:#E8A0A0">${T('Склад не задан')}</span>`) +
           '<br>' +
-          (p.enabled ? '<span style="color:var(--rail-ink)">Планировщик включён</span>' : 'Планировщик подготовлен, не включён');
+          (p.enabled ? `<span style="color:var(--rail-ink)">${T('Планировщик включён')}</span>` : T('Планировщик подготовлен, не включён'));
       }
 
       /* ---------- вход в пульт ---------- */
       async function enterMain() {
         document.getElementById('gate').style.display = 'none';
         document.getElementById('main').style.display = '';
-        document.getElementById('rail-user').textContent = OPS_PROFILE.email || 'Администратор';
+        document.getElementById('rail-user').textContent = OPS_PROFILE.email || T('Администратор');
         document.getElementById('dash-date').value = todayStr();
         document.getElementById('fl-date').value = '';
         document.getElementById('ph-date').value = todayStr();
@@ -1542,9 +1566,9 @@
           renderBadges();
           renderPage(PAGE, false);
           renderRailPoints();
-          if (!silent) toast('Данные обновлены');
+          if (!silent) toast(T('Данные обновлены'));
         } catch (e) {
-          toast('Ошибка загрузки данных');
+          toast(T('Ошибка загрузки данных'));
         } finally {
           refreshing = false;
           if (refreshAgain) {
@@ -1591,16 +1615,16 @@
         return new Set([...C.duplicateExtras(queue, rest)].filter((id) => !ok.has(id)));
       }
       function dupState(a) {
-        if (a.status === 'done') return 'собрана';
-        if (a.status === 'cancelled') return 'отменена';
+        if (a.status === 'done') return T('собрана');
+        if (a.status === 'cancelled') return T('отменена');
         if (a.collection_start)
           return (
-            'согласована на ' +
+            T('согласована на ') +
             dayShort(C.ukDay(a.collection_start)) +
-            (C.isDaySpan(a.collection_start, a.collection_end) ? ' (в течение дня)' : ', ' + C.hm(C.ukMinute(a.collection_start)))
+            (C.isDaySpan(a.collection_start, a.collection_end) ? T(' (в течение дня)') : ', ' + C.hm(C.ukMinute(a.collection_start)))
           );
-        if (a.date) return 'в маршруте на ' + dayShort(a.date);
-        return 'в очереди';
+        if (a.date) return T('в маршруте на ') + dayShort(a.date);
+        return T('в очереди');
       }
       function renderDups() {
         const host = document.getElementById('dup-host');
@@ -1613,7 +1637,7 @@
         const kept = [...dupOk()].map((id) => byId.get(id)).filter(Boolean);
         if (!rows.length && !kept.length) {
           host.innerHTML =
-            '<div class="card"><div class="empty">Повторов нет. Сюда попадают заявки, у которых совпал телефон или дом с уже существующей.</div></div>';
+            `<div class="card"><div class="empty">${T('Повторов нет. Сюда попадают заявки, у которых совпал телефон или дом с уже существующей.')}</div></div>`;
           return;
         }
         const card = (a) => {
@@ -1622,8 +1646,8 @@
       <div class="setrow">
         <div>
           <b>${esc(a.text)}</b>
-          <small class="muted">${esc(a.phone || 'телефона нет')}${a.charity ? ' · ' + esc(a.charity) : ''} · пришла ${esc(dayShort(String(a.created_at || '').slice(0, 10)))}</small>
-          <p class="muted" style="margin-top:6px">Совпадает с:</p>
+          <small class="muted">${esc(a.phone || T('телефона нет'))}${a.charity ? ' · ' + esc(a.charity) : ''} ${T('· пришла')} ${esc(dayShort(String(a.created_at || '').slice(0, 10)))}</small>
+          <p class="muted" style="margin-top:6px">${T('Совпадает с:')}</p>
           ${
             twins
               .map(
@@ -1632,21 +1656,21 @@
                 ) => `<p style="margin:4px 0"><a href="#" onclick="openAddrModal('${t.row.id}');return false;"><b>${esc(t.row.text)}</b></a>
             <br><span class="muted">${esc(t.why)} · ${esc(dupState(t.row))}</span></p>`,
               )
-              .join('') || '<p class="muted">совпадение больше не найдено</p>'
+              .join('') || `<p class="muted">${T('совпадение больше не найдено')}</p>`
           }
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;min-width:190px">
-          <button class="btn btn-sm" onclick="openAddrModal('${a.id}')">Открыть эту заявку</button>
-          <button class="btn btn-sm" onclick="dupKeep('${a.id}')">Это не повтор — в очередь</button>
-          <button class="btn btn-sm btn-crit" onclick="dupDrop('${a.id}')">Убрать как повтор</button>
+          <button class="btn btn-sm" onclick="openAddrModal('${a.id}')">${T('Открыть эту заявку')}</button>
+          <button class="btn btn-sm" onclick="dupKeep('${a.id}')">${T('Это не повтор — в очередь')}</button>
+          <button class="btn btn-sm btn-crit" onclick="dupDrop('${a.id}')">${T('Убрать как повтор')}</button>
         </div>
       </div>
     </div>`;
         };
         host.innerHTML =
-          (rows.length ? rows.map(card).join('') : '<div class="card"><div class="empty">Новых повторов нет.</div></div>') +
+          (rows.length ? rows.map(card).join('') : `<div class="card"><div class="empty">${T('Новых повторов нет.')}</div></div>`) +
           (kept.length
-            ? `<div class="card"><b>Отмечены как «не повтор»</b><p class="muted">Эти заявки стоят в общей очереди, хотя похожи на другие.</p>${kept.map((a) => `<div class="setrow"><div><b>${esc(a.text)}</b><small class="muted">${esc(dupState(a))}</small></div><button class="btn btn-sm" onclick="dupUnkeep('${a.id}')">Вернуть в повторы</button></div>`).join('')}</div>`
+            ? `<div class="card"><b>${T('Отмечены как «не повтор»')}</b><p class="muted">${T('Эти заявки стоят в общей очереди, хотя похожи на другие.')}</p>${kept.map((a) => `<div class="setrow"><div><b>${esc(a.text)}</b><small class="muted">${esc(dupState(a))}</small></div><button class="btn btn-sm" onclick="dupUnkeep('${a.id}')">${T('Вернуть в повторы')}</button></div>`).join('')}</div>`
             : '');
       }
       async function dupKeep(id) {
@@ -1657,7 +1681,7 @@
           QUEUE?.reload()
             .then(() => QUEUE.render())
             .catch(() => {});
-          toast('Заявка вернулась в очередь');
+          toast(T('Заявка вернулась в очередь'));
         } catch (e) {
           toast(Ops.error(e));
         }
@@ -1670,7 +1694,7 @@
           QUEUE?.reload()
             .then(() => QUEUE.render())
             .catch(() => {});
-          toast('Заявка снова в повторах');
+          toast(T('Заявка снова в повторах'));
         } catch (e) {
           toast(Ops.error(e));
         }
@@ -1678,11 +1702,11 @@
       async function dupDrop(id) {
         const a = ADDR.find((x) => x.id === id);
         if (!a) return;
-        if (!confirm('Убрать «' + a.text + '» как повтор?')) return;
+        if (!confirm(T('Убрать «') + a.text + T('» как повтор?'))) return;
         try {
           const { error } = await sb.from('addresses').update({ status: 'cancelled' }).eq('id', id);
           if (error) throw error;
-          toast('Убрано');
+          toast(T('Убрано'));
           await refreshAll(true);
           renderDups();
         } catch (e) {
@@ -1772,7 +1796,7 @@
         const ds = document.getElementById('dash-date').value || todayStr(),
           isToday = ds === todayStr();
         document.getElementById('today-title').textContent = isToday
-          ? 'Сегодня, ' + dayLabel(ds).replace(/^\S+,\s*/, '')
+          ? T('Сегодня, ') + dayLabel(ds).replace(/^\S+,\s*/, '')
           : cap(dayLabel(ds));
         const list = ADDR.filter((a) => a.date === ds && a.status !== 'cancelled');
         const done = list.filter((a) => a.status === 'done'),
@@ -1781,15 +1805,15 @@
         const left = list.length - done.length - noans.length - prob.length;
         const banks = list.filter((a) => a.kind === 'bank');
         document.getElementById('today-sub').textContent = list.length
-          ? `${list.length} ${plural(list.length, 'сбор', 'сбора', 'сборов')} · ${banks.length} ${plural(banks.length, 'контейнер', 'контейнера', 'контейнеров')} · осталось ${left}`
-          : 'На этот день сборов нет';
+          ? `${list.length} ${plural(list.length, T('сбор'), T('сбора'), T('сборов'))} · ${banks.length} ${plural(banks.length, T('контейнер'), T('контейнера'), T('контейнеров'))} ${T('· осталось')} ${left}`
+          : T('На этот день сборов нет');
         document.getElementById('dash-stats').innerHTML =
-          `<div class="tile brand"><div class="lab">Сборов на день</div><div class="val">${list.length}</div><div class="foot">${banks.length ? banks.length + ' — контейнеры' : 'все адреса'}</div></div>` +
-          `<div class="tile ok"><div class="lab">Выполнено</div><div class="val">${done.length}</div><div class="foot">${list.length ? Math.round((done.length / list.length) * 100) + '%' : '—'}</div></div>` +
-          `<div class="tile"><div class="lab">Осталось</div><div class="val">${left}</div><div class="foot">в работе</div></div>` +
-          `<div class="tile crit"><div class="lab">Не отвечает</div><div class="val">${noans.length}</div><div class="foot">повторно предложить</div></div>` +
-          `<div class="tile warn"><div class="lab">Проблема</div><div class="val">${prob.length}</div><div class="foot">${prob.length ? 'см. заметки' : '—'}</div></div>` +
-          `<div class="tile"><div class="lab">Фото за день</div><div class="val">${dayPhotoCount(ds)}</div><div class="foot">контейнеры и адреса</div></div>` +
+          `<div class="tile brand"><div class="lab">${T('Сборов на день')}</div><div class="val">${list.length}</div><div class="foot">${banks.length ? banks.length + T(' — контейнеры') : T('все адреса')}</div></div>` +
+          `<div class="tile ok"><div class="lab">${T('Выполнено')}</div><div class="val">${done.length}</div><div class="foot">${list.length ? Math.round((done.length / list.length) * 100) + '%' : '—'}</div></div>` +
+          `<div class="tile"><div class="lab">${T('Осталось')}</div><div class="val">${left}</div><div class="foot">${T('в работе')}</div></div>` +
+          `<div class="tile crit"><div class="lab">${T('Не отвечает')}</div><div class="val">${noans.length}</div><div class="foot">${T('повторно предложить')}</div></div>` +
+          `<div class="tile warn"><div class="lab">${T('Проблема')}</div><div class="val">${prob.length}</div><div class="foot">${prob.length ? T('см. заметки') : '—'}</div></div>` +
+          `<div class="tile"><div class="lab">${T('Фото за день')}</div><div class="val">${dayPhotoCount(ds)}</div><div class="foot">${T('контейнеры и адреса')}</div></div>` +
           ZONES.filter((z) => z.mode === 'monthly')
             .map((z) => {
               const n = ADDR.filter(
@@ -1801,7 +1825,7 @@
                   inZone(a, z),
               ).length;
               const next = (z.dates || [])[0];
-              return `<div class="tile far"><div class="lab">${esc(z.name)} · ждут</div><div class="val">${n}</div><div class="foot">${next ? 'выезд ' + esc(dayShort(next)) : 'день не задан'}</div></div>`;
+              return `<div class="tile far"><div class="lab">${esc(z.name)} ${T('· ждут')}</div><div class="val">${n}</div><div class="foot">${next ? T('выезд ') + esc(dayShort(next)) : T('день не задан')}</div></div>`;
             })
             .join('');
         /* внимание */
@@ -1811,16 +1835,16 @@
         if (old.length)
           items.push({
             cls: 'crit',
-            t: `${old.length} ${plural(old.length, 'заявка ждёт', 'заявки ждут', 'заявок ждут')} дольше 7 дней`,
-            p: 'Срок сбора после заявки — неделя. Распределите их в первую очередь.',
+            t: `${old.length} ${plural(old.length, T('заявка ждёт'), T('заявки ждут'), T('заявок ждут'))} ${T('дольше 7 дней')}`,
+            p: T('Срок сбора после заявки — неделя. Распределите их в первую очередь.'),
             go: () => go('requests', { sub: 'queue' }),
           });
         const noCoords = ADDR.filter((a) => activeAddr(a) && a.lat == null);
         if (noCoords.length)
           items.push({
             cls: 'crit',
-            t: `${noCoords.length} ${plural(noCoords.length, 'адрес без координат', 'адреса без координат', 'адресов без координат')}`,
-            p: 'Без точки на карте адрес не попадёт в расчёт маршрута. Откройте и уточните.',
+            t: `${noCoords.length} ${plural(noCoords.length, T('адрес без координат'), T('адреса без координат'), T('адресов без координат'))}`,
+            p: T('Без точки на карте адрес не попадёт в расчёт маршрута. Откройте и уточните.'),
             go: () => {
               document.getElementById('fl-status').value = 'open';
               document.getElementById('fl-q').value = '';
@@ -1831,8 +1855,8 @@
         if (noDriver.length)
           items.push({
             cls: 'warn',
-            t: `${noDriver.length} ${plural(noDriver.length, 'адрес без водителя', 'адреса без водителя', 'адресов без водителя')}`,
-            p: 'Назначьте водителя, иначе адрес никто не увидит.',
+            t: `${noDriver.length} ${plural(noDriver.length, T('адрес без водителя'), T('адреса без водителя'), T('адресов без водителя'))}`,
+            p: T('Назначьте водителя, иначе адрес никто не увидит.'),
             go: () => {
               document.getElementById('fl-driver').value = 'none';
               go('requests', { sub: 'all' });
@@ -1842,15 +1866,15 @@
         if (noPhone.length)
           items.push({
             cls: 'warn',
-            t: `${noPhone.length} ${plural(noPhone.length, 'заявка без телефона', 'заявки без телефона', 'заявок без телефона')}`,
-            p: 'SMS-согласование невозможно. Нужен мобильный номер или ручное подтверждение.',
+            t: `${noPhone.length} ${plural(noPhone.length, T('заявка без телефона'), T('заявки без телефона'), T('заявок без телефона'))}`,
+            p: T('SMS-согласование невозможно. Нужен мобильный номер или ручное подтверждение.'),
             go: () => go('requests', { sub: 'queue' }),
           });
         if (isToday && left > 0 && new Date().getHours() >= 15)
           items.push({
             cls: 'warn',
-            t: `Сегодня ещё ${left} ${plural(left, 'сбор', 'сбора', 'сборов')} без результата`,
-            p: 'Проверьте, что водитель отмечает результат на месте.',
+            t: `${T('Сегодня ещё')} ${left} ${plural(left, T('сбор'), T('сбора'), T('сборов'))} ${T('без результата')}`,
+            p: T('Проверьте, что водитель отмечает результат на месте.'),
             go: () => go('day', { date: ds }),
           });
         for (const z of ZONES.filter((z) => z.mode === 'monthly')) {
@@ -1866,8 +1890,8 @@
           if (list.length && next && next <= addDays(todayStr(), 7))
             items.push({
               cls: 'far',
-              t: `${z.name}: ${list.length} ${plural(list.length, 'адрес', 'адреса', 'адресов')} ждут выезда ${dayShort(next)}`,
-              p: 'Подберите им время заранее — до дня выезда осталась неделя или меньше.',
+              t: `${z.name}: ${list.length} ${plural(list.length, T('адрес'), T('адреса'), T('адресов'))} ${T('ждут выезда')} ${dayShort(next)}`,
+              p: T('Подберите им время заранее — до дня выезда осталась неделя или меньше.'),
               go: () => go('requests', { sub: 'queue' }),
             });
         }
@@ -1877,8 +1901,8 @@
         if (unknownZone.length)
           items.push({
             cls: 'warn',
-            t: `${unknownZone.length} ${plural(unknownZone.length, 'заявка', 'заявки', 'заявок')} вне настроенных районов`,
-            p: 'Такие адреса не попадут в автоматическое распределение. Добавьте район в настройках или назначьте сбор вручную.',
+            t: `${unknownZone.length} ${plural(unknownZone.length, T('заявка'), T('заявки'), T('заявок'))} ${T('вне настроенных районов')}`,
+            p: T('Такие адреса не попадут в автоматическое распределение. Добавьте район в настройках или назначьте сбор вручную.'),
             go: () => go('settings', { sub: 'zones' }),
           });
         const staleBanks = BANKS.filter((b) => b.active)
@@ -1893,7 +1917,7 @@
         if (staleBanks.length)
           items.push({
             cls: 'far',
-            t: `${staleBanks.length} ${plural(staleBanks.length, 'контейнер', 'контейнера', 'контейнеров')} без визита больше недели`,
+            t: `${staleBanks.length} ${plural(staleBanks.length, T('контейнер'), T('контейнера'), T('контейнеров'))} ${T('без визита больше недели')}`,
             p:
               staleBanks
                 .slice(0, 3)
@@ -1905,10 +1929,10 @@
           ? items
               .map(
                 (x, i) =>
-                  `<div class="att-item"><i class="att-dot ${x.cls}"></i><div><b>${esc(x.t)}</b><p>${esc(x.p)}</p></div><button class="btn btn-sm go" data-att="${i}">Открыть</button></div>`,
+                  `<div class="att-item"><i class="att-dot ${x.cls}"></i><div><b>${esc(x.t)}</b><p>${esc(x.p)}</p></div><button class="btn btn-sm go" data-att="${i}">${T('Открыть')}</button></div>`,
               )
               .join('')
-          : '<div class="empty">Всё под контролем. Ничего не требует внимания.</div>';
+          : `<div class="empty">${T('Всё под контролем. Ничего не требует внимания.')}</div>`;
         document.querySelectorAll('[data-att]').forEach((b) => (b.onclick = () => items[+b.dataset.att].go()));
         /* по водителям */
         const rows = DRIVERS.map((d) => {
@@ -1921,8 +1945,8 @@
         }).join('');
         const un = list.filter((a) => !a.driver_id);
         document.getElementById('dash-drivers').innerHTML =
-          (rows || '') + (un.length ? `<tr><td colspan="6" style="color:var(--crit)">Не назначено водителю: ${un.length}</td></tr>` : '') ||
-          '<tr><td colspan="6" class="empty">Нет данных на эту дату</td></tr>';
+          (rows || '') + (un.length ? `<tr><td colspan="6" style="color:var(--crit)">${T('Не назначено водителю:')} ${un.length}</td></tr>` : '') ||
+          `<tr><td colspan="6" class="empty">${T('Нет данных на эту дату')}</td></tr>`;
         document.getElementById('dash-drivers-sub').textContent = dayShort(ds);
         /* ближайшие дни */
         const drv = currentDriver();
@@ -1933,7 +1957,7 @@
           const dn = dl.filter((a) => a.status === 'done').length;
           const sun = new Date(d + 'T12:00:00Z').getUTCDay() === 0;
           strip.push(
-            `<button class="dayc ${i === 0 ? 'today' : ''} ${sun || BH[d] ? 'closed' : ''}" onclick="go('day',{date:'${d}'})"><div class="d">${i === 0 ? 'сегодня' : i === 1 ? 'завтра' : dayShort(d).split(',')[0]}</div><div class="dd">${dayShort(d).replace(/^\S+,\s*/, '')}</div><div class="bar"><i style="width:${Math.min(100, dl.length * 5)}%"></i></div><div class="meta">${BH[d] ? 'bank holiday' : sun ? 'воскресенье' : dl.length ? dl.length + ' ' + plural(dl.length, 'сбор', 'сбора', 'сборов') + (dn ? ' · ' + dn + ' ✓' : '') : 'свободен'}</div></button>`,
+            `<button class="dayc ${i === 0 ? 'today' : ''} ${sun || BH[d] ? 'closed' : ''}" onclick="go('day',{date:'${d}'})"><div class="d">${i === 0 ? T('сегодня') : i === 1 ? T('завтра') : dayShort(d).split(',')[0]}</div><div class="dd">${dayShort(d).replace(/^\S+,\s*/, '')}</div><div class="bar"><i style="width:${Math.min(100, dl.length * 5)}%"></i></div><div class="meta">${BH[d] ? 'bank holiday' : sun ? T('воскресенье') : dl.length ? dl.length + ' ' + plural(dl.length, T('сбор'), T('сбора'), T('сборов')) + (dn ? ' · ' + dn + ' ✓' : '') : T('свободен')}</div></button>`,
           );
         }
         document.getElementById('days-strip').innerHTML = strip.join('');
@@ -1951,11 +1975,11 @@
         const host = document.getElementById('req-queue');
         const d = currentDriver();
         if (!d) {
-          host.innerHTML = '<div class="card"><div class="empty">Сначала добавьте водителя: Настройки → Водители.</div></div>';
+          host.innerHTML = `<div class="card"><div class="empty">${T('Сначала добавьте водителя: Настройки → Водители.')}</div></div>`;
           return;
         }
         if (QUEUE && !QUEUE.closed) return;
-        host.innerHTML = '<div class="card"><div class="empty"><span class="spin"></span> Загружаю очередь…</div></div>';
+        host.innerHTML = `<div class="card"><div class="empty"><span class="spin"></span> ${T('Загружаю очередь…')}</div></div>`;
         try {
           QUEUE = await OpsDispatch.open({
             sb,
@@ -1979,11 +2003,11 @@
         const host = document.getElementById('set-dispatch');
         const d = currentDriver();
         if (!d) {
-          host.innerHTML = '<div class="card"><div class="empty">Сначала добавьте водителя.</div></div>';
+          host.innerHTML = `<div class="card"><div class="empty">${T('Сначала добавьте водителя.')}</div></div>`;
           return;
         }
         if (SETD && !SETD.closed) return;
-        host.innerHTML = '<div class="card"><div class="empty"><span class="spin"></span> Загружаю параметры…</div></div>';
+        host.innerHTML = `<div class="card"><div class="empty"><span class="spin"></span> ${T('Загружаю параметры…')}</div></div>`;
         try {
           SETD = await OpsDispatch.open({
             sb,
@@ -2029,17 +2053,17 @@
             .map(
               (a) => `
     <tr class="tap" onclick="openAddrModal('${a.id}')">
-      <td style="white-space:nowrap"><span class="mono">${a.date || a.cancelled_date || '—'}</span>${a.collection_start ? '<small class="ops-slot-label">' + esc(C.isDaySpan(a.collection_start, a.collection_end) ? 'в течение дня' : Ops.ukTime(a.collection_start) + '–' + Ops.ukTime(a.collection_end)) + '</small>' : ''}</td>
-      <td class="addr"><b>${a.kind === 'bank' ? BANKPL + ' ' : ''}${esc(a.text)}</b>${a.phone ? '<small>' + esc(a.phone) + '</small>' : ''}${photoCount(a.id) ? ` <span class="chip ghost" onclick="event.stopPropagation();openAddrGallery('${a.id}')">📷 ${photoCount(a.id)}</span>` : ''}${a.result_note ? '<span class="warnrow">' + esc(a.result_note) + '</span>' : ''}${a.lat == null && activeAddr(a) ? '<span class="warnrow">нет координат</span>' : ''}</td>
+      <td style="white-space:nowrap"><span class="mono">${a.date || a.cancelled_date || '—'}</span>${a.collection_start ? '<small class="ops-slot-label">' + esc(C.isDaySpan(a.collection_start, a.collection_end) ? T('в течение дня') : Ops.ukTime(a.collection_start) + '–' + Ops.ukTime(a.collection_end)) + '</small>' : ''}</td>
+      <td class="addr"><b>${a.kind === 'bank' ? BANKPL + ' ' : ''}${esc(a.text)}</b>${a.phone ? '<small>' + esc(a.phone) + '</small>' : ''}${photoCount(a.id) ? ` <span class="chip ghost" onclick="event.stopPropagation();openAddrGallery('${a.id}')">📷 ${photoCount(a.id)}</span>` : ''}${a.result_note ? '<span class="warnrow">' + esc(a.result_note) + '</span>' : ''}${a.lat == null && activeAddr(a) ? `<span class="warnrow">${T('нет координат')}</span>` : ''}</td>
       <td class="num" style="white-space:nowrap">${esc(bagsLabel(a)) || '—'}</td>
       <td style="font-size:12.5px">${a.charity ? esc(a.charity) : '<span class="muted">—</span>'}</td>
-      <td style="white-space:nowrap">${a.driver_id ? '<span class="dot" style="background:' + drvColor(a.driver_id) + '"></span>' + esc(drvName(a.driver_id)) : '<span style="color:var(--crit)">не назначен</span>'}</td>
-      <td><span class="chip st-${a.status}">${ST(a.status)}</span>${a.kind === 'bank' && a.fill_level != null ? ' <span class="chip ghost">' + a.fill_level + ' кг</span>' : ''}</td>
+      <td style="white-space:nowrap">${a.driver_id ? '<span class="dot" style="background:' + drvColor(a.driver_id) + '"></span>' + esc(drvName(a.driver_id)) : `<span style="color:var(--crit)">${T('не назначен')}</span>`}</td>
+      <td><span class="chip st-${a.status}">${ST(a.status)}</span>${a.kind === 'bank' && a.fill_level != null ? ' <span class="chip ghost">' + a.fill_level + ` ${T('кг')}</span>` : ''}</td>
     </tr>`,
             )
-            .join('') || '<tr><td colspan="6" class="empty">Ничего не найдено</td></tr>';
+            .join('') || `<tr><td colspan="6" class="empty">${T('Ничего не найдено')}</td></tr>`;
         document.getElementById('addr-count').textContent =
-          'Показано: ' + Math.min(list.length, 600) + (list.length > 600 ? ' из ' + list.length : '');
+          T('Показано: ') + Math.min(list.length, 600) + (list.length > 600 ? T(' из ') + list.length : '');
       }
 
       /* ---------- КАЛЕНДАРЬ ---------- */
@@ -2056,7 +2080,7 @@
         const y = calCursor.getFullYear(),
           m = calCursor.getMonth();
         const drv = currentDriver();
-        const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+        const months = [T('Январь'), T('Февраль'), T('Март'), T('Апрель'), T('Май'), T('Июнь'), T('Июль'), T('Август'), T('Сентябрь'), T('Октябрь'), T('Ноябрь'), T('Декабрь')];
         document.getElementById('cal-title').textContent = months[m] + ' ' + y;
         const startDow = (new Date(y, m, 1).getDay() + 6) % 7,
           days = new Date(y, m + 1, 0).getDate(),
@@ -2068,7 +2092,7 @@
           x.n++;
           if (a.status === 'done') x.done++;
         });
-        let html = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((d) => '<div class="dow">' + d + '</div>').join('');
+        let html = [T('Пн'), T('Вт'), T('Ср'), T('Чт'), T('Пт'), T('Сб'), T('Вс')].map((d) => '<div class="dow">' + d + '</div>').join('');
         for (let i = 0; i < startDow; i++) html += '<div class="cell out"></div>';
         for (let d = 1; d <= days; d++) {
           const ds = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
@@ -2080,7 +2104,7 @@
           if (BH[ds]) cls.push('bh');
           else if (sun) cls.push('rest');
           if (trip) cls.push('trip');
-          html += `<button class="${cls.join(' ')}" onclick="go('day',{date:'${ds}'})"><div class="n">${d}${ds === td ? ' <small>сегодня</small>' : ''}</div>${BH[ds] ? '<div class="tag">bank holiday</div>' : trip ? `<div class="tag trip">${esc(trip.name)}</div>` : ''}${x ? `<div class="cnt">${x.n} ${plural(x.n, 'сбор', 'сбора', 'сборов')}${x.done ? ' · ' + x.done + ' ✓' : ''}</div>` : ''}<div class="mini">${x ? `<i style="width:${Math.min(100, x.n * 5)}%" class="${x.done === x.n ? 'done' : ''}"></i>` : ''}</div></button>`;
+          html += `<button class="${cls.join(' ')}" onclick="go('day',{date:'${ds}'})"><div class="n">${d}${ds === td ? ` <small>${T('сегодня')}</small>` : ''}</div>${BH[ds] ? '<div class="tag">bank holiday</div>' : trip ? `<div class="tag trip">${esc(trip.name)}</div>` : ''}${x ? `<div class="cnt">${x.n} ${plural(x.n, T('сбор'), T('сбора'), T('сборов'))}${x.done ? ' · ' + x.done + ' ✓' : ''}</div>` : ''}<div class="mini">${x ? `<i style="width:${Math.min(100, x.n * 5)}%" class="${x.done === x.n ? 'done' : ''}"></i>` : ''}</div></button>`;
         }
         document.getElementById('cal-grid').innerHTML = html;
       }
@@ -2111,17 +2135,17 @@
         DAY.date = ds;
         const drv = currentDriver();
         document.getElementById('day-date').value = ds;
-        document.getElementById('day-title').textContent = cap(dayLabel(ds)) + (ds === todayStr() ? ' · сегодня' : '');
+        document.getElementById('day-title').textContent = cap(dayLabel(ds)) + (ds === todayStr() ? T(' · сегодня') : '');
         const list = dayList();
         const done = list.filter((a) => a.status === 'done').length,
           withTime = list.filter((a) => a.collection_start).length;
         const trip = tripZoneOn(ds);
         document.getElementById('day-sub').textContent =
           (drv ? drv.name + ' · ' : '') +
-          (trip ? 'день выезда в «' + trip.name + '» · ' : '') +
+          (trip ? T('день выезда в «') + trip.name + '» · ' : '') +
           (list.length
-            ? `${list.length} ${plural(list.length, 'сбор', 'сбора', 'сборов')}, ${withTime} с согласованным окном`
-            : 'сборов нет') +
+            ? `${list.length} ${plural(list.length, T('сбор'), T('сбора'), T('сборов'))}, ${withTime} ${T('с согласованным окном')}`
+            : T('сборов нет')) +
           (BH[ds] ? ' · bank holiday' : '');
         if (fresh) DAY.route = null;
         const note = document.getElementById('day-note');
@@ -2152,28 +2176,28 @@
         }
         /* статистика */
         const stats = [
-          ['Сборов', list.length, ''],
-          ['Выполнено', done, ''],
-          ['С окном', withTime, 'из ' + list.length],
+          [T('Сборов'), list.length, ''],
+          [T('Выполнено'), done, ''],
+          [T('С окном'), withTime, T('из ') + list.length],
         ];
         if (fit?.ok) {
           stats.push(
-            ['Выезд', C.hm(fit.departure), 'из дома'],
-            ['Склад', C.hm(fit.finish), 'прибытие'],
-            ['Дорога', Math.floor(fit.drive / 60) + ':' + String(fit.drive % 60).padStart(2, '0'), 'с запасом'],
+            [T('Выезд'), C.hm(fit.departure), T('из дома')],
+            [T('Склад'), C.hm(fit.finish), T('прибытие')],
+            [T('Дорога'), Math.floor(fit.drive / 60) + ':' + String(fit.drive % 60).padStart(2, '0'), T('с запасом')],
           );
         }
         document.getElementById('day-stats').innerHTML = stats
           .map((s) => `<div><div class="k">${s[0]}</div><div class="v">${s[1]}${s[2] ? ' <small>' + s[2] + '</small>' : ''}</div></div>`)
           .join('');
         document.getElementById('day-route-sub').textContent = fit?.ok
-          ? 'Расчёт по дорогам: прибытия, переезды и склад'
-          : 'По согласованному времени · дорога не рассчитана';
+          ? T('Расчёт по дорогам: прибытия, переезды и склад')
+          : T('По согласованному времени · дорога не рассчитана');
         /* таймлайн */
         const tl = document.getElementById('day-tl');
         if (!list.length) {
           tl.innerHTML =
-            '<div class="empty">На этот день сборов нет.<br><button class="btn btn-sm" style="margin-top:10px" onclick="openDispatchAdmin(\'queue\')">Открыть очередь заявок</button></div>';
+            `<div class="empty">${T('На этот день сборов нет.')}<br><button class="btn btn-sm" style="margin-top:10px" onclick="openDispatchAdmin('queue')">${T('Открыть очередь заявок')}</button></div>`;
           renderDayMap([], null);
           updateGmaps([], null);
           return;
@@ -2187,7 +2211,7 @@
         const rows = [];
         if (fit?.ok)
           rows.push(
-            `<div class="tl-row term"><div class="tl-time">${C.hm(fit.departure)}</div><div class="tl-axis"><i class="tl-node"></i></div><div class="tl-body"><div class="term-line">Выезд · ${esc(p.home.text || 'старт')}<small>Дорога до первого клиента ${fit.stops[0]?.travel ?? '—'} мин с запасом.</small></div></div></div>`,
+            `<div class="tl-row term"><div class="tl-time">${C.hm(fit.departure)}</div><div class="tl-axis"><i class="tl-node"></i></div><div class="tl-body"><div class="term-line">${T('Выезд ·')} ${esc(p.home.text || T('старт'))}<small>${T('Дорога до первого клиента')} ${fit.stops[0]?.travel ?? '—'} ${T('мин с запасом.')}</small></div></div></div>`,
           );
         const SERVICE = C.PLAN_DEFAULTS.service_minutes;
         let prevEnd = null,
@@ -2200,35 +2224,35 @@
             const gap = st - prevEnd;
             if (gap >= 20)
               rows.push(
-                `<div class="tl-row"><div class="tl-time">${C.hm(prevEnd)}</div><div class="tl-axis"></div><div class="tl-body"><div class="gap"><b>Не заполнено ${gap >= 60 ? Math.floor(gap / 60) + ' ч ' + (gap % 60 ? (gap % 60) + ' мин' : '') : gap + ' мин'}</b><span>между окнами · дорога не учтена · ${esc(C.zone(a.text))}</span></div></div></div>`,
+                `<div class="tl-row"><div class="tl-time">${C.hm(prevEnd)}</div><div class="tl-axis"></div><div class="tl-body"><div class="gap"><b>${T('Не заполнено')} ${gap >= 60 ? Math.floor(gap / 60) + T(' ч ') + (gap % 60 ? (gap % 60) + T(' мин') : '') : gap + T(' мин')}</b><span>${T('между окнами · дорога не учтена ·')} ${esc(C.zone(a.text))}</span></div></div></div>`,
               );
           }
           if (ar && i > 0)
             rows.push(
-              `<div class="tl-row"><div class="tl-time"></div><div class="tl-axis"></div><div class="tl-body" style="padding-top:0;padding-bottom:0"><div class="leg"><span class="dash"></span>переезд ${ar.travel} мин с запасом</div></div></div>`,
+              `<div class="tl-row"><div class="tl-time"></div><div class="tl-axis"></div><div class="tl-body" style="padding-top:0;padding-bottom:0"><div class="leg"><span class="dash"></span>${T('переезд')} ${ar.travel} ${T('мин с запасом')}</div></div></div>`,
             );
           const cls = a.status === 'done' ? 'done' : ['noanswer', 'problem'].includes(a.status) ? 'bad' : a.collection_start ? '' : 'hold';
           const dayMode = a.arrival_mode === 'day' || (st != null && C.isDaySpan(a.collection_start, a.collection_end));
           const eta = etas[a.id];
           const win = eta
-            ? 'SMS: ' + C.hm(eta.from) + '–' + C.hm(eta.to) + (eta.state === 'accepted' ? '' : eta.state === 'pending' || eta.state === 'dispatching' ? ' · отправляется' : ' · не ушла')
+            ? 'SMS: ' + C.hm(eta.from) + '–' + C.hm(eta.to) + (eta.state === 'accepted' ? '' : eta.state === 'pending' || eta.state === 'dispatching' ? T(' · отправляется') : T(' · не ушла'))
             : dayMode
               ? started
-                ? 'в течение дня · SMS не ушла'
-                : 'в течение дня · окно уйдёт при старте'
+                ? T('в течение дня · SMS не ушла')
+                : T('в течение дня · окно уйдёт при старте')
               : st != null
                 ? st === en
                   ? C.hm(st)
                   : C.hm(st) + '–' + C.hm(en)
-                : 'время не согласовано';
+                : T('время не согласовано');
           rows.push(
-            `<div class="tl-row ${cls}"><div class="tl-time">${ar ? '≈ ' + C.hm(ar.arrival) : st != null ? C.hm(st) : ''}</div><div class="tl-axis"><i class="tl-node"></i></div><div class="tl-body"><button class="stop tap ${a.status === 'done' ? 'done' : ''} ${st == null ? 'held' : ''}" onclick="openAddrModal('${a.id}')"><div class="stop-top"><b>${i + 1}. ${a.kind === 'bank' ? BANKPL + ' ' : ''}${esc(a.text)}</b><span class="win">${win}</span></div><div class="det">${bagsLabel(a) ? '<span>' + esc(bagsLabel(a)) + '</span>' : ''}${a.phone ? '<span class="mono">' + esc(a.phone) + '</span>' : ''}<span class="chip st-${a.status}">${ST(a.status)}</span>${a.intake_channel || a.collection_source ? '<span class="chip src-' + ({ subnex_website: 'site', partner_email: 'mail', partner_whatsapp: 'wapart', missing: 'wamiss' }[C.sourceOf(a)] || 'wamiss') + '">' + esc(C.sourceNames[C.sourceOf(a)]) + '</span>' : ''}${!hasCoords(a) ? '<span class="chip st-bad">нет координат</span>' : a.geocode_source === 'postcode' ? '<span class="chip ghost">точка по индексу</span>' : ''}${a.charity ? '<span class="chip ghost">' + esc(a.charity) + '</span>' : ''}${a.note ? '<span>' + esc(a.note) + '</span>' : ''}</div></button></div></div>`,
+            `<div class="tl-row ${cls}"><div class="tl-time">${ar ? '≈ ' + C.hm(ar.arrival) : st != null ? C.hm(st) : ''}</div><div class="tl-axis"><i class="tl-node"></i></div><div class="tl-body"><button class="stop tap ${a.status === 'done' ? 'done' : ''} ${st == null ? 'held' : ''}" onclick="openAddrModal('${a.id}')"><div class="stop-top"><b>${i + 1}. ${a.kind === 'bank' ? BANKPL + ' ' : ''}${esc(a.text)}</b><span class="win">${win}</span></div><div class="det">${bagsLabel(a) ? '<span>' + esc(bagsLabel(a)) + '</span>' : ''}${a.phone ? '<span class="mono">' + esc(a.phone) + '</span>' : ''}<span class="chip st-${a.status}">${ST(a.status)}</span>${a.intake_channel || a.collection_source ? '<span class="chip src-' + ({ subnex_website: 'site', partner_email: 'mail', partner_whatsapp: 'wapart', missing: 'wamiss' }[C.sourceOf(a)] || 'wamiss') + '">' + esc(C.sourceNames[C.sourceOf(a)]) + '</span>' : ''}${!hasCoords(a) ? `<span class="chip st-bad">${T('нет координат')}</span>` : a.geocode_source === 'postcode' ? `<span class="chip ghost">${T('точка по индексу')}</span>` : ''}${a.charity ? '<span class="chip ghost">' + esc(a.charity) + '</span>' : ''}${a.note ? '<span>' + esc(a.note) + '</span>' : ''}</div></button></div></div>`,
           );
           prevEnd = en != null ? en + SERVICE : null;
         });
         if (fit?.ok)
           rows.push(
-            `<div class="tl-row term"><div class="tl-time">${C.hm(fit.finish)}</div><div class="tl-axis"><i class="tl-node"></i></div><div class="tl-body"><div class="term-line">Склад · ${esc(p.depot.text || '')}<small>После последнего сбора; за пределы часов прибытия это не выводит.</small></div></div></div>`,
+            `<div class="tl-row term"><div class="tl-time">${C.hm(fit.finish)}</div><div class="tl-axis"><i class="tl-node"></i></div><div class="tl-body"><div class="term-line">${T('Склад ·')} ${esc(p.depot.text || '')}<small>${T('После последнего сбора; за пределы часов прибытия это не выводит.')}</small></div></div></div>`,
           );
         tl.innerHTML = rows.join('');
         renderDayMap(list, geometry, p);
@@ -2260,13 +2284,13 @@
             }),
           })
             .addTo(DAY.map)
-            .bindPopup(`<b>${esc(a.text)}</b><br>${esc(Ops.slotLabel(a) || 'время не согласовано')}<br>${ST(a.status)}`)
+            .bindPopup(`<b>${esc(a.text)}</b><br>${esc(Ops.slotLabel(a) || T('время не согласовано'))}<br>${ST(a.status)}`)
             .on('click', () => {});
         });
         p = p || {};
         for (const [pt, lab, sym] of [
-          [p.home, 'Старт', 'S'],
-          [p.depot, 'Склад', 'F'],
+          [p.home, T('Старт'), 'S'],
+          [p.depot, T('Склад'), 'F'],
         ]) {
           if (!hasCoords(pt)) continue;
           pts.push([pt.lat, pt.lng]);
@@ -2298,14 +2322,14 @@
             zIndexOffset: 1000,
           })
             .addTo(DAY.map)
-            .bindPopup(`<b>${esc(d.name)}</b><br>онлайн · ${mins === 0 ? 'только что' : mins + ' мин назад'}`);
+            .bindPopup(`<b>${esc(d.name)}</b><br>${T('онлайн ·')} ${mins === 0 ? T('только что') : mins + T(' мин назад')}`);
         });
         if (pts.length) DAY.map.fitBounds(L.latLngBounds(pts).pad(0.2));
         else DAY.map.setView([51.6, -3.4], 9);
         document.getElementById('day-legend').innerHTML =
-          '<span><span class="sw" style="background:#0E1A15"></span>в работе</span><span><span class="sw" style="background:#17764F"></span>выполнено</span><span><span class="sw" style="background:#A22B22"></span>не отвечает</span><span><span class="sw" style="background:#D9A300"></span>проблема</span>' +
-          (live ? '<span><span class="sw" style="background:#0B1813;box-shadow:0 0 0 2px #F2B807"></span>водитель онлайн</span>' : '') +
-          (DAY.route?.sketch ? '<span style="color:var(--warn)">Пунктир: дорога не рассчитана, точки соединены по порядку</span>' : '');
+          `<span><span class="sw" style="background:#0E1A15"></span>${T('в работе')}</span><span><span class="sw" style="background:#17764F"></span>${T('выполнено')}</span><span><span class="sw" style="background:#A22B22"></span>${T('не отвечает')}</span><span><span class="sw" style="background:#D9A300"></span>${T('проблема')}</span>` +
+          (live ? `<span><span class="sw" style="background:#0B1813;box-shadow:0 0 0 2px #F2B807"></span>${T('водитель онлайн')}</span>` : '') +
+          (DAY.route?.sketch ? `<span style="color:var(--warn)">${T('Пунктир: дорога не рассчитана, точки соединены по порядку')}</span>` : '');
       }
       function updateGmaps(list, p) {
         const a = document.getElementById('day-gmaps');
@@ -2383,33 +2407,33 @@
         const week = document.getElementById('hours-week'),
           daysEl = document.getElementById('hours-days'),
           mem = document.getElementById('members');
-        week.innerHTML = '<div class="muted small">Загружаю…</div>';
+        week.innerHTML = `<div class="muted small">${T('Загружаю…')}</div>`;
         try {
           HOURS = await Ops.api(sb, 'hours');
           const members = await Ops.api(sb, 'members');
-          const names = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'],
+          const names = [T('Воскресенье'), T('Понедельник'), T('Вторник'), T('Среда'), T('Четверг'), T('Пятница'), T('Суббота')],
             order = [1, 2, 3, 4, 5, 6, 0];
           week.innerHTML = order
             .map((wd) => {
               const x = HOURS.week.find((h) => h.weekday === wd) || { weekday: wd, opens: '08:00', closes: '16:00', closed: true };
-              return `<button class="hcell ${x.closed ? 'off' : ''}" onclick='hoursForm(${JSON.stringify(x)},"${names[wd]}")'><div class="d">${names[wd]}</div><div class="h">${x.closed ? 'выходной' : x.opens.slice(0, 5) + '–' + x.closes.slice(0, 5)}</div></button>`;
+              return `<button class="hcell ${x.closed ? 'off' : ''}" onclick='hoursForm(${JSON.stringify(x)},"${names[wd]}")'><div class="d">${names[wd]}</div><div class="h">${x.closed ? T('выходной') : x.opens.slice(0, 5) + '–' + x.closes.slice(0, 5)}</div></button>`;
             })
             .join('');
           daysEl.innerHTML = HOURS.days.length
             ? HOURS.days
                 .map(
                   (x) =>
-                    `<button class="chip ghost" style="cursor:pointer;min-height:28px" onclick='hoursForm(${JSON.stringify(x)},"Исключение на дату")'>${esc(dayShort(x.day))} · ${x.closed ? 'выходной' : esc(x.opens.slice(0, 5) + '–' + x.closes.slice(0, 5))}</button>`,
+                    `<button class="chip ghost" style="cursor:pointer;min-height:28px" onclick='hoursForm(${JSON.stringify(x)},"${T('Исключение на дату')}")'>${esc(dayShort(x.day))} · ${x.closed ? T('выходной') : esc(x.opens.slice(0, 5) + '–' + x.closes.slice(0, 5))}</button>`,
                 )
                 .join('')
-            : '<span class="muted small">Исключений на даты нет.</span>';
+            : `<span class="muted small">${T('Исключений на даты нет.')}</span>`;
           mem.innerHTML =
             members.members
               .map(
                 (m) =>
-                  `<div class="setrow"><div><b>${esc(m.email)}</b><p>${m.role === 'admin' ? 'Администратор' : 'Водитель'}${m.driver_id ? ' · ' + esc(drvName(m.driver_id)) : ''}</p></div><span class="chip ${m.active ? 'st-ok' : 'st-bad'}">${m.active ? 'активен' : 'отключён'}</span></div>`,
+                  `<div class="setrow"><div><b>${esc(m.email)}</b><p>${m.role === 'admin' ? T('Администратор') : T('Водитель')}${m.driver_id ? ' · ' + esc(drvName(m.driver_id)) : ''}</p></div><span class="chip ${m.active ? 'st-ok' : 'st-bad'}">${m.active ? T('активен') : T('отключён')}</span></div>`,
               )
-              .join('') || '<div class="empty">Аккаунтов пока нет.</div>';
+              .join('') || `<div class="empty">${T('Аккаунтов пока нет.')}</div>`;
         } catch (e) {
           week.innerHTML = '<div class="note crit">' + esc(Ops.error(e)) + '</div>';
         }
@@ -2438,7 +2462,7 @@
             closed: document.getElementById('mh-closed').checked,
           });
           closeModal('m-hours-bg');
-          toast('График сохранён');
+          toast(T('График сохранён'));
           renderHours();
         } catch (e) {
           document.getElementById('mh-err').textContent = Ops.error(e);
@@ -2450,7 +2474,7 @@
         try {
           await Ops.api(sb, 'save_hours', { day: HOURS_EDIT.day, remove: true });
           closeModal('m-hours-bg');
-          toast('Исключение снято');
+          toast(T('Исключение снято'));
           renderHours();
         } catch (e) {
           document.getElementById('mh-err').textContent = Ops.error(e);
@@ -2474,7 +2498,7 @@
             active: document.getElementById('mm-active').checked,
           });
           closeModal('m-member-bg');
-          toast('Доступ сохранён');
+          toast(T('Доступ сохранён'));
           renderHours();
         } catch (e) {
           document.getElementById('mm-err').textContent = Ops.error(e);
@@ -2486,10 +2510,10 @@
       /* ---------- зоны выезда ---------- */
       async function renderZones() {
         const host = document.getElementById('zones-list');
-        host.innerHTML = '<div class="empty"><span class="spin"></span> Загружаю…</div>';
+        host.innerHTML = `<div class="empty"><span class="spin"></span> ${T('Загружаю…')}</div>`;
         await loadZones();
         if (!ZONES.length) {
-          host.innerHTML = '<div class="empty">Зоны не настроены. Выполните 12_far_zones.sql, затем обновите страницу.</div>';
+          host.innerHTML = `<div class="empty">${T('Зоны не настроены. Выполните 12_far_zones.sql, затем обновите страницу.')}</div>`;
           return;
         }
         const waiting = (p) =>
@@ -2502,19 +2526,19 @@
             next = (z.dates || [])[0];
           const badge =
             z.mode === 'regular'
-              ? '<span class="chip st-ok">обычный район</span>'
+              ? `<span class="chip st-ok">${T('обычный район')}</span>`
               : z.mode === 'monthly'
-                ? '<span class="chip st-far">раз в месяц</span>'
-                : '<span class="chip st-cancelled">выключен</span>';
-          const span = (z.num_from ?? 0) === 0 && (z.num_to ?? 99) === 99 ? '' : `индексы ${z.num_from}–${z.num_to}`;
-          return `<div class="setrow"><div><b>${esc(z.code || z.prefix)} · ${esc(z.name)}</b><small class="muted">${esc(span)}</small><p>${badge} ${z.mode === 'monthly' ? esc(zoneWhen(z)) + (next ? ' · ближайший выезд ' + esc(dayShort(next)) : '') : ''}${n ? ` · ждут распределения: ${n}` : ''}</p></div><button class="btn btn-sm" onclick="zoneForm('${esc(z.code || z.prefix)}')">Изменить</button></div>`;
+                ? `<span class="chip st-far">${T('раз в месяц')}</span>`
+                : `<span class="chip st-cancelled">${T('выключен')}</span>`;
+          const span = (z.num_from ?? 0) === 0 && (z.num_to ?? 99) === 99 ? '' : `${T('индексы')} ${z.num_from}–${z.num_to}`;
+          return `<div class="setrow"><div><b>${esc(z.code || z.prefix)} · ${esc(z.name)}</b><small class="muted">${esc(span)}</small><p>${badge} ${z.mode === 'monthly' ? esc(zoneWhen(z)) + (next ? T(' · ближайший выезд ') + esc(dayShort(next)) : '') : ''}${n ? ` ${T('· ждут распределения:')} ${n}` : ''}</p></div><button class="btn btn-sm" onclick="zoneForm('${esc(z.code || z.prefix)}')">${T('Изменить')}</button></div>`;
         }).join('');
       }
       let zonePrevCode = null;
       function zoneForm(code) {
         const z = code ? ZONES.find((x) => (x.code || x.prefix) === code) : null;
         zonePrevCode = z ? z.code || z.prefix : null;
-        document.getElementById('m-zone-title').textContent = z ? (z.code || z.prefix) + ' · ' + z.name : 'Новый район';
+        document.getElementById('m-zone-title').textContent = z ? (z.code || z.prefix) + ' · ' + z.name : T('Новый район');
         document.getElementById('mz-prefix').value = z ? z.code || z.prefix : '';
         document.getElementById('mz-prefix').disabled = false;
         document.getElementById('mz-name').value = z ? z.name : '';
@@ -2533,19 +2557,19 @@
         if (!monthly) {
           p.textContent =
             document.getElementById('mz-mode').value === 'off'
-              ? 'Адреса этого района не будут распределяться автоматически.'
-              : 'Адреса распределяются в любой рабочий день.';
+              ? T('Адреса этого района не будут распределяться автоматически.')
+              : T('Адреса распределяются в любой рабочий день.');
           return;
         }
         const wd = +document.getElementById('mz-weekday').value,
           wk = +document.getElementById('mz-week').value;
         const next = C.nextTripDays({ mode: 'monthly', weekday: wd, week_of_month: wk }, todayStr(), 3);
         p.textContent =
-          'Выезд: ' +
+          T('Выезд: ') +
           weekName(wk, wd) +
           ' ' +
           WEEKDAYS[wd].toLowerCase() +
-          ' месяца. Ближайшие: ' +
+          T(' месяца. Ближайшие: ') +
           next.map((d) => dayShort(d)).join(', ') +
           '.';
       }
@@ -2556,8 +2580,8 @@
         try {
           const code = document.getElementById('mz-prefix').value.replace(/\s+/g, '').toUpperCase();
           const parsed = /^([A-Z]{1,2})(?:(\d{1,2})(?:-(\d{1,2}))?)?$/.exec(code);
-          if (!parsed) throw new Error('Код района: буквы индекса и, если нужно, номера — BS, SA43, SA14-99.');
-          if (parsed[3] && +parsed[3] < +parsed[2]) throw new Error('Второй номер диапазона должен быть больше первого.');
+          if (!parsed) throw new Error(T('Код района: буквы индекса и, если нужно, номера — BS, SA43, SA14-99.'));
+          if (parsed[3] && +parsed[3] < +parsed[2]) throw new Error(T('Второй номер диапазона должен быть больше первого.'));
           const mode = document.getElementById('mz-mode').value;
           const { error } = await sb.rpc('subnex_zones', {
             p_action: 'save',
@@ -2572,7 +2596,7 @@
           });
           if (error) throw error;
           closeModal('m-zone-bg');
-          toast('Район сохранён');
+          toast(T('Район сохранён'));
           await renderZones();
           renderCal();
         } catch (e) {
@@ -2583,12 +2607,12 @@
       }
       async function zoneDelete() {
         const code = (zonePrevCode || document.getElementById('mz-prefix').value).replace(/\s+/g, '').toUpperCase();
-        if (!confirm('Убрать район ' + code + '? Адреса с этим индексом перестанут распределяться автоматически.')) return;
+        if (!confirm(T('Убрать район ') + code + T('? Адреса с этим индексом перестанут распределяться автоматически.'))) return;
         try {
           const { error } = await sb.rpc('subnex_zones', { p_action: 'delete', p_data: { code } });
           if (error) throw error;
           closeModal('m-zone-bg');
-          toast('Район убран');
+          toast(T('Район убран'));
           await renderZones();
           renderCal();
         } catch (e) {
@@ -2603,7 +2627,7 @@
         const creds = getCreds();
         document.getElementById('intake-url').value = creds.url;
         document.getElementById('intake-key').value = creds.key;
-        host.innerHTML = '<div class="empty"><span class="spin"></span> Загружаю…</div>';
+        host.innerHTML = `<div class="empty"><span class="spin"></span> ${T('Загружаю…')}</div>`;
         try {
           const { data, error } = await sb.rpc('subnex_intake_admin', { p_action: 'list', p_data: {} });
           if (error) throw error;
@@ -2611,29 +2635,29 @@
             (data.tokens || [])
               .map(
                 (t) =>
-                  `<div class="setrow"><div><b>${esc(t.name)}</b><p>${t.active ? '<span class="chip st-ok">включён</span>' : '<span class="chip st-cancelled">выключен</span>'} · ключ …${esc(t.tail)} · водитель ${esc(t.driver || 'не назначен')}<br>писем принято: ${t.used_count} · заявок создано: ${t.created_rows}${t.last_used_at ? ' · последний раз ' + esc(dayShort(t.last_used_at.slice(0, 10))) : ' · ещё не использовался'}</p></div><div class="row" style="gap:6px"><button class="btn btn-sm" onclick="intakeToggle('${t.id}',${!t.active})">${t.active ? 'Выключить' : 'Включить'}</button><button class="btn btn-sm btn-crit" onclick="intakeDelete('${t.id}')">Удалить</button></div></div>`,
+                  `<div class="setrow"><div><b>${esc(t.name)}</b><p>${t.active ? `<span class="chip st-ok">${T('включён')}</span>` : `<span class="chip st-cancelled">${T('выключен')}</span>`} ${T('· ключ …')}${esc(t.tail)} ${T('· водитель')} ${esc(t.driver || T('не назначен'))}<br>${T('писем принято:')} ${t.used_count} ${T('· заявок создано:')} ${t.created_rows}${t.last_used_at ? T(' · последний раз ') + esc(dayShort(t.last_used_at.slice(0, 10))) : T(' · ещё не использовался')}</p></div><div class="row" style="gap:6px"><button class="btn btn-sm" onclick="intakeToggle('${t.id}',${!t.active})">${t.active ? T('Выключить') : T('Включить')}</button><button class="btn btn-sm btn-crit" onclick="intakeDelete('${t.id}')">${T('Удалить')}</button></div></div>`,
               )
-              .join('') || '<div class="empty">Ключей нет. Создайте ключ и вставьте его в скрипт почты.</div>';
+              .join('') || `<div class="empty">${T('Ключей нет. Создайте ключ и вставьте его в скрипт почты.')}</div>`;
           log.innerHTML = (data.recent || []).length
-            ? `<table class="t"><thead><tr><th>Когда</th><th>Адрес</th><th>Итог</th></tr></thead><tbody>${data.recent.map((r) => `<tr><td class="mono" style="white-space:nowrap;font-size:12px">${esc(r.created_at.slice(5, 16).replace('T', ' '))}</td><td class="addr"><b>${esc(r.address || r.ref)}</b></td><td>${r.outcome === 'created' ? '<span class="chip st-ok">добавлено</span>' : `<span class="chip st-wait">${esc(r.detail || 'пропущено')}</span>`}</td></tr>`).join('')}</tbody></table>`
-            : '<div class="empty">Писем пока не приходило.</div>';
+            ? `<table class="t"><thead><tr><th>${T('Когда')}</th><th>${T('Адрес')}</th><th>${T('Итог')}</th></tr></thead><tbody>${data.recent.map((r) => `<tr><td class="mono" style="white-space:nowrap;font-size:12px">${esc(r.created_at.slice(5, 16).replace('T', ' '))}</td><td class="addr"><b>${esc(r.address || r.ref)}</b></td><td>${r.outcome === 'created' ? `<span class="chip st-ok">${T('добавлено')}</span>` : `<span class="chip st-wait">${esc(r.detail || T('пропущено'))}</span>`}</td></tr>`).join('')}</tbody></table>`
+            : `<div class="empty">${T('Писем пока не приходило.')}</div>`;
         } catch (e) {
           host.innerHTML =
-            '<div class="empty">' + esc(Ops.error(e)) + '<br><span class="small">Если раздела нет — выполните 13_intake.sql.</span></div>';
+            '<div class="empty">' + esc(Ops.error(e)) + `<br><span class="small">${T('Если раздела нет — выполните 13_intake.sql.')}</span></div>`;
           log.innerHTML = '';
         }
       }
       async function intakeCreate() {
         const drv = currentDriver();
         if (!drv) {
-          toast('Сначала выберите водителя в левом меню');
+          toast(T('Сначала выберите водителя в левом меню'));
           return;
         }
-        if (!confirm('Создать ключ приёма? Заявки из почты будут назначаться водителю ' + drv.name + '.')) return;
+        if (!confirm(T('Создать ключ приёма? Заявки из почты будут назначаться водителю ') + drv.name + '.')) return;
         try {
           const { data, error } = await sb.rpc('subnex_intake_admin', {
             p_action: 'create',
-            p_data: { name: 'Почта партнёра', driver_id: drv.id, channel: 'partner_email' },
+            p_data: { name: T('Почта партнёра'), driver_id: drv.id, channel: 'partner_email' },
           });
           if (error) throw error;
           document.getElementById('mi-secret').value = data.secret;
@@ -2647,10 +2671,10 @@
         const f = document.getElementById('mi-secret');
         try {
           await navigator.clipboard.writeText(f.value);
-          toast('Ключ скопирован');
+          toast(T('Ключ скопирован'));
         } catch {
           f.select();
-          toast('Выделено — скопируйте вручную');
+          toast(T('Выделено — скопируйте вручную'));
         }
       }
       async function intakeToggle(id, on) {
@@ -2663,7 +2687,7 @@
         }
       }
       async function intakeDelete(id) {
-        if (!confirm('Удалить ключ? Скрипт почты перестанет добавлять заявки, пока вы не вставите новый ключ.')) return;
+        if (!confirm(T('Удалить ключ? Скрипт почты перестанет добавлять заявки, пока вы не вставите новый ключ.'))) return;
         try {
           const { error } = await sb.rpc('subnex_intake_admin', { p_action: 'delete', p_data: { id } });
           if (error) throw error;
@@ -2731,7 +2755,7 @@
         });
         document.getElementById('ma-save').disabled = cancelled;
         document.querySelector('#ma-status option[value=cancelled]').disabled = true;
-        document.getElementById('m-addr-title').textContent = a.kind === 'bank' ? 'Визит к контейнеру' : 'Адрес';
+        document.getElementById('m-addr-title').textContent = a.kind === 'bank' ? T('Визит к контейнеру') : T('Адрес');
         document.getElementById('ma-text').value = a.text;
         document.getElementById('ma-bags').value = a.bags || '';
         document.getElementById('ma-phone').value = a.phone || '';
@@ -2747,10 +2771,10 @@
         document.getElementById('ma-move').style.display =
           !cancelled && a.kind !== 'bank' && ['new', 'planned'].includes(a.status) ? '' : 'none';
         document.getElementById('ma-slot').textContent = cancelled
-          ? 'Заявка закрыта. Для следующего сбора: Переписка → Новая заявка.'
+          ? T('Заявка закрыта. Для следующего сбора: Переписка → Новая заявка.')
           : a.collection_start
-            ? 'Согласовано: ' + Ops.slotLabel(a)
-            : 'Время не согласовано';
+            ? T('Согласовано: ') + Ops.slotLabel(a)
+            : T('Время не согласовано');
         /* Дата и время — только через «Перенести»: сервер проверяет дорогу, часы и день выезда.
            Статус руками можно править только как результат уже назначенного сбора. */
         document.getElementById('ma-date').disabled = true;
@@ -2762,15 +2786,15 @@
         if (!OPS_PROFILE || !old || old.status === 'cancelled') return;
         const text = document.getElementById('ma-text').value.trim();
         if (!text) {
-          toast('Введите адрес');
+          toast(T('Введите адрес'));
           return;
         }
         const btn = document.getElementById('ma-save');
         btn.disabled = true;
-        btn.innerHTML = '<span class="spin"></span> Сохраняю…';
+        btn.innerHTML = `<span class="spin"></span> ${T('Сохраняю…')}`;
         const restore = () => {
           btn.disabled = false;
-          btn.textContent = 'Сохранить';
+          btn.textContent = T('Сохранить');
         };
         /* Пишем только то, что человек правит в этой карточке. Дата, вид, контейнер,
            вес — не трогаем: они принадлежат планировщику и водителю. */
@@ -2789,11 +2813,11 @@
           fields.done_at = status === 'planned' ? null : old.done_at || new Date().toISOString();
         }
         if (old.text !== text) {
-          if (old.collection_start && !confirm('У адреса есть согласованное время. Текст адреса изменится, время останется. Продолжить?')) {
+          if (old.collection_start && !confirm(T('У адреса есть согласованное время. Текст адреса изменится, время останется. Продолжить?'))) {
             restore();
             return;
           }
-          btn.innerHTML = '<span class="spin"></span> Координаты…';
+          btn.innerHTML = `<span class="spin"></span> ${T('Координаты…')}`;
           const g = await geocode(text);
           fields.lat = g ? g.lat : null;
           fields.lng = g ? g.lng : null;
@@ -2813,11 +2837,11 @@
           return;
         }
         if (!data?.length) {
-          toast('Адрес изменился или недоступен. Обновите данные.');
+          toast(T('Адрес изменился или недоступен. Обновите данные.'));
           return;
         }
         closeModal('m-addr-bg');
-        toast('Сохранено' + ('lat' in fields && fields.lat == null ? ' · координаты не найдены' : ''));
+        toast(T('Сохранено') + ('lat' in fields && fields.lat == null ? T(' · координаты не найдены') : ''));
         refreshAll(true);
       }
       /* ---------- ПЕРЕНОС ЗАЯВКИ ---------- */
@@ -2826,19 +2850,19 @@
         document.getElementById('mv-slot').hidden = q;
         document.getElementById('mv-nbwrap').hidden = !q;
         document.getElementById('mv-help').textContent = q
-          ? 'Дата снимется, заявка вернётся в очередь на распределение. Планировщик подберёт день заново.'
-          : 'Клиенту обещается интервал 30 минут. Новое место проверяется по дороге, рабочим часам и дню выезда зоны.';
+          ? T('Дата снимется, заявка вернётся в очередь на распределение. Планировщик подберёт день заново.')
+          : T('Клиенту обещается интервал 30 минут. Новое место проверяется по дороге, рабочим часам и дню выезда зоны.');
       }
       function openMoveModal() {
         const a = ADDR.find((x) => x.id === editAddrId);
         if (!a) return;
         const confirmed = !!a.collection_start;
-        document.getElementById('m-move-title').textContent = 'Перенести · ' + a.text;
+        document.getElementById('m-move-title').textContent = T('Перенести · ') + a.text;
         document.getElementById('mv-now').textContent = confirmed
-          ? 'Сейчас согласовано: ' + a.date + (C.isDaySpan(a.collection_start, a.collection_end) ? ' (в течение дня)' : ', ' + Ops.ukTime(a.collection_start) + '–' + Ops.ukTime(a.collection_end)) + '.'
+          ? T('Сейчас согласовано: ') + a.date + (C.isDaySpan(a.collection_start, a.collection_end) ? T(' (в течение дня)') : ', ' + Ops.ukTime(a.collection_start) + '–' + Ops.ukTime(a.collection_end)) + '.'
           : a.date
-            ? 'Сейчас в маршруте на ' + a.date + '.'
-            : 'Даты пока нет.';
+            ? T('Сейчас в маршруте на ') + a.date + '.'
+            : T('Даты пока нет.');
         document.getElementById('mv-mode').value = 'day';
         document.getElementById('mv-date').min = todayStr();
         document.getElementById('mv-date').value = a.date || '';
@@ -2862,7 +2886,7 @@
         btn.disabled = true;
         try {
           if (confirmed && !document.getElementById('mv-agreed').checked)
-            throw new Error('Отметьте, что клиент согласовал перенос. Подтверждённое время не двигается само.');
+            throw new Error(T('Отметьте, что клиент согласовал перенос. Подтверждённое время не двигается само.'));
           const data = { address_id: a.id, version: a.collection_version, agreed: confirmed };
           if (queued) {
             data.to_queue = true;
@@ -2870,9 +2894,9 @@
           } else {
             const d = document.getElementById('mv-date').value,
               st = document.getElementById('mv-start').value;
-            if (!d || !st) throw new Error('Укажите дату и время.');
+            if (!d || !st) throw new Error(T('Укажите дату и время.'));
             const m = C.minute(st);
-            if (!Number.isFinite(m) || m + 30 > 1440) throw new Error('Укажите время так, чтобы интервал в 30 минут уместился в сутки.');
+            if (!Number.isFinite(m) || m + 30 > 1440) throw new Error(T('Укажите время так, чтобы интервал в 30 минут уместился в сутки.'));
             Object.assign(data, { day: d, start: st, end: C.hm(m + 30) });
             try {
               await window.OpsDispatch?.warm({ sb, driver: { id: a.driver_id }, hasOutbox: () => false }, d, [a.id]);
@@ -2882,7 +2906,7 @@
           if (error) throw error;
           closeModal('m-move-bg');
           closeModal('m-addr-bg');
-          toast(queued ? 'Заявка вернулась в очередь' : 'Заявка перенесена');
+          toast(queued ? T('Заявка вернулась в очередь') : T('Заявка перенесена'));
           refreshAll(true);
         } catch (e) {
           err.textContent = window.OpsDispatch?.error(e) || Ops.error(e);
@@ -2891,10 +2915,10 @@
         }
       }
       async function deleteAddrModal() {
-        if (!editAddrId || !confirm('Удалить этот адрес?')) return;
+        if (!editAddrId || !confirm(T('Удалить этот адрес?'))) return;
         const { error } = await sb.from('addresses').delete().eq('id', editAddrId);
         if (error) {
-          toast('Адрес связан с перепиской. Закройте заявку через статус — история сохранится.');
+          toast(T('Адрес связан с перепиской. Закройте заявку через статус — история сохранится.'));
           return;
         }
         closeModal('m-addr-bg');
@@ -2906,13 +2930,13 @@
         document.getElementById('drv-tbody').innerHTML =
           DRIVERS.map(
             (d) =>
-              `<tr><td><span class="dot" style="background:${drvColor(d.id)}"></span><b>${esc(d.name)}</b></td><td>${d.active ? '<span class="chip st-ok">активен</span>' : '<span class="chip st-bad">выключен</span>'}</td><td class="num">${ADDR.filter((a) => a.driver_id === d.id).length}</td><td style="white-space:nowrap"><button class="btn btn-sm" onclick="openDrvModal('${d.id}')">Изменить</button> <button class="btn btn-sm" onclick="toggleDriver('${d.id}',${!d.active})">${d.active ? 'Выключить' : 'Включить'}</button></td></tr>`,
-          ).join('') || '<tr><td colspan="4" class="empty">Водителей пока нет</td></tr>';
+              `<tr><td><span class="dot" style="background:${drvColor(d.id)}"></span><b>${esc(d.name)}</b></td><td>${d.active ? `<span class="chip st-ok">${T('активен')}</span>` : `<span class="chip st-bad">${T('выключен')}</span>`}</td><td class="num">${ADDR.filter((a) => a.driver_id === d.id).length}</td><td style="white-space:nowrap"><button class="btn btn-sm" onclick="openDrvModal('${d.id}')">${T('Изменить')}</button> <button class="btn btn-sm" onclick="toggleDriver('${d.id}',${!d.active})">${d.active ? T('Выключить') : T('Включить')}</button></td></tr>`,
+          ).join('') || `<tr><td colspan="4" class="empty">${T('Водителей пока нет')}</td></tr>`;
       }
       function openDrvModal(id) {
         editDrvId = id || null;
         const d = id ? DRIVERS.find((x) => x.id === id) : null;
-        document.getElementById('m-drv-title').textContent = d ? 'Водитель' : 'Добавить водителя';
+        document.getElementById('m-drv-title').textContent = d ? T('Водитель') : T('Добавить водителя');
         document.getElementById('md-name').value = d ? d.name : '';
         document.getElementById('md-active').value = d ? String(d.active) : 'true';
         document.getElementById('m-drv-bg').classList.add('show');
@@ -2920,7 +2944,7 @@
       async function saveDrvModal() {
         const name = document.getElementById('md-name').value.trim();
         if (!name) {
-          toast('Введите имя');
+          toast(T('Введите имя'));
           return;
         }
         const row = { name, active: document.getElementById('md-active').value === 'true' };
@@ -2929,11 +2953,11 @@
         if (editDrvId) ({ error } = await sb.from('drivers').update(row).eq('id', editDrvId));
         else ({ error } = await sb.from('drivers').insert(row));
         if (error) {
-          toast('Ошибка сохранения водителя');
+          toast(T('Ошибка сохранения водителя'));
           return;
         }
         closeModal('m-drv-bg');
-        toast('Сохранено');
+        toast(T('Сохранено'));
         refreshAll(true);
       }
       async function toggleDriver(id, active) {
@@ -2947,13 +2971,13 @@
           BANKS.map((b) => {
             const visits = ADDR.filter((a) => a.bank_id === b.id);
             const last = visits.filter((a) => a.status === 'done').sort((x, y) => (y.date || '').localeCompare(x.date || ''))[0];
-            return `<tr class="tap" onclick="openBankModal('${b.id}')"><td><b>${esc(b.name)}</b>${b.note ? '<div class="muted small">' + esc(b.note) + '</div>' : ''}</td><td>${esc(b.text)}${b.lat == null ? '<span class="warnrow">нет координат</span>' : ''}</td><td>${b.active ? '<span class="chip st-ok">активен</span>' : '<span class="chip st-bad">выкл</span>'}</td><td class="num">${visits.length}</td><td style="white-space:nowrap" class="mono">${last ? last.date + (last.fill_level != null ? ' · ' + last.fill_level + ' кг' : '') : '—'}</td><td><button class="btn btn-sm" onclick="event.stopPropagation();openBankModal('${b.id}')">Изменить</button></td></tr>`;
-          }).join('') || '<tr><td colspan="6" class="empty">Контейнеров пока нет</td></tr>';
+            return `<tr class="tap" onclick="openBankModal('${b.id}')"><td><b>${esc(b.name)}</b>${b.note ? '<div class="muted small">' + esc(b.note) + '</div>' : ''}</td><td>${esc(b.text)}${b.lat == null ? `<span class="warnrow">${T('нет координат')}</span>` : ''}</td><td>${b.active ? `<span class="chip st-ok">${T('активен')}</span>` : `<span class="chip st-bad">${T('выкл')}</span>`}</td><td class="num">${visits.length}</td><td style="white-space:nowrap" class="mono">${last ? last.date + (last.fill_level != null ? ' · ' + last.fill_level + T(' кг') : '') : '—'}</td><td><button class="btn btn-sm" onclick="event.stopPropagation();openBankModal('${b.id}')">${T('Изменить')}</button></td></tr>`;
+          }).join('') || `<tr><td colspan="6" class="empty">${T('Контейнеров пока нет')}</td></tr>`;
       }
       function openBankModal(id) {
         editBankId = id || null;
         const b = id ? BANKS.find((x) => x.id === id) : null;
-        document.getElementById('m-bank-title').textContent = b ? 'Контейнер' : 'Добавить контейнер';
+        document.getElementById('m-bank-title').textContent = b ? T('Контейнер') : T('Добавить контейнер');
         document.getElementById('mk-name').value = b ? b.name : '';
         document.getElementById('mk-text').value = b ? b.text : '';
         document.getElementById('mk-note').value = b ? b.note || '' : '';
@@ -2971,12 +2995,12 @@
         const name = document.getElementById('mk-name').value.trim(),
           text = document.getElementById('mk-text').value.trim();
         if (!name) {
-          toast('Введите название');
+          toast(T('Введите название'));
           return;
         }
         const btn = document.getElementById('mk-save');
         btn.disabled = true;
-        btn.innerHTML = '<span class="spin"></span> Координаты…';
+        btn.innerHTML = `<span class="spin"></span> ${T('Координаты…')}`;
         const old = editBankId ? BANKS.find((x) => x.id === editBankId) : null;
         const row = {
           id: editBankId || uuid(),
@@ -2999,17 +3023,17 @@
         }
         const { error } = await sb.from('banks').upsert(row);
         btn.disabled = false;
-        btn.textContent = 'Сохранить';
+        btn.textContent = T('Сохранить');
         if (error) {
           toast(Ops.error(error));
           return;
         }
         closeModal('m-bank-bg');
-        toast(row.lat != null ? 'Сохранено' : 'Сохранено · координаты не найдены');
+        toast(row.lat != null ? T('Сохранено') : T('Сохранено · координаты не найдены'));
         refreshAll(true);
       }
       async function deleteBankModal() {
-        if (!editBankId || !confirm('Удалить этот контейнер? Прошлые визиты останутся.')) return;
+        if (!editBankId || !confirm(T('Удалить этот контейнер? Прошлые визиты останутся.'))) return;
         await sb.from('banks').delete().eq('id', editBankId);
         closeModal('m-bank-bg');
         refreshAll(true);
@@ -3020,7 +3044,7 @@
           inp = document.getElementById('mk-ratevalue');
         const wrap = inp.closest('.f-group');
         wrap.hidden = v === 'none';
-        lbl.textContent = v === 'fixed' ? 'Сумма в месяц, £' : 'Ставка, £ за кг';
+        lbl.textContent = v === 'fixed' ? T('Сумма в месяц, £') : T('Ставка, £ за кг');
         inp.placeholder = v === 'fixed' ? '50' : '0.20';
       }
       function openAssignModal() {
@@ -3033,7 +3057,7 @@
               (b) =>
                 `<label><input type="checkbox" value="${b.id}"> ${esc(b.name)}<span class="muted" style="font-weight:400"> — ${esc(b.text)}</span></label>`,
             )
-            .join('') || '<p class="empty">Контейнеров пока нет</p>';
+            .join('') || `<p class="empty">${T('Контейнеров пока нет')}</p>`;
         document.getElementById('m-assign-bg').classList.add('show');
       }
       async function saveAssign() {
@@ -3041,13 +3065,13 @@
           driver_id = document.getElementById('as-driver').value,
           ids = [...document.querySelectorAll('#as-list input:checked')].map((i) => i.value);
         if (!date || !driver_id || !ids.length) {
-          toast('Выберите дату, водителя и хотя бы один контейнер');
+          toast(T('Выберите дату, водителя и хотя бы один контейнер'));
           return;
         }
         const btn = document.getElementById('as-save');
         btn.disabled = true;
         const progress = document.getElementById('as-progress');
-        progress.textContent = 'Назначаю…';
+        progress.textContent = T('Назначаю…');
         let added = 0,
           skipped = 0;
         const failed = [];
@@ -3098,12 +3122,12 @@
           await refreshAll(true);
         }
         if (failed.length) {
-          progress.textContent = 'Назначено: ' + added + '. ' + failed.join(' ');
+          progress.textContent = T('Назначено: ') + added + '. ' + failed.join(' ');
           return;
         }
         progress.textContent = '';
         closeModal('m-assign-bg');
-        toast('Назначено визитов: ' + added + (skipped ? ' · ' + skipped + ' уже были на эту дату' : ''));
+        toast(T('Назначено визитов: ') + added + (skipped ? ' · ' + skipped + T(' уже были на эту дату') : ''));
       }
 
       /* ---------- фото ---------- */
@@ -3123,7 +3147,7 @@
           d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
         );
       };
-      const KIND_LBL = { open: 'Бин открыт', empty: 'Бин пуст', rubbish: 'Мусор', photo: 'Прочее' };
+      const KIND_LBL = { open: T('Бин открыт'), empty: T('Бин пуст'), rubbish: T('Мусор'), photo: T('Прочее') };
       const kindOf = (p) => {
         const k = p.kind || 'photo';
         return KIND_LBL[k] ? k : 'photo';
@@ -3150,10 +3174,10 @@
             .slice(0, 300)
             .map((p, i) => {
               const a = addrById(p.address_id);
-              return `<div class="phcard" onclick="lbShow(${i})"><span class="phkind ${kindOf(p)}">${KIND_LBL[kindOf(p)]}</span><img loading="lazy" src="${photoUrl(p.path)}" alt="photo"><div class="phmeta"><span class="adr">${a && a.kind === 'bank' ? BANKPL + ' ' : ''}${a ? esc(a.text) : '(адрес удалён)'}</span><span class="dot" style="background:${drvColor(p.driver_id)}"></span>${esc(drvName(p.driver_id))} · ${phTime(p.created_at)}${p.comment ? '<div style="color:var(--crit)">' + esc(p.comment) + '</div>' : ''}</div></div>`;
+              return `<div class="phcard" onclick="lbShow(${i})"><span class="phkind ${kindOf(p)}">${KIND_LBL[kindOf(p)]}</span><img loading="lazy" src="${photoUrl(p.path)}" alt="photo"><div class="phmeta"><span class="adr">${a && a.kind === 'bank' ? BANKPL + ' ' : ''}${a ? esc(a.text) : T('(адрес удалён)')}</span><span class="dot" style="background:${drvColor(p.driver_id)}"></span>${esc(drvName(p.driver_id))} · ${phTime(p.created_at)}${p.comment ? '<div style="color:var(--crit)">' + esc(p.comment) + '</div>' : ''}</div></div>`;
             })
-            .join('') || '<p class="empty" style="grid-column:1/-1">Фото не найдены</p>';
-        document.getElementById('ph-count').textContent = 'Показано: ' + Math.min(list.length, 300);
+            .join('') || `<p class="empty" style="grid-column:1/-1">${T('Фото не найдены')}</p>`;
+        document.getElementById('ph-count').textContent = T('Показано: ') + Math.min(list.length, 300);
       }
       function openAddrGallery(addressId) {
         LBLIST = PHOTOS.filter((p) => p.address_id === addressId);
@@ -3175,7 +3199,7 @@
           '[' +
           KIND_LBL[kindOf(p)] +
           '] ' +
-          (a ? a.text : '(адрес удалён)') +
+          (a ? a.text : T('(адрес удалён)')) +
           ' — ' +
           drvName(p.driver_id) +
           ' · ' +
@@ -3196,7 +3220,7 @@
       }
       async function lbDelete() {
         const p = LBLIST[LBIDX];
-        if (!p || !confirm('Удалить это фото навсегда?')) return;
+        if (!p || !confirm(T('Удалить это фото навсегда?'))) return;
         try {
           await sb.from('photos').delete().eq('id', p.id);
           await sb.storage.from('photos').remove([p.path]);
@@ -3208,7 +3232,7 @@
         if (SUB.bank === 'photos') renderPhotos();
         if (LBLIST.length) lbShowList(LBIDX);
         else lbClose();
-        toast('Фото удалено');
+        toast(T('Фото удалено'));
       }
 
       /* ---------- отчёты хостам (PDF, без изменений по сути) ---------- */
@@ -3274,7 +3298,7 @@
         return { visits: v, kg, rate: r, pay };
       }
       const termsLabel = (r) =>
-        r.type === 'fixed' ? money(r.value) + ' / месяц' : r.type === 'none' ? '—' : (r.value * 100).toFixed(0) + 'p / кг';
+        r.type === 'fixed' ? money(r.value) + T(' / месяц') : r.type === 'none' ? '—' : (r.value * 100).toFixed(0) + T('p / кг');
       async function checkRateCols() {
         try {
           const { error } = await sb.from('banks').select('rate_type').limit(1);
@@ -3290,23 +3314,23 @@
         const warn = document.getElementById('rep-warn');
         const ok = await checkRateCols();
         warn.hidden = ok;
-        if (!ok) warn.textContent = 'Столбцы ставок не найдены в базе — суммы считаются по умолчанию 20p/кг.';
+        if (!ok) warn.textContent = T('Столбцы ставок не найдены в базе — суммы считаются по умолчанию 20p/кг.');
         const rows = BANKS.map((b) => ({ b, st: bankStats(b, ym) }))
           .filter((x) => x.st.visits.length > 0)
           .sort((a, b) => b.st.kg - a.st.kg);
         const tb = document.getElementById('rep-tbody');
         if (!rows.length) {
-          tb.innerHTML = '<tr><td colspan="6" class="empty">Нет данных за этот месяц</td></tr>';
+          tb.innerHTML = `<tr><td colspan="6" class="empty">${T('Нет данных за этот месяц')}</td></tr>`;
           return;
         }
         tb.innerHTML =
           rows
             .map(
               (x) =>
-                `<tr><td><b>${esc(x.b.name)}</b><div class="muted small">${esc(x.b.text || '')}</div></td><td>${termsLabel(x.st.rate)}</td><td class="num">${x.st.visits.length}</td><td class="num"><b>${x.st.kg}</b> кг</td><td class="num">${x.st.rate.type === 'none' ? '—' : '<b>' + money(x.st.pay) + '</b>'}</td><td style="text-align:right"><button class="btn btn-sm" onclick="hostPdf('${x.b.id}')">PDF</button></td></tr>`,
+                `<tr><td><b>${esc(x.b.name)}</b><div class="muted small">${esc(x.b.text || '')}</div></td><td>${termsLabel(x.st.rate)}</td><td class="num">${x.st.visits.length}</td><td class="num"><b>${x.st.kg}</b> ${T('кг')}</td><td class="num">${x.st.rate.type === 'none' ? '—' : '<b>' + money(x.st.pay) + '</b>'}</td><td style="text-align:right"><button class="btn btn-sm" onclick="hostPdf('${x.b.id}')">PDF</button></td></tr>`,
             )
             .join('') +
-          `<tr class="total"><td>Всего</td><td></td><td class="num">${rows.reduce((s, x) => s + x.st.visits.length, 0)}</td><td class="num">${rows.reduce((s, x) => s + x.st.kg, 0)} кг</td><td class="num">${money(rows.reduce((s, x) => s + x.st.pay, 0))}</td><td></td></tr>`;
+          `<tr class="total"><td>${T('Всего')}</td><td></td><td class="num">${rows.reduce((s, x) => s + x.st.visits.length, 0)}</td><td class="num">${rows.reduce((s, x) => s + x.st.kg, 0)} ${T('кг')}</td><td class="num">${money(rows.reduce((s, x) => s + x.st.pay, 0))}</td><td></td></tr>`;
       }
       async function imgToData(path, maxW) {
         try {
@@ -3399,10 +3423,10 @@
         const ym = document.getElementById('rep-month').value || ymNow();
         const st = bankStats(b, ym);
         if (!st.visits.length) {
-          toast('Нет данных за этот месяц');
+          toast(T('Нет данных за этот месяц'));
           return;
         }
-        if (!silent) toast('Готовлю PDF…');
+        if (!silent) toast(T('Готовлю PDF…'));
         const showKg = b.show_weights !== false,
           perKg = st.rate.type === 'per_kg';
         const body = [];
@@ -3556,10 +3580,10 @@
         const ym = document.getElementById('rep-month').value || ymNow();
         const list = BANKS.filter((b) => monthVisits(b.id, ym).length > 0);
         if (!list.length) {
-          toast('Нет данных за этот месяц');
+          toast(T('Нет данных за этот месяц'));
           return;
         }
-        toast('Готовлю PDF…');
+        toast(T('Готовлю PDF…'));
         for (const b of list) {
           await hostPdf(b.id, true);
           await new Promise((r) => setTimeout(r, 600));
@@ -3569,10 +3593,10 @@
         const ym = document.getElementById('rep-month').value || ymNow();
         const rows = BANKS.map((b) => ({ b, st: bankStats(b, ym) })).filter((x) => x.st.visits.length > 0);
         if (!rows.length) {
-          toast('Нет данных за этот месяц');
+          toast(T('Нет данных за этот месяц'));
           return;
         }
-        toast('Готовлю PDF…');
+        toast(T('Готовлю PDF…'));
         const body = [
           { text: 'Internal summary — ' + ymLabel(ym), style: 'h1' },
           { text: 'Operational totals and amounts payable to sites. Not for distribution.', margin: [0, 0, 0, 14], color: '#3A3A38' },
@@ -3715,15 +3739,15 @@
    Отдельно от партнёрских отчётов: тут по-русски, с адресами и заметками,
    и сюда попадает то, что требует действия. */
       const EV_LABEL = {
-        done: 'Выполнено',
-        noanswer: 'Не открыли дверь',
-        problem: 'Проблема на адресе',
-        cancelled: 'Заявка закрыта',
-        planned: 'Запланировано',
-        new: 'Ждёт распределения',
+        done: T('Выполнено'),
+        noanswer: T('Не открыли дверь'),
+        problem: T('Проблема на адресе'),
+        cancelled: T('Заявка закрыта'),
+        planned: T('Запланировано'),
+        new: T('Ждёт распределения'),
       };
       const EV_PROBLEM = new Set(['noanswer', 'problem']);
-      const EV_WAIT = 'Не ответил на предложение';
+      const EV_WAIT = T('Не ответил на предложение');
       let EV_ROWS = [];
 
       /* Ждущие ответа живут не в addresses, а в очереди планировщика — берём оттуда. */
@@ -3745,7 +3769,7 @@
           src = document.getElementById('ev-source').value;
         const only = document.getElementById('ev-problems').checked;
         const tb = document.getElementById('ev-tbody');
-        tb.innerHTML = '<tr><td colspan="6" class="empty"><span class="spin"></span> Собираю…</td></tr>';
+        tb.innerHTML = `<tr><td colspan="6" class="empty"><span class="spin"></span> ${T('Собираю…')}</td></tr>`;
 
         const waiting = await pendingOffers();
         const waitingIds = new Set(waiting.map((a) => a.id));
@@ -3759,7 +3783,7 @@
             src: C.sourceOf(a),
             date: day,
             what: EV_WAIT,
-            note: 'Предложено ' + dayShort(day) + ', ответа нет',
+            note: T('Предложено ') + dayShort(day) + T(', ответа нет'),
             problem: true,
             order: 0,
           });
@@ -3775,7 +3799,7 @@
             src: C.sourceOf(a),
             date: a.date,
             what: EV_LABEL[a.status] || a.status,
-            note: (a.result_note || '').trim() || (a.cancellation_reason ? 'Причина: ' + a.cancellation_reason : ''),
+            note: (a.result_note || '').trim() || (a.cancellation_reason ? T('Причина: ') + a.cancellation_reason : ''),
             problem,
             order: problem ? 1 : 2,
           });
@@ -3786,13 +3810,13 @@
 
         const n = (w) => rows.filter((r) => r.what === w).length;
         const chips = [
-          ['Всего', rows.length, ''],
+          [T('Всего'), rows.length, ''],
           [EV_WAIT, n(EV_WAIT), 'crit'],
-          ['Не открыли дверь', n('Не открыли дверь'), 'crit'],
-          ['Проблема на адресе', n('Проблема на адресе'), 'crit'],
-          ['Выполнено', n('Выполнено'), 'ok'],
-          ['Запланировано', n('Запланировано'), ''],
-          ['Заявка закрыта', n('Заявка закрыта'), ''],
+          [T('Не открыли дверь'), n(T('Не открыли дверь')), 'crit'],
+          [T('Проблема на адресе'), n(T('Проблема на адресе')), 'crit'],
+          [T('Выполнено'), n(T('Выполнено')), 'ok'],
+          [T('Запланировано'), n(T('Запланировано')), ''],
+          [T('Заявка закрыта'), n(T('Заявка закрыта')), ''],
         ];
         document.getElementById('ev-counts').innerHTML = chips
           .filter((c) => c[1])
@@ -3803,7 +3827,7 @@
           .join('');
 
         if (!EV_ROWS.length) {
-          tb.innerHTML = '<tr><td colspan="6" class="empty">За этот месяц записей нет</td></tr>';
+          tb.innerHTML = `<tr><td colspan="6" class="empty">${T('За этот месяц записей нет')}</td></tr>`;
           return;
         }
         tb.innerHTML = EV_ROWS.map(
@@ -3813,22 +3837,22 @@
             `<td style="font-size:12.5px">${r.charity ? esc(r.charity) : '<span class="muted">—</span>'}</td>` +
             `<td style="font-size:12.5px">${esc(C.sourceNames[r.src] || r.src)}</td>` +
             `<td class="mono" style="white-space:nowrap;font-size:12.3px">${r.date ? esc(dayShort(r.date)) : '—'}</td>` +
-            `<td><span class="chip ${r.problem ? 'st-bad' : r.what === 'Выполнено' ? 'st-done' : 'ghost'}">${esc(r.what)}</span></td>` +
+            `<td><span class="chip ${r.problem ? 'st-bad' : r.what === T('Выполнено') ? 'st-done' : 'ghost'}">${esc(r.what)}</span></td>` +
             `<td style="font-size:12.5px">${r.note ? esc(r.note) : '<span class="muted">—</span>'}</td></tr>`,
         ).join('');
       }
 
       async function eventsPdf() {
         if (!EV_ROWS.length) {
-          toast('Нечего выгружать');
+          toast(T('Нечего выгружать'));
           return;
         }
         const ym = document.getElementById('ev-month').value || ymNow();
-        toast('Готовлю PDF…');
+        toast(T('Готовлю PDF…'));
         const probs = EV_ROWS.filter((r) => r.problem);
         const body = [
-          { text: 'Что случилось с адресами — ' + ymLabel(ym), style: 'h1' },
-          { text: 'Рабочий список для себя. Партнёрам не отправляется.', margin: [0, 0, 0, 14], color: '#3A3A38' },
+          { text: T('Что случилось с адресами — ') + ymLabel(ym), style: 'h1' },
+          { text: T('Рабочий список для себя. Партнёрам не отправляется.'), margin: [0, 0, 0, 14], color: '#3A3A38' },
         ];
         body.push({
           table: {
@@ -3837,21 +3861,21 @@
               [
                 {
                   stack: [
-                    { text: 'ВСЕГО', style: 'lbl' },
+                    { text: T('ВСЕГО'), style: 'lbl' },
                     { text: String(EV_ROWS.length), fontSize: 19, bold: true, margin: [0, 3, 0, 0] },
                   ],
                 },
                 {
                   stack: [
-                    { text: 'ТРЕБУЮТ ВНИМАНИЯ', style: 'lbl' },
+                    { text: T('ТРЕБУЮТ ВНИМАНИЯ'), style: 'lbl' },
                     { text: String(probs.length), fontSize: 19, bold: true, color: '#B3261E', margin: [0, 3, 0, 0] },
                   ],
                 },
                 {
                   stack: [
-                    { text: 'ВЫПОЛНЕНО', style: 'lbl' },
+                    { text: T('ВЫПОЛНЕНО'), style: 'lbl' },
                     {
-                      text: String(EV_ROWS.filter((r) => r.what === 'Выполнено').length),
+                      text: String(EV_ROWS.filter((r) => r.what === T('Выполнено')).length),
                       fontSize: 19,
                       bold: true,
                       color: BRAND.dgreen,
@@ -3866,23 +3890,23 @@
         });
         const rows = [
           [
-            { text: 'АДРЕС', style: 'th' },
+            { text: T('АДРЕС'), style: 'th' },
             { text: 'CHARITY', style: 'th' },
-            { text: 'ДАТА', style: 'th' },
-            { text: 'ЧТО ПРОИЗОШЛО', style: 'th' },
-            { text: 'ЗАМЕТКА', style: 'th' },
+            { text: T('ДАТА'), style: 'th' },
+            { text: T('ЧТО ПРОИЗОШЛО'), style: 'th' },
+            { text: T('ЗАМЕТКА'), style: 'th' },
           ],
         ];
         EV_ROWS.forEach((r) => rows.push([r.text, r.charity || '—', r.date ? dayShort(r.date) : '—', r.what, r.note || '—']));
-        body.push({ text: 'Адреса', style: 'sec' });
+        body.push({ text: T('Адреса'), style: 'sec' });
         body.push({
           table: { headerRows: 1, widths: ['*', 'auto', 'auto', 'auto', '*'], body: rows },
           layout: tableL(rows.length),
           fontSize: 9,
         });
-        const doc = pdfShell('Subnex Group Ltd  ·  Что случилось с адресами  ·  ' + ymLabel(ym));
+        const doc = pdfShell(T('Subnex Group Ltd  ·  Что случилось с адресами  ·  ') + ymLabel(ym));
         doc.content = body;
-        doc.info = { title: 'Subnex — что случилось с адресами — ' + ymLabel(ym), author: 'Subnex Group Ltd' };
+        doc.info = { title: T('Subnex — что случилось с адресами — ') + ymLabel(ym), author: 'Subnex Group Ltd' };
         return new Promise((res) => pdfMake.createPdf(doc).download('Subnex-events-' + ym + '.pdf', res));
       }
 
@@ -3931,11 +3955,11 @@
         const raw = a.bags_text ? String(a.bags_text).trim() : a.bags ? String(a.bags) : '';
         return raw ? raw.replace(/\s*(?:to|-|–)\s*/i, ' – ') + ' bags' : '—';
       };
-      const crName = (a) => (a.charity || '').trim() || 'Не указана';
+      const crName = (a) => (a.charity || '').trim() || T('Не указана');
       /* В интерфейсе группа без charity называется по-русски, но отчёт уходит партнёру
    на английском — и русское слово в строке Charity там выглядит ошибкой.
    Заодно чинится имя файла: кириллица вырезалась целиком. */
-      const NO_CHARITY = 'Не указана';
+      const NO_CHARITY = T('Не указана');
       const crEN = (g) => (g && g.charity === NO_CHARITY ? 'No charity specified' : g ? g.charity : '');
       let CR_ROWS = [],
         CRT = {},
@@ -3984,11 +4008,11 @@
         const warn = document.getElementById('cr-warn');
         warn.hidden = CRT_OK;
         if (!CRT_OK)
-          warn.textContent = 'Вес пока не сохраняется — выполните sql/14_charity_reports.sql в Supabase. Списки и PDF работают и без него.';
+          warn.textContent = T('Вес пока не сохраняется — выполните sql/14_charity_reports.sql в Supabase. Списки и PDF работают и без него.');
         CR_ROWS = crGroups(ym, src);
         const tb = document.getElementById('cr-tbody');
         if (!CR_ROWS.length) {
-          tb.innerHTML = '<tr><td colspan="5" class="empty">За этот месяц выполненных сборов нет</td></tr>';
+          tb.innerHTML = `<tr><td colspan="5" class="empty">${T('За этот месяц выполненных сборов нет')}</td></tr>`;
           return;
         }
         const totN = CR_ROWS.reduce((t, g) => t + g.items.length, 0),
@@ -3996,13 +4020,13 @@
         tb.innerHTML =
           CR_ROWS.map(
             (g, i) =>
-              `<tr><td><b>${esc(g.charity)}</b><div class="muted small">последний сбор ${esc(dayShort(g.items[g.items.length - 1].date))}</div></td>` +
+              `<tr><td><b>${esc(g.charity)}</b><div class="muted small">${T('последний сбор')} ${esc(dayShort(g.items[g.items.length - 1].date))}</div></td>` +
               `<td>${[...g.sources].map((x) => '<span class="chip ghost">' + esc(C.sourceNames[x] || x) + '</span>').join(' ')}</td>` +
               `<td class="num"><b>${g.items.length}</b></td>` +
-              `<td><input class="field" type="number" min="0" step="0.1" inputmode="decimal" style="width:110px" value="${g.kg || ''}" placeholder="кг" data-kg="${i}"${CRT_OK ? '' : ' disabled'}></td>` +
+              `<td><input class="field" type="number" min="0" step="0.1" inputmode="decimal" style="width:110px" value="${g.kg || ''}" placeholder="${T('кг')}" data-kg="${i}"${CRT_OK ? '' : ' disabled'}></td>` +
               `<td style="text-align:right"><button class="btn btn-sm" data-crpdf="${i}">PDF</button></td></tr>`,
           ).join('') +
-          `<tr class="total"><td>Всего</td><td></td><td class="num">${totN}</td><td id="cr-total-kg">${totKg ? totKg.toFixed(1) + ' кг' : '—'}</td><td></td></tr>`;
+          `<tr class="total"><td>${T('Всего')}</td><td></td><td class="num">${totN}</td><td id="cr-total-kg">${totKg ? totKg.toFixed(1) + T(' кг') : '—'}</td><td></td></tr>`;
       }
       async function saveCharityKg(i, value) {
         const g = CR_ROWS[i];
@@ -4019,9 +4043,9 @@
           const cell = document.getElementById('cr-total-kg');
           if (cell) {
             const t = CR_ROWS.reduce((s, x) => s + x.kg, 0);
-            cell.textContent = t ? t.toFixed(1) + ' кг' : '—';
+            cell.textContent = t ? t.toFixed(1) + T(' кг') : '—';
           }
-          toast('Вес сохранён: ' + g.charity);
+          toast(T('Вес сохранён: ') + g.charity);
         } catch (e) {
           toast(Ops.error(e));
         }
@@ -4037,11 +4061,11 @@
 
       async function charityPdf(g, silent) {
         if (!g || !g.items.length) {
-          toast('Нет данных за этот месяц');
+          toast(T('Нет данных за этот месяц'));
           return;
         }
         const ym = document.getElementById('cr-month').value || ymNow();
-        if (!silent) toast('Готовлю PDF…');
+        if (!silent) toast(T('Готовлю PDF…'));
         const kg = Number((CRT[g.charity] || {}).kg) || 0;
         const body = [
           { text: 'Monthly collection report', style: 'h1' },
@@ -4144,10 +4168,10 @@
       }
       async function allCharityPdf() {
         if (!CR_ROWS.length) {
-          toast('Нет данных за этот месяц');
+          toast(T('Нет данных за этот месяц'));
           return;
         }
-        toast('Готовлю PDF…');
+        toast(T('Готовлю PDF…'));
         for (const g of CR_ROWS) {
           await charityPdf(g, true);
           await new Promise((r) => setTimeout(r, 600));
@@ -4155,11 +4179,11 @@
       }
       async function charitySummaryPdf() {
         if (!CR_ROWS.length) {
-          toast('Нет данных за этот месяц');
+          toast(T('Нет данных за этот месяц'));
           return;
         }
         const ym = document.getElementById('cr-month').value || ymNow();
-        toast('Готовлю PDF…');
+        toast(T('Готовлю PDF…'));
         const totN = CR_ROWS.reduce((s, g) => s + g.items.length, 0),
           totKg = CR_ROWS.reduce((s, g) => s + g.kg, 0);
         const body = [
@@ -4278,7 +4302,7 @@
           ),
         );
         downloadFile('﻿' + 'sep=;\r\n' + lines.join('\r\n'), 'subnex-export-' + todayStr() + '.csv', 'text/csv');
-        toast('CSV: ' + rows.length + ' строк');
+        toast('CSV: ' + rows.length + T(' строк'));
       }
       function exportJSON() {
         downloadFile(

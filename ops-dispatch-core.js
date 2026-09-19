@@ -1,6 +1,7 @@
 /* SUBNEX dispatch: pure calculations. No network, writes or SMS. */
 (function (root) {
   'use strict';
+  const T = root.T || ((s) => s);
   const sourceNames = {
     subnex_website: 'SUBNEX Collections',
     partner_email: 'Partner Email',
@@ -208,12 +209,12 @@
     const rule = zoneRule(config, text);
     if (!rule)
       return postcodeArea(text)
-        ? `Район ${postcodeArea(text)} не настроен. Добавьте его в «Настройки → Зоны выезда» или назначьте сбор вручную.`
-        : 'В адресе нет полного почтового индекса — район определить нельзя.';
-    if (rule.mode === 'off') return `Зона «${rule.name}» выключена в настройках.`;
+        ? `${T('Район')} ${postcodeArea(text)} ${T('не настроен. Добавьте его в «Настройки → Зоны выезда» или назначьте сбор вручную.')}`
+        : T('В адресе нет полного почтового индекса — район определить нельзя.');
+    if (rule.mode === 'off') return `${T('Зона «')}${rule.name}${T('» выключена в настройках.')}`;
     if (rule.mode === 'monthly') {
       const d = nextTripDays(rule, from, 1)[0];
-      return `Зона «${rule.name}» — выезд раз в месяц${d ? ': ближайший ' + d : ''}. Заявка ждёт этого дня.`;
+      return `${T('Зона «')}${rule.name}${T('» — выезд раз в месяц')}${d ? T(': ближайший ') + d : ''}${T('. Заявка ждёт этого дня.')}`;
     }
     return null;
   }
@@ -231,7 +232,7 @@
       availableFrom = Math.max(opens, departFloor);
     let cursor = departFloor,
       prev = config.home,
-      previous = 'Старт',
+      previous = T('Старт'),
       drive = 0,
       service = 0,
       kg = 0,
@@ -283,7 +284,7 @@
         free_minutes: Math.max(0, closes - availableFrom),
       };
     const endLeg = travel(prev, config.depot);
-    if (!Number.isFinite(endLeg)) return { ok: false, code: 'ROADS_REQUIRED', from: previous, to: 'Склад' };
+    if (!Number.isFinite(endLeg)) return { ok: false, code: 'ROADS_REQUIRED', from: previous, to: T('Склад') };
     drive += endLeg;
     const finish = cursor + endLeg;
     if (finish >= 1440) return { ok: false, code: 'DAY_BOUNDARY', finish };
@@ -675,7 +676,7 @@
     for (const r of remaining)
       unassigned.push({
         address_id: r.id,
-        reason: zoneReason(config, r.text, from) || 'Нет подходящего места с учётом дороги, договорённостей и рабочих часов.',
+        reason: zoneReason(config, r.text, from) || T('Нет подходящего места с учётом дороги, договорённостей и рабочих часов.'),
       });
     const out = { assigned, unassigned, ...summarize(work, config, roads, assigned, unassigned) };
     out.metrics.shared = shared;
@@ -904,7 +905,7 @@
     const m = body.match(/\b(\d{1,4})\s*[a-z]?\b/i);
     return m ? m[1] : '';
   };
-  const DUP_WHY = { house: 'тот же дом', tel: 'тот же телефон' };
+  const DUP_WHY = { house: T('тот же дом'), tel: T('тот же телефон') };
   /* Порядок важен: если пара совпала и по дому, и по телефону, показываем
    более сильную причину — дом.
    Только индекс приметой НЕ считаем: в одном индексе живёт полтора десятка
@@ -986,38 +987,38 @@
     стационарные номера и строки с одной только почтой. Раньше такие терялись. */
     if (['subnex_website', 'partner_email'].includes(row.intake_channel) && !/^\+447\d{9}$/.test(p))
       out.push(
-        p ? 'Это не британский мобильный — SMS не уйдёт, связывайтесь по email.' : 'Телефона нет — SMS не уйдёт, связывайтесь по email.',
+        p ? T('Это не британский мобильный — SMS не уйдёт, связывайтесь по email.') : T('Телефона нет — SMS не уйдёт, связывайтесь по email.'),
       );
     if (!p) return out;
     const twin = (existing || []).find(
       (a) => ['new', 'planned'].includes(a.status) && phone(a.phone) === p && !samePlace(a.text, row.text),
     );
-    if (twin) out.push('Этот номер уже у заявки «' + twin.text + '». Если это другой дом — всё в порядке, предложения уйдут по очереди.');
+    if (twin) out.push(T('Этот номер уже у заявки «') + twin.text + T('». Если это другой дом — всё в порядке, предложения уйдут по очереди.'));
     else if ((previous || []).some((a) => phone(a.phone) === p && !samePlace(a.text, row.text)))
-      out.push('Этот номер уже есть выше в этой пачке — проверьте, не один ли это дом.');
+      out.push(T('Этот номер уже есть выше в этой пачке — проверьте, не один ли это дом.'));
     return out;
   }
   function issues(row, existing = [], previous = []) {
     const out = [];
     const pc = postcode(row.text);
-    if (!pc || key(row.text).replace(key(pc), '').length < 3) out.push('Нужны дом, улица и полный postcode');
-    if (/^(?:collection from\s*)?\d+\s*,?\s*[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i.test(row.text)) out.push('Не указана улица');
+    if (!pc || key(row.text).replace(key(pc), '').length < 3) out.push(T('Нужны дом, улица и полный postcode'));
+    if (/^(?:collection from\s*)?\d+\s*,?\s*[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i.test(row.text)) out.push(T('Не указана улица'));
     if (
       /^\d+[a-z]?\s*,?\s*(?:Cardiff|Newport|Barry|Bridgend|Caerphilly|Tredegar|Pontypridd|Wales)\s*,?\s*[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i.test(
         row.text,
       )
     )
-      out.push('Не указана улица');
-    if (!sourceNames[row.intake_channel]) out.push('Выберите источник');
-    if (!Number.isFinite(+row.estimated_kg) || +row.estimated_kg <= 0) out.push('Укажите ожидаемый вес');
-    if (![5, 10].includes(+row.service_minutes)) out.push('Сбор: 5 или 10 минут');
-    if (previous.some((a) => samePlace(a.text, row.text))) out.push('Повтор в этой пачке');
+      out.push(T('Не указана улица'));
+    if (!sourceNames[row.intake_channel]) out.push(T('Выберите источник'));
+    if (!Number.isFinite(+row.estimated_kg) || +row.estimated_kg <= 0) out.push(T('Укажите ожидаемый вес'));
+    if (![5, 10].includes(+row.service_minutes)) out.push(T('Сбор: 5 или 10 минут'));
+    if (previous.some((a) => samePlace(a.text, row.text))) out.push(T('Повтор в этой пачке'));
     const twin = existing.find((a) => ['new', 'planned'].includes(a.status) && samePlace(a.text, row.text));
     if (twin)
       out.push(
         key(twin.text) === key(row.text)
-          ? 'Адрес уже есть в действующих заявках'
-          : 'Это тот же дом, что и «' + twin.text + '» — заявка на него уже есть',
+          ? T('Адрес уже есть в действующих заявках')
+          : T('Это тот же дом, что и «') + twin.text + T('» — заявка на него уже есть'),
       );
     return out;
   }
