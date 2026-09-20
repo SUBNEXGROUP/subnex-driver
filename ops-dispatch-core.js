@@ -636,6 +636,41 @@
     // Считаем не правки, а результат: сколько соседних адресов делят одно окно.
     return sharedPairs(work);
   }
+  /* Почему заявка осталась в очереди. Раньше для дальних зон всегда возвращался текст
+     «выезд раз в месяц… заявка ждёт этого дня», даже когда день выезда был в горизонте
+     и просто оказался занят. Теперь сначала смотрим, есть ли у адреса вообще
+     подходящие дни, и только потом объясняем, чего в них не хватило. */
+  function unassignedReason(work, r, config, roads, from) {
+    const rule = zoneRule(config, r.text);
+    if (!rule || rule.mode === 'off') return zoneReason(config, r.text, from) || T('Район не настроен.');
+    const node = { key: 'a:' + r.id, address_id: r.id, text: r.text, lat: r.lat, lng: r.lng };
+    const plan = { days: work };
+    let open = 0,
+      taken = 0,
+      tripDays = 0,
+      bestFree = -1,
+      bestDay = null;
+    for (const d of work.slice(0, 60)) {
+      const issue = dayIssue(plan, node, d.day, config, roads);
+      if (issue.code === 'ZONE_TRIP_DAY') continue;
+      tripDays++;
+      if (issue.code === 'ZONE_DAY_TAKEN') {
+        taken++;
+        continue;
+      }
+      if (!issue.ok) continue;
+      open++;
+      if (issue.free_minutes > bestFree) {
+        bestFree = issue.free_minutes;
+        bestDay = d.day;
+      }
+    }
+    // Дальняя зона: ни один день горизонта не является днём её выезда.
+    if (!tripDays) return zoneReason(config, r.text, from) || T('Подходящих дней в горизонте нет.');
+    if (!open && taken) return T('Все подходящие дни заняты выездом в другую зону.');
+    if (!open) return T('В горизонте нет открытых дней: проверьте рабочие часы и уже начатые маршруты.');
+    return `${T('Места нет: в самом свободном подходящем дне (')}${bestDay}${T(') остаётся')} ${Math.max(bestFree, 0)} ${T('мин с учётом дороги. Увеличьте горизонт или разгрузите день.')}`;
+  }
   async function planBatch(days, requests, config, roads, onProgress = () => {}, dayMode = true) {
     const work = days.map((d) => ({ ...d, nodes: [...d.nodes], order: ordered(d.nodes, d.order) })),
       remaining = [...requests],
@@ -709,11 +744,7 @@
     }
     const shared = shareSlots(work, assigned, config, roads);
     const from = days[0]?.day || ukDay();
-    for (const r of remaining)
-      unassigned.push({
-        address_id: r.id,
-        reason: zoneReason(config, r.text, from) || T('Нет подходящего места с учётом дороги, договорённостей и рабочих часов.'),
-      });
+    for (const r of remaining) unassigned.push({ address_id: r.id, reason: unassignedReason(work, r, config, roads, from) });
     const out = { assigned, unassigned, ...summarize(work, config, roads, assigned, unassigned) };
     out.metrics.shared = shared;
     return out;
