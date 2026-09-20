@@ -1167,7 +1167,23 @@
           Object.assign(a, p);
         }
       }
-      let snap = await this.call('snapshot', { from_day: this.from, days: this.days, address_ids: ids });
+      /* Горизонт расчёта тянем до ближайшего выезда в дальнюю зону. Иначе адреса из
+         месячных зон просто оставались в очереди: их день выезда был за пределами окна,
+         а подпись «заявка ждёт этого дня» создавала впечатление, что кто-то её подхватит. */
+      let days = this.days;
+      const zoneCfg = { ...this.config, zones: this.zones || [] };
+      for (const id of ids) {
+        const a = this.requests.find((r) => r.id === id);
+        const rule = a && C.zoneRule(zoneCfg, a.text);
+        if (!rule || rule.mode !== 'monthly') continue;
+        const trip = C.nextTripDays(rule, this.from, 1)[0];
+        if (!trip) continue;
+        const span = Math.round((Date.parse(trip + 'T12:00:00Z') - Date.parse(this.from + 'T12:00:00Z')) / 864e5) + 1;
+        if (span > days) days = Math.min(span, 120);
+      }
+      if (days > this.days)
+        this.notice(`${T('Горизонт расширен до')} ${days} ${T('дней: в выборке есть адреса из зоны с выездом раз в месяц.')}`);
+      let snap = await this.call('snapshot', { from_day: this.from, days, address_ids: ids });
       let roads = {};
       const skipped = [];
       /* Дорога считается по дням параллельно, по четыре за раз: раньше 14 дней шли
@@ -1186,7 +1202,7 @@
           }),
         );
       }
-      snap = await this.call('snapshot', { from_day: this.from, days: this.days, address_ids: ids });
+      snap = await this.call('snapshot', { from_day: this.from, days, address_ids: ids });
       this.tokens = Object.fromEntries(snap.days.map((d) => [d.day, d.token]));
       this.notice(T('Распределяю заявки вокруг договорённостей…'));
       this.planRoads = roads;
