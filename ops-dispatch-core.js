@@ -650,24 +650,33 @@
       tripDays = 0,
       bestFree = -1,
       bestDay = null;
+    let blocked = 0;
     for (const d of work.slice(0, 60)) {
+      /* Выходные и уже начатые маршруты считаем отдельно: dayIssue проверяет их раньше зоны,
+         поэтому без этого субботы попадали в «подходящие дни» и дальняя зона получала
+         «нет открытых дней» вместо честного «дня выезда в горизонте вообще нет». */
+      if (d.started_at || (d.hours && d.hours.closed)) continue;
       const issue = dayIssue(plan, node, d.day, config, roads);
-      if (issue.code === 'ZONE_TRIP_DAY') continue;
+      if (issue.code === 'ZONE_TRIP_DAY' || issue.code === 'DAY_OUT_OF_RANGE') continue;
       tripDays++;
       if (issue.code === 'ZONE_DAY_TAKEN') {
         taken++;
         continue;
       }
-      if (!issue.ok) continue;
+      if (!issue.ok) {
+        blocked++;
+        continue;
+      }
       open++;
       if (issue.free_minutes > bestFree) {
         bestFree = issue.free_minutes;
         bestDay = d.day;
       }
     }
-    // Дальняя зона: ни один день горизонта не является днём её выезда.
+    // Дальняя зона: ни один рабочий день горизонта не является днём её выезда.
     if (!tripDays) return zoneReason(config, r.text, from) || T('Подходящих дней в горизонте нет.');
     if (!open && taken) return T('Все подходящие дни заняты выездом в другую зону.');
+    if (!open && blocked) return T('Подходящие дни есть, но расчёт по ним не сошёлся: проверьте координаты адреса и сервис дорог.');
     if (!open) return T('В горизонте нет открытых дней: проверьте рабочие часы и уже начатые маршруты.');
     return `${T('Места нет: в самом свободном подходящем дне (')}${bestDay}${T(') остаётся')} ${Math.max(bestFree, 0)} ${T('мин с учётом дороги. Увеличьте горизонт или разгрузите день.')}`;
   }

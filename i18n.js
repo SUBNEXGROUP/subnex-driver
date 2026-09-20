@@ -196,6 +196,8 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   'Все подходящие дни заняты выездом в другую зону.': 'Every suitable day is taken by a trip to another area.',
   'В горизонте нет открытых дней: проверьте рабочие часы и уже начатые маршруты.':
     'No open days within the horizon — check working hours and routes already started.',
+  'Подходящие дни есть, но расчёт по ним не сошёлся: проверьте координаты адреса и сервис дорог.':
+    'Suitable days exist, but the calculation did not work out on them — check the address coordinates and the road service.',
   'Места нет: в самом свободном подходящем дне (': 'No room: the emptiest suitable day (',
   ') остаётся': ') has',
   'мин с учётом дороги. Увеличьте горизонт или разгрузите день.': 'min left once travel is counted. Extend the horizon or free up the day.',
@@ -564,8 +566,8 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   'дней вперёд': 'days ahead',
   'Начиная с': 'Starting from',
   Горизонт: 'Horizon',
-  '7 дней': '7 days',
-  '14 дней': '14 days',
+  дней: 'days',
+  'Другие причины — в карточке «Останутся в очереди» внизу.': 'Other reasons are in the “Staying in the queue” card below.',
   'Ручное распределение: клиенту предлагается 30-минутное окно прибытия':
     'Manual planning: the customer is offered a 30-minute arrival window',
   'Распределить по дням': 'Plan by day',
