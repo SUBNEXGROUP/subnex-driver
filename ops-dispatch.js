@@ -974,11 +974,6 @@
         if (this.available(a)) b.push(`<button data-action="edit" data-id="${a.id}">${T('Изменить')}</button>`);
         if (!['preparing', 'awaiting', 'manual'].includes(a.offer_state))
           b.push(`<button data-action="move" data-id="${a.id}">${T('Перенести')}</button>`);
-        /* «Закрыть» — для заявок, которым ещё ничего не обещали: ни живого предложения,
-           ни удержания, ни даты. У остальных сначала «Снять» или «Переписка → Закрыть заявку»,
-           иначе в дне останется удержание без заявки. */
-        if (!a.hold_id && !a.date && !['preparing', 'awaiting', 'manual'].includes(a.offer_state))
-          b.push(`<button data-action="close" data-id="${a.id}">${T('Закрыть')}</button>`);
         b.push(`<button data-action="drop" data-id="${a.id}">${T('Убрать')}</button>`);
         return b.join('');
       };
@@ -1688,51 +1683,34 @@
       whole?.addEventListener('change', fillText);
       fillText();
     }
-    /* Закрыть заявку, не удаляя её: статус «Отменено», строка и переписка остаются.
-       SMS отсюда не уходит — заявке ещё ничего не обещали, уведомлять не о чем. */
-    closeRequest(a) {
-      this.dialog(
-        T('Закрыть заявку'),
-        `<p><b>${esc(a.text)}</b></p>
-   <p class="od-muted">${T('Заявка уйдёт из очереди со статусом «Отменено». Адрес, переписка и фотографии останутся в базе — позже по тому же адресу можно создать новую заявку.')}</p>
-   <p class="od-muted">${T('SMS клиенту не отправляется: даты ему никто не обещал.')}</p>
-   <label><input id="od-close-sure" type="checkbox">${T('Закрыть эту заявку.')}</label>`,
-        async (wrap) => {
-          if (!wrap.querySelector('#od-close-sure').checked) throw new Error(T('Отметьте подтверждение.'));
-          const { error } = await this.sb.from('addresses').update({ status: 'cancelled' }).eq('id', a.id).eq('status', a.status);
-          if (error) throw new Error(T('Не удалось закрыть заявку. Обновите список и попробуйте ещё раз.'));
-          await this.reload();
-          this.render();
-          this.notice(T('Заявка закрыта.'));
-          await this.o.onChanged?.();
-        },
-        T('Закрыть заявку'),
-      );
-    }
-    /* Убрать заявку из базы. Это не «закрыть сбор»: история и переписка не сохраняются,
-    поэтому для заявок с перепиской путь один — «Переписка → Закрыть заявку». */
+    /* Убрать заявку. Одна кнопка на оба случая: если строка ни с чем не связана — удаляем
+       совсем; если база не даёт (переписка, фото, подтверждённый сбор) — не показываем
+       тупиковую ошибку, а закрываем заявку: статус «Отменено», история остаётся. */
     dropRequest(a) {
       this.dialog(
         T('Убрать заявку'),
         `<p><b>${esc(a.text)}</b></p>
-   <p class="od-muted">${T('Заявка исчезнет из базы вместе с фотографиями и заметками. Отменить это нельзя.')}</p>
-   <p class="od-muted">${T('Если клиенту что-то обещали или по адресу есть переписка — закройте заявку в разделе «Переписка» кнопкой «Закрыть заявку»: тогда история останется, а клиент получит SMS об отмене.')}</p>
-   <label><input id="od-drop-sure" type="checkbox">${T('Удалить эту заявку навсегда.')}</label>`,
+   <p class="od-muted">${T('Заявка уйдёт из очереди. Если по адресу нет переписки и фотографий — она удалится из базы совсем; если есть — останется в истории со статусом «Отменено».')}</p>
+   <p class="od-muted">${T('SMS клиенту не отправляется. Если ему уже обещали дату — закройте заявку в разделе «Переписка» кнопкой «Закрыть заявку», тогда уйдёт уведомление об отмене.')}</p>
+   <label><input id="od-drop-sure" type="checkbox">${T('Убрать эту заявку.')}</label>`,
         async (wrap) => {
-          if (!wrap.querySelector('#od-drop-sure').checked) throw new Error(T('Отметьте подтверждение удаления.'));
+          if (!wrap.querySelector('#od-drop-sure').checked) throw new Error(T('Отметьте подтверждение.'));
           const { error } = await this.sb.from('addresses').delete().eq('id', a.id);
-          if (error)
-            throw new Error(
-              T(
-                'Не удалось удалить: у заявки есть переписка или подтверждённый сбор. Закройте её в разделе «Переписка» кнопкой «Закрыть заявку».',
-              ),
-            );
+          if (error) {
+            const { error: keep } = await this.sb.from('addresses').update({ status: 'cancelled' }).eq('id', a.id);
+            if (keep) throw new Error(T('Не удалось убрать заявку. Обновите очередь и попробуйте ещё раз.'));
+            await this.reload();
+            this.render();
+            this.notice(T('Заявка закрыта: у неё есть переписка или сбор, поэтому история сохранена. Статус — «Отменено».'));
+            await this.o.onChanged?.();
+            return;
+          }
           await this.reload();
           this.render();
           this.notice(T('Заявка удалена.'));
           await this.o.onChanged?.();
         },
-        T('Удалить'),
+        T('Убрать'),
       );
     }
     partner(a) {
@@ -1856,10 +1834,6 @@
       }
       if (act === 'drop') {
         this.dropRequest(a);
-        return;
-      }
-      if (act === 'close') {
-        this.closeRequest(a);
         return;
       }
       if (act === 'release') {
