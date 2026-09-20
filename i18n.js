@@ -189,6 +189,7 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   'Укажите интервал в 30 минут или отметьте «Только дата».': 'Use a 30-minute slot, or tick “Date only”.',
   'Сообщить клиенту SMS о новом времени.': 'Text the customer the new time.',
   'В течение дня — окно уйдёт утром': 'During the day — the window goes out in the morning',
+  'Открыть фото этого адреса': 'Open the photos for this address',
   'В течение дня — окно прибытия уйдёт клиенту утром': 'During the day — the customer gets the arrival window in the morning',
   'автоподбор выключен в настройках': 'auto-planning is off in settings',
   'не назначен водитель': 'no driver assigned',
