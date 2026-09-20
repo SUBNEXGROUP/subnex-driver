@@ -974,6 +974,11 @@
         if (this.available(a)) b.push(`<button data-action="edit" data-id="${a.id}">${T('Изменить')}</button>`);
         if (!['preparing', 'awaiting', 'manual'].includes(a.offer_state))
           b.push(`<button data-action="move" data-id="${a.id}">${T('Перенести')}</button>`);
+        /* «Закрыть» — для заявок, которым ещё ничего не обещали: ни живого предложения,
+           ни удержания, ни даты. У остальных сначала «Снять» или «Переписка → Закрыть заявку»,
+           иначе в дне останется удержание без заявки. */
+        if (!a.hold_id && !a.date && !['preparing', 'awaiting', 'manual'].includes(a.offer_state))
+          b.push(`<button data-action="close" data-id="${a.id}">${T('Закрыть')}</button>`);
         b.push(`<button data-action="drop" data-id="${a.id}">${T('Убрать')}</button>`);
         return b.join('');
       };
@@ -981,7 +986,7 @@
         ? `<p class="od-slot" style="margin-top:8px">${T('Автоподбор включён: новые заявки с мобильным сами получают дату (не раньше чем через 2 дня, до')} ${esc(String(ap.day_capacity || 40))} ${T('адресов в день); YES подтверждает, утром при старте уходит окно прибытия.')}${ap.last_run_at ? ` ${T('Последний проход')} ${esc(C.hm(C.ukMinute(ap.last_run_at)))}${ap.last_run_note ? ' — ' + esc(ap.last_run_note) : ''}.` : ''} ${T('Без мобильного, повторы и WhatsApp — решаете вручную ниже.')}</p>`
         : `<p class="od-muted" style="margin-top:8px">${T('Автоподбор выключен — даты назначаются вручную (кнопка «Распределить по дням»). Включается в «Параметры».')}</p>`;
       return `<div class="od-intro od-between"><div><h3>${T('Заявки без даты ·')} ${this.requests.length}</h3><p>${T('Отметьте адреса — приложение подберёт день и время, заполняя уже начатые дни вплотную к соседним адресам.')}</p>${autoLine}</div><div class="od-actions"><button data-action="sendall" ${ready.total ? '' : 'disabled data-locked="true"'}>${T('Отправить предложения')}${ready.total ? ' · ' + ready.total : ''}</button>${ready.direct.length ? `<button data-action="copypartner">${T('Текст для WhatsApp ·')} ${ready.direct.length}</button>` : ''}<button data-action="schedule">${T('Разбор по категориям')}</button>${ap.enabled ? `<button data-action="autorun">${T('Прогнать автоподбор сейчас')}</button>` : ''}<button data-action="refresh">${T('Обновить')}</button></div></div>
-  <details><summary>${T('Искать места с')} ${label(this.from)}${T(', на')} ${this.days} ${T('дней вперёд')}</summary><div class="od-grid"><label>${T('Начиная с')}<input id="od-from" type="date" min="${C.ukDay()}" value="${this.from}"></label><label>${T('Горизонт')}<select id="od-days"><option value="7" ${this.days === 7 ? 'selected' : ''}>${T('7 дней')}</option><option value="14" ${this.days === 14 ? 'selected' : ''}>${T('14 дней')}</option></select></label></div></details>
+  <details><summary>${T('Искать места с')} ${label(this.from)}${T(', на')} ${this.days} ${T('дней вперёд')}</summary><div class="od-grid"><label>${T('Начиная с')}<input id="od-from" type="date" min="${C.ukDay()}" value="${this.from}"></label><label>${T('Горизонт')}<select id="od-days">${[7, 14, 21, 30, 45, 60].map((n) => `<option value="${n}" ${this.days === n ? 'selected' : ''}>${n} ${T('дней')}</option>`).join('')}</select></label></div></details>
   ${this.requests.length > 500 ? `<p class="od-warning">${T('Показаны первые 500 заявок. Распределите их, затем обновите очередь.')}</p>` : ''}
   ${dupCount ? `<p class="od-warning">${T('Похоже на повтор:')} ${dupCount}${T('. В очередь они не попали — откройте вкладку «Повторы» слева.')}</p>` : ''}
   ${
@@ -1224,9 +1229,26 @@
           ? T('Некоторые дни не рассчитаны: ') + skipped.map((d) => label(d.day) + ' — ' + d.error).join(' ')
           : this.plan.assigned.length
             ? T('Проверьте порядок и время перед сохранением.')
-            : T('Подходящих мест пока нет. Измените горизонт поиска или проверьте проблемные дни.'),
+            : /* Раньше здесь была одна фраза на все случаи, и она советовала менять горизонт,
+                 даже когда дело было в другом. Теперь показываем настоящую причину из расчёта. */
+              this.planReason(),
         !!skipped.length,
       );
+    }
+    /* Причина, по которой не встала ни одна заявка. Расчёт (ops-dispatch-core) пишет свою
+       причину каждому адресу; берём самую частую, чтобы в шапке была правда, а не совет
+       «измените горизонт», который помогает далеко не всегда. */
+    planReason() {
+      const list = (this.plan && this.plan.unassigned) || [];
+      if (!list.length) return T('Подходящих мест пока нет. Измените горизонт поиска или проверьте проблемные дни.');
+      const count = new Map();
+      for (const u of list) {
+        const r = (u.reason || '').trim();
+        if (r) count.set(r, (count.get(r) || 0) + 1);
+      }
+      if (!count.size) return T('Подходящих мест пока нет. Измените горизонт поиска или проверьте проблемные дни.');
+      const top = [...count.entries()].sort((a, b) => b[1] - a[1])[0];
+      return count.size > 1 ? `${top[0]} ${T('Другие причины — в карточке «Останутся в очереди» внизу.')}` : top[0];
     }
     dialog(title, body, onSave, saveLabel = T('Сохранить')) {
       this.$('.od-dialog')?.remove();
@@ -1666,6 +1688,27 @@
       whole?.addEventListener('change', fillText);
       fillText();
     }
+    /* Закрыть заявку, не удаляя её: статус «Отменено», строка и переписка остаются.
+       SMS отсюда не уходит — заявке ещё ничего не обещали, уведомлять не о чем. */
+    closeRequest(a) {
+      this.dialog(
+        T('Закрыть заявку'),
+        `<p><b>${esc(a.text)}</b></p>
+   <p class="od-muted">${T('Заявка уйдёт из очереди со статусом «Отменено». Адрес, переписка и фотографии останутся в базе — позже по тому же адресу можно создать новую заявку.')}</p>
+   <p class="od-muted">${T('SMS клиенту не отправляется: даты ему никто не обещал.')}</p>
+   <label><input id="od-close-sure" type="checkbox">${T('Закрыть эту заявку.')}</label>`,
+        async (wrap) => {
+          if (!wrap.querySelector('#od-close-sure').checked) throw new Error(T('Отметьте подтверждение.'));
+          const { error } = await this.sb.from('addresses').update({ status: 'cancelled' }).eq('id', a.id).eq('status', a.status);
+          if (error) throw new Error(T('Не удалось закрыть заявку. Обновите список и попробуйте ещё раз.'));
+          await this.reload();
+          this.render();
+          this.notice(T('Заявка закрыта.'));
+          await this.o.onChanged?.();
+        },
+        T('Закрыть заявку'),
+      );
+    }
     /* Убрать заявку из базы. Это не «закрыть сбор»: история и переписка не сохраняются,
     поэтому для заявок с перепиской путь один — «Переписка → Закрыть заявку». */
     dropRequest(a) {
@@ -1813,6 +1856,10 @@
       }
       if (act === 'drop') {
         this.dropRequest(a);
+        return;
+      }
+      if (act === 'close') {
+        this.closeRequest(a);
         return;
       }
       if (act === 'release') {

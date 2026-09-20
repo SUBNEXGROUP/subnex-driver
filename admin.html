@@ -20,10 +20,10 @@
     <link rel="stylesheet" href="subnex-ui.css?v=20260919-dark" />
     <link rel="stylesheet" href="ops-chat.css?v=20260919-dark" />
     <link rel="stylesheet" href="ops-dispatch.css?v=20260919-dark" />
-    <script src="i18n.js?v=20260919-day"></script>
-    <script src="ops-chat.js?v=20260919-day"></script>
-    <script src="ops-dispatch-core.js?v=20260919-day"></script>
-    <script src="ops-dispatch.js?v=20260919-day"></script>
+    <script src="i18n.js?v=20260921-close"></script>
+    <script src="ops-chat.js?v=20260921-close"></script>
+    <script src="ops-dispatch-core.js?v=20260921-close"></script>
+    <script src="ops-dispatch.js?v=20260921-close"></script>
     <style>
       .leaflet-container {
         font-family: var(--body);
@@ -921,6 +921,7 @@
         </div>
         <div class="modal-actions">
           <button class="btn btn-crit" id="ma-del" onclick="deleteAddrModal()" style="display: none">Удалить</button
+          ><button class="btn" id="ma-close-req" onclick="closeAddrRequest()" style="display: none">Закрыть заявку</button
           ><span class="spacer"></span><button class="btn" onclick="closeModal('m-addr-bg')">Отмена</button
           ><button class="btn btn-pri" id="ma-save" onclick="saveAddrModal()">Сохранить</button>
         </div>
@@ -2778,6 +2779,10 @@
         document.getElementById('ma-status').value = a.status;
         document.getElementById('ma-resnote').value = a.result_note || '';
         document.getElementById('ma-del').style.display = !cancelled ? '' : 'none';
+        /* Закрыть заявку можно всегда, пока она не закрыта. Раньше единственным путём был
+           статус, а он заблокирован у заявок без даты — и подсказка «закройте через статус»
+           вела в тупик: заявка-дубль висела в списке, и убрать её было нечем. */
+        document.getElementById('ma-close-req').style.display = !cancelled ? '' : 'none';
         document.getElementById('ma-chat').style.display = a.phone && a.kind !== 'bank' ? '' : 'none';
         document.getElementById('ma-move').style.display =
           !cancelled && a.kind !== 'bank' && ['new', 'planned'].includes(a.status) ? '' : 'none';
@@ -2929,11 +2934,41 @@
         if (!editAddrId || !confirm(T('Удалить этот адрес?'))) return;
         const { error } = await sb.from('addresses').delete().eq('id', editAddrId);
         if (error) {
-          toast(T('Адрес связан с перепиской. Закройте заявку через статус — история сохранится.'));
+          toast(T('Адрес связан с перепиской. Нажмите «Закрыть заявку» — история сохранится.'));
           return;
         }
         closeModal('m-addr-bg');
         refreshAll(true);
+      }
+      /* Закрыть заявку, не удаляя её: строка остаётся в базе со статусом «Отменено»,
+         переписка и фото сохраняются. SMS отсюда не уходит — если клиенту уже обещали
+         дату, закрывать надо в «Переписке», там есть уведомление об отмене. */
+      async function closeAddrRequest() {
+        const a = editAddrId ? ADDR.find((x) => x.id === editAddrId) : null;
+        if (!a || a.status === 'cancelled') return;
+        /* У согласованного сбора есть удержание в дне и обещание клиенту. Такие закрываем
+           только через «Переписку»: там снимается удержание и уходит SMS об отмене. */
+        if (a.collection_start) {
+          toast(T('Дата уже согласована с клиентом. Закройте через «Переписка → Закрыть заявку» — там снимется время и уйдёт SMS об отмене.'));
+          return;
+        }
+        if (!confirm(T('Закрыть заявку «') + a.text + T('»? Она получит статус «Отменено» и уйдёт из очереди. История и фото сохранятся. SMS клиенту не отправляется.'))) return;
+        const btn = document.getElementById('ma-close-req');
+        btn.disabled = true;
+        try {
+          const { error } = await sb.from('addresses').update({ status: 'cancelled' }).eq('id', a.id);
+          if (error) throw error;
+          closeModal('m-addr-bg');
+          toast(T('Заявка закрыта'));
+          await refreshAll(true);
+          QUEUE?.reload()
+            .then(() => QUEUE.render())
+            .catch(() => {});
+        } catch (e) {
+          toast(Ops.error(e));
+        } finally {
+          btn.disabled = false;
+        }
       }
 
       /* ---------- водители ---------- */

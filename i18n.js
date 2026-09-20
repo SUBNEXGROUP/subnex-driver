@@ -761,6 +761,20 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
     'If the customer was promised something or the address has a conversation — close the request in SMS chat with “Close request”: the history stays and the customer gets a cancellation SMS.',
   'Удалить эту заявку навсегда.': 'Delete this request permanently.',
   'Отметьте подтверждение удаления.': 'Tick the deletion confirmation.',
+  'Заявка уйдёт из очереди со статусом «Отменено». Адрес, переписка и фотографии останутся в базе — позже по тому же адресу можно создать новую заявку.':
+    'The request leaves the queue with the status “Cancelled”. The address, conversation and photos stay in the database — a new request for the same address can be created later.',
+  'SMS клиенту не отправляется: даты ему никто не обещал.': 'No SMS is sent to the customer: nobody promised them a date.',
+  'Закрыть эту заявку.': 'Close this request.',
+  'Отметьте подтверждение.': 'Tick the confirmation.',
+  'Не удалось закрыть заявку. Обновите список и попробуйте ещё раз.': 'Could not close the request. Refresh the list and try again.',
+  'Заявка закрыта.': 'Request closed.',
+  'Адрес связан с перепиской. Нажмите «Закрыть заявку» — история сохранится.':
+    'The address is linked to a conversation. Press “Close request” — the history is kept.',
+  'Дата уже согласована с клиентом. Закройте через «Переписка → Закрыть заявку» — там снимется время и уйдёт SMS об отмене.':
+    'The date is already agreed with the customer. Close it in SMS chat → “Close request” — that releases the slot and sends a cancellation SMS.',
+  'Закрыть заявку «': 'Close the request “',
+  '»? Она получит статус «Отменено» и уйдёт из очереди. История и фото сохранятся. SMS клиенту не отправляется.':
+    '”? It gets the status “Cancelled” and leaves the queue. History and photos are kept. No SMS is sent to the customer.',
   'Не удалось удалить: у заявки есть переписка или подтверждённый сбор. Закройте её в разделе «Переписка» кнопкой «Закрыть заявку».':
     'Could not delete: the request has a conversation or a confirmed collection. Close it in SMS chat with “Close request”.',
   'Заявка удалена.': 'Request deleted.',
