@@ -1013,7 +1013,28 @@
                 return `<li><div><strong>${esc(stop.text)}</strong><small>${fresh ? `<span class="od-slot">${T('Новая заявка')}</span> · ` : n.kind === 'confirmed' ? T('Подтверждено · ') : T('Ожидаем ответ · ')}${arrivalLabel(n)}${together ? ` · <span class="od-slot">${T('вместе с предыдущим')}</span>` : ''}${stop.wait ? T(' · простой ') + stop.wait + T(' мин') : ''}</small></div><div class="od-stop-act"><b>≈ ${C.hm(stop.arrival)}</b><button data-action="replan" data-id="${esc(stop.address_id || '')}" data-key="${esc(stop.key)}" data-day="${esc(d.day)}">${T('Перенести')}</button></div></li>`;
               })
               .join('')}</ol>`
-          : `<p class="od-warning">${esc(error({ code: d.fit.code, detail: d.fit }))}</p>`
+          : /* День не помещается. Раньше здесь была только красная строка — что именно
+               убирать, человек не видел. Показываем состав дня с кнопкой «Перенести». */
+            (() => {
+              const addedHere = this.plan.assigned.filter((a) => a.day === d.day).length;
+              const byKey = (k) => d.nodes.find((n) => n.key === k);
+              const list = (d.order || []).map(byKey).filter(Boolean);
+              for (const n of d.nodes) if (!list.includes(n)) list.push(n);
+              return `<p class="od-warning">${esc(error({ code: d.fit.code, detail: d.fit }))}</p>
+   <p class="od-muted">${
+     addedHere
+       ? `${T('В этот день расчёт добавил новых заявок:')} ${addedHere}. ${T('Уберите лишнюю кнопкой «Перенести» и пересчитайте.')}`
+       : T(
+           'Новых заявок сюда не добавляли — день не помещался ещё до расчёта. Перенесите одну из остановок или расширьте рабочие часы этого дня в «Часы и доступ».',
+         )
+   }</p>
+   <ol class="od-stops">${list
+     .map((n) => {
+       const fresh = this.plan.assigned.some((a) => a.address_id === n.address_id);
+       return `<li><div><strong>${esc(n.text)}</strong><small>${fresh ? `<span class="od-slot">${T('Новая заявка')}</span>` : n.kind === 'confirmed' ? T('Подтверждено') : T('Ожидаем ответ')}</small></div><div class="od-stop-act"><button data-action="replan" data-id="${esc(n.address_id || '')}" data-key="${esc(n.key)}" data-day="${esc(d.day)}">${T('Перенести')}</button></div></li>`;
+     })
+     .join('')}</ol>`;
+            })()
       }</article>`;
     })
     .join('')}

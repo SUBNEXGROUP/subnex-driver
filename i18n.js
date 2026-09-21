@@ -616,6 +616,11 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   'Новая заявка': 'New request',
   'Подтверждено · ': 'Confirmed · ',
   'Ожидаем ответ · ': 'Awaiting reply · ',
+  'Ожидаем ответ': 'Awaiting reply',
+  'В этот день расчёт добавил новых заявок:': 'Requests the calculation added to this day:',
+  'Уберите лишнюю кнопкой «Перенести» и пересчитайте.': 'Move one out with “Move” and recalculate.',
+  'Новых заявок сюда не добавляли — день не помещался ещё до расчёта. Перенесите одну из остановок или расширьте рабочие часы этого дня в «Часы и доступ».':
+    'No new requests were added here — the day already did not fit before the calculation. Move one of the stops out or extend this day’s working hours in “Hours and access”.',
   'вместе с предыдущим': 'together with the previous one',
   ' · простой ': ' · idle ',
   'Останутся в очереди ·': 'Will stay in the queue ·',
