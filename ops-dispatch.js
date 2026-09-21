@@ -971,7 +971,10 @@
           b.push(`<button data-action="remind" data-id="${a.id}">${T('Напомнить')}</button>`);
         else if (C.offerLive(a) && a.offered_start)
           b.push(`<button data-action="renew" data-id="${a.id}">${T('Предложить новое время')}</button>`);
-        if (this.available(a)) b.push(`<button data-action="edit" data-id="${a.id}">${T('Изменить')}</button>`);
+        /* Карточка адреса: там правятся адрес, телефон, мешки, charity и заметка.
+           Доступна всегда — эти поля маршрут не двигают, ждать «Снять» незачем. */
+        b.push(`<button data-action="card" data-id="${a.id}">${T('Изменить данные')}</button>`);
+        if (this.available(a)) b.push(`<button data-action="edit" data-id="${a.id}">${T('Срок и сбор')}</button>`);
         if (!['preparing', 'awaiting', 'manual'].includes(a.offer_state))
           b.push(`<button data-action="move" data-id="${a.id}">${T('Перенести')}</button>`);
         b.push(`<button data-action="drop" data-id="${a.id}">${T('Убрать')}</button>`);
@@ -1704,6 +1707,34 @@
       whole?.addEventListener('change', fillText);
       fillText();
     }
+    /* Вписать или поправить мобильный прямо из очереди. Пишем в адрес напрямую: телефон
+       не трогает ни дату, ни маршрут, поэтому сторожам таблицы он не интересен. */
+    editPhone(a) {
+      this.dialog(
+        T('Телефон клиента'),
+        `<p><b>${esc(a.text)}</b></p>
+   <label>${T('Мобильный телефон')}<input id="od-phone" type="tel" value="${esc(a.phone || '')}" placeholder="07700 900123"></label>
+   <p class="od-muted">${T('Нужен британский мобильный: 11 цифр, начинается с 07. На стационарный номер SMS не уходит — такую заявку придётся вести вручную.')}</p>
+   ${a.contact_email ? `<p class="od-muted">${T('Email из заявки:')} ${esc(a.contact_email)}</p>` : ''}`,
+        async (wrap) => {
+          const raw = wrap.querySelector('#od-phone').value.trim();
+          let normalized = C.phone(raw);
+          /* Частый случай в партнёрских письмах: ведущий ноль потерялся при выгрузке. */
+          if (!/^\+447\d{9}$/.test(normalized) && /^7\d{9}$/.test(raw.replace(/[\s().-]/g, ''))) {
+            normalized = C.phone('0' + raw.replace(/[\s().-]/g, ''));
+          }
+          if (!/^\+447\d{9}$/.test(normalized))
+            throw new Error(T('Это не похоже на британский мобильный. Проверьте: 11 цифр, начинается с 07.'));
+          const { error: failed } = await this.sb.from('addresses').update({ phone: normalized }).eq('id', a.id);
+          if (failed) throw new Error(T('Не удалось сохранить телефон: ') + error(failed));
+          await this.reload();
+          this.render();
+          this.notice(`${T('Телефон сохранён:')} ${normalized}`);
+          await this.o.onChanged?.();
+        },
+        T('Сохранить'),
+      );
+    }
     /* Убрать заявку. Одна кнопка на оба случая: если строка ни с чем не связана — удаляем
        совсем; если база не даёт (переписка, фото, подтверждённый сбор) — не показываем
        тупиковую ошибку, а закрываем заявку: статус «Отменено», история остаётся. */
@@ -1849,6 +1880,14 @@
       }
       if (act === 'renew') {
         this.renew(a);
+        return;
+      }
+      if (act === 'card') {
+        /* Карточка живёт в пульте: там уже есть геокодирование при смене адреса
+           и предупреждение о согласованном времени. Дублировать это незачем.
+           Если пульта рядом нет — открываем хотя бы правку телефона. */
+        if (typeof window.openAddrModal === 'function') window.openAddrModal(a.id);
+        else this.editPhone(a);
         return;
       }
       if (act === 'drop') {

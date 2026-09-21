@@ -436,6 +436,16 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   'Полный адрес': 'Full address',
   'Дом, улица, город, postcode': 'House, street, town, postcode',
   'Мобильный телефон': 'Mobile phone',
+  'Изменить данные': 'Edit details',
+  'Срок и сбор': 'Timing and service',
+  'Телефон клиента': 'Customer phone',
+  'Нужен британский мобильный: 11 цифр, начинается с 07. На стационарный номер SMS не уходит — такую заявку придётся вести вручную.':
+    'A UK mobile is required: 11 digits starting with 07. Landlines receive no SMS — such a request has to be handled by hand.',
+  'Email из заявки:': 'Email from the request:',
+  'Это не похоже на британский мобильный. Проверьте: 11 цифр, начинается с 07.':
+    'That does not look like a UK mobile. Check it: 11 digits starting with 07.',
+  'Не удалось сохранить телефон: ': 'Could not save the phone number: ',
+  'Телефон сохранён:': 'Phone number saved:',
   'Мешки — как в заявке': 'Bags — as in the request',
   'Клиент доступен с': 'Customer available from',
   Имя: 'Name',
