@@ -20,10 +20,10 @@
     <link rel="stylesheet" href="subnex-ui.css?v=20260919-dark" />
     <link rel="stylesheet" href="ops-chat.css?v=20260919-dark" />
     <link rel="stylesheet" href="ops-dispatch.css?v=20260919-dark" />
-    <script src="i18n.js?v=20260919-day"></script>
-    <script src="ops-chat.js?v=20260919-day"></script>
-    <script src="ops-dispatch-core.js?v=20260919-day"></script>
-    <script src="ops-dispatch.js?v=20260919-day"></script>
+    <script src="i18n.js?v=20260921-source"></script>
+    <script src="ops-chat.js?v=20260921-source"></script>
+    <script src="ops-dispatch-core.js?v=20260921-source"></script>
+    <script src="ops-dispatch.js?v=20260921-source"></script>
     <style>
       body {
         font-size: 15px;
@@ -458,6 +458,7 @@
           archSub: 'Выполненные работы',
           addressLbl: 'Адрес',
           bagsLbl: 'Мешков',
+          sourceLbl: 'Откуда заявка',
           phoneLbl: 'Телефон',
           noteLbl: 'Заметка',
           dateLbl: 'Дата выезда',
@@ -620,6 +621,7 @@
           archSub: 'Completed jobs',
           addressLbl: 'Address',
           bagsLbl: 'Bags',
+          sourceLbl: 'Request source',
           phoneLbl: 'Phone',
           noteLbl: 'Note',
           dateLbl: 'Collection date',
@@ -839,6 +841,13 @@
         if (!raw) return '';
         const r = raw.replace(/\s*(?:to|-|–)\s*/i, '–');
         return r + ' ' + t('bags');
+      }
+      /* Название источника заявки — то же, что видит пульт и что стоит в отчётах:
+         Partner Email, SUBNEX Collections, Partner WhatsApp, Missing Collections. */
+      function sourceLabel(a) {
+        const C = window.SubnexDispatchCore;
+        if (!C || a.kind === 'bank') return '';
+        return C.sourceNames[C.sourceOf(a)] || '';
       }
 
       /* ---------- bank holidays ---------- */
@@ -1905,7 +1914,7 @@
                 ? ' · ' + t('window') + ' ' + hm(en)
                 : '';
           rows.push(
-            `<button class="ph-stop ${['done', 'noanswer', 'problem'].includes(a.status) ? 'done' : ''} ${a === firstOpen && isToday ? 'now' : ''}" onclick="openAddr('${a.id}')"><div class="num ${numCls}">${i + 1}</div><div class="body"><b>${a.kind === 'bank' ? BANKPLATE + ' ' : ''}${esc(a.text)}</b><small>${win ? '<span class="win">' + win + '</span>' + winTail + ' · ' : winTail ? winTail.slice(3) + ' · ' : ''}${bagsLabel(a) ? esc(bagsLabel(a)) : st == null ? t('noTime') : ''}${!hasCoords(a) ? ' · <span style="color:var(--crit)">' + t('noCoordAddr') + '</span>' : ''}</small>${a.note ? '<small>' + esc(a.note) + '</small>' : ''}</div><span class="navb" onclick="event.stopPropagation();navTo('${a.id}')" aria-label="navigate"><svg class="ic" style="fill:#fff;stroke:none;width:18px;height:18px"><use href="#i-nav"/></svg></span></button>`,
+            `<button class="ph-stop ${['done', 'noanswer', 'problem'].includes(a.status) ? 'done' : ''} ${a === firstOpen && isToday ? 'now' : ''}" onclick="openAddr('${a.id}')"><div class="num ${numCls}">${i + 1}</div><div class="body"><b>${a.kind === 'bank' ? BANKPLATE + ' ' : ''}${esc(a.text)}</b><small>${win ? '<span class="win">' + win + '</span>' + winTail + ' · ' : winTail ? winTail.slice(3) + ' · ' : ''}${bagsLabel(a) ? esc(bagsLabel(a)) : st == null ? t('noTime') : ''}${!hasCoords(a) ? ' · <span style="color:var(--crit)">' + t('noCoordAddr') + '</span>' : ''}</small>${sourceLabel(a) ? '<small class="muted">' + esc(sourceLabel(a)) + '</small>' : ''}${a.note ? '<small>' + esc(a.note) + '</small>' : ''}</div><span class="navb" onclick="event.stopPropagation();navTo('${a.id}')" aria-label="navigate"><svg class="ic" style="fill:#fff;stroke:none;width:18px;height:18px"><use href="#i-nav"/></svg></span></button>`,
           );
           prevEnd = en != null ? en + SERVICE : null;
         });
@@ -2064,6 +2073,10 @@
               ? `<div>${t('dateLbl')}<b>${a.date}</b></div>`
               : '') +
           (bagsLabel(a) ? `<div>${t('bagsLbl')}<b>${esc(bagsLabel(a).replace(' ' + t('bags'), ''))}</b></div>` : '') +
+          /* Откуда пришла заявка: партнёрское письмо, сайт, WhatsApp или несобранный
+             сбор. Водителю это говорит, чего ждать на адресе. Названия источников
+             не переводим — они одинаковы для партнёров и в отчётах. */
+          (a.kind !== 'bank' ? `<div>${t('sourceLbl')}<b>${esc(sourceLabel(a))}</b></div>` : '') +
           `<div>${t('result')}<b>${cancelled ? t('cancelledWord') : a.status === 'done' ? t('visited') : a.status === 'noanswer' ? t('noAnswer') : a.status === 'problem' ? t('problem') : '—'}</b></div>`;
         let html = cancelled ? '<p style="color:var(--crit);font-weight:600">' + t('cancelledWord') + '</p>' : '';
         if (isBank) html += BANKPLATE + '<br>';
