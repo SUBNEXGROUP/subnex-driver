@@ -130,18 +130,24 @@
   async function api(sb, action, data = {}) {
     const { data: result, error } = await sb.functions.invoke('subnex-sms', { body: { action, data } });
     if (error) {
-      let code = 'NETWORK';
+      let code = 'NETWORK',
+        details = null;
       try {
         const j = await error.context.json();
         code = j.error || code;
+        details = j.details ?? null;
       } catch {}
       const e = new Error(codes[code] || T('Ошибка запроса: ') + code);
       e.code = code;
+      /* Подробности отказа планировщика: по ним OpsDispatch.error собирает понятную фразу
+         с участком и временем прибытия. Раньше они терялись, и оставался голый код. */
+      e.details = details;
       throw e;
     }
     if (result?.error) {
       const e = new Error(codes[result.error] || result.error);
       e.code = result.error;
+      e.details = result.details ?? null;
       throw e;
     }
     return result;
