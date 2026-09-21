@@ -1690,24 +1690,22 @@
       this.dialog(
         T('Убрать заявку'),
         `<p><b>${esc(a.text)}</b></p>
-   <p class="od-muted">${T('Заявка уйдёт из очереди. Если по адресу нет переписки и фотографий — она удалится из базы совсем; если есть — останется в истории со статусом «Отменено».')}</p>
-   <p class="od-muted">${T('SMS клиенту не отправляется. Если ему уже обещали дату — закройте заявку в разделе «Переписка» кнопкой «Закрыть заявку», тогда уйдёт уведомление об отмене.')}</p>
+   <p class="od-muted">${T('Заявка уйдёт из очереди, удержание дня снимется, отправленные предложения погаснут. Адрес, переписка и фотографии останутся в истории, в отчёты эта заявка не попадёт.')}</p>
+   <p class="od-muted">${a.date || a.offer_state === 'confirmed' ? T('Сбор согласован с клиентом — ему уйдёт SMS об отмене.') : T('Клиенту ничего не отправляется: даты ему никто не подтверждал.')}</p>
    <label><input id="od-drop-sure" type="checkbox">${T('Убрать эту заявку.')}</label>`,
         async (wrap) => {
           if (!wrap.querySelector('#od-drop-sure').checked) throw new Error(T('Отметьте подтверждение.'));
-          const { error } = await this.sb.from('addresses').delete().eq('id', a.id);
-          if (error) {
-            const { error: keep } = await this.sb.from('addresses').update({ status: 'cancelled' }).eq('id', a.id);
-            if (keep) throw new Error(T('Не удалось убрать заявку. Обновите очередь и попробуйте ещё раз.'));
-            await this.reload();
-            this.render();
-            this.notice(T('Заявка закрыта: у неё есть переписка или сбор, поэтому история сохранена. Статус — «Отменено».'));
-            await this.o.onChanged?.();
-            return;
-          }
+          /* Закрываем на сервере. Напрямую из браузера нельзя: строку держит внешний ключ
+             на переписку, а поля закрытия защищены сторожем (флаг subnex.close_change). */
+          const res = await rpc(this.sb, 'close_request', { address_id: a.id });
+          if (!res || res.closed !== true) throw new Error(T('Сервер не закрыл заявку: ') + (res?.reason || T('причина неизвестна')));
           await this.reload();
           this.render();
-          this.notice(T('Заявка удалена.'));
+          this.notice(
+            res.confirmed
+              ? T('Заявка убрана. Сбор был согласован — клиенту отправлено SMS об отмене.')
+              : T('Заявка убрана из очереди. В отчёты она не попадёт.'),
+          );
           await this.o.onChanged?.();
         },
         T('Убрать'),

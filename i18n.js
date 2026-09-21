@@ -761,19 +761,23 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
     'If the customer was promised something or the address has a conversation — close the request in SMS chat with “Close request”: the history stays and the customer gets a cancellation SMS.',
   'Удалить эту заявку навсегда.': 'Delete this request permanently.',
   'Отметьте подтверждение удаления.': 'Tick the deletion confirmation.',
-  'Заявка уйдёт из очереди. Если по адресу нет переписки и фотографий — она удалится из базы совсем; если есть — останется в истории со статусом «Отменено».':
-    'The request leaves the queue. If the address has no conversation and no photos it is deleted outright; if it has, it stays in the history with the status “Cancelled”.',
-  'SMS клиенту не отправляется. Если ему уже обещали дату — закройте заявку в разделе «Переписка» кнопкой «Закрыть заявку», тогда уйдёт уведомление об отмене.':
-    'No SMS is sent to the customer. If a date was already promised, close the request in SMS chat with “Close request” — that sends the cancellation notice.',
+  'Заявка уйдёт из очереди, удержание дня снимется, отправленные предложения погаснут. Адрес, переписка и фотографии останутся в истории, в отчёты эта заявка не попадёт.':
+    'The request leaves the queue, the day hold is released and any sent offer is dropped. The address, conversation and photos stay in the history, and the request is left out of reports.',
+  'Сбор согласован с клиентом — ему уйдёт SMS об отмене.': 'The collection is agreed with the customer — they get a cancellation SMS.',
+  'Клиенту ничего не отправляется: даты ему никто не подтверждал.':
+    'Nothing is sent to the customer: no date was ever confirmed with them.',
   'Убрать эту заявку.': 'Remove this request.',
   'Отметьте подтверждение.': 'Tick the confirmation.',
-  'Не удалось убрать заявку. Обновите очередь и попробуйте ещё раз.': 'Could not remove the request. Refresh the queue and try again.',
-  'Заявка закрыта: у неё есть переписка или сбор, поэтому история сохранена. Статус — «Отменено».':
-    'Request closed: it has a conversation or a collection, so the history is kept. Status — “Cancelled”.',
-  'Убрать этот адрес? Если по нему есть переписка или фото, заявка не удалится, а закроется со статусом «Отменено».':
-    'Remove this address? If it has a conversation or photos, the request is not deleted but closed with the status “Cancelled”.',
-  'Заявка закрыта: есть переписка или сбор, история сохранена.':
-    'Request closed: it has a conversation or a collection, the history is kept.',
+  'Сервер не закрыл заявку: ': 'The server did not close the request: ',
+  'причина неизвестна': 'reason unknown',
+  'Заявка убрана. Сбор был согласован — клиенту отправлено SMS об отмене.':
+    'Request removed. The collection was agreed, so a cancellation SMS was sent to the customer.',
+  'Заявка убрана из очереди. В отчёты она не попадёт.': 'Request removed from the queue. It is left out of reports.',
+  'Сбор согласован — клиенту уйдёт SMS об отмене. ': 'The collection is agreed — the customer gets a cancellation SMS. ',
+  'Убрать заявку по этому адресу? В отчёты она не попадёт, история сохранится.':
+    'Remove the request for this address? It is left out of reports and the history is kept.',
+  'Заявка убрана, клиенту отправлено SMS об отмене.': 'Request removed, a cancellation SMS was sent to the customer.',
+  'Заявка убрана.': 'Request removed.',
   'Не удалось удалить: у заявки есть переписка или подтверждённый сбор. Закройте её в разделе «Переписка» кнопкой «Закрыть заявку».':
     'Could not delete: the request has a conversation or a confirmed collection. Close it in SMS chat with “Close request”.',
   'Заявка удалена.': 'Request deleted.',

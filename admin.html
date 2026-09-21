@@ -20,10 +20,10 @@
     <link rel="stylesheet" href="subnex-ui.css?v=20260919-dark" />
     <link rel="stylesheet" href="ops-chat.css?v=20260919-dark" />
     <link rel="stylesheet" href="ops-dispatch.css?v=20260919-dark" />
-    <script src="i18n.js?v=20260921-drop"></script>
-    <script src="ops-chat.js?v=20260921-drop"></script>
-    <script src="ops-dispatch-core.js?v=20260921-drop"></script>
-    <script src="ops-dispatch.js?v=20260921-drop"></script>
+    <script src="i18n.js?v=20260921-close51"></script>
+    <script src="ops-chat.js?v=20260921-close51"></script>
+    <script src="ops-dispatch-core.js?v=20260921-close51"></script>
+    <script src="ops-dispatch.js?v=20260921-close51"></script>
     <style>
       .leaflet-container {
         font-family: var(--body);
@@ -1803,6 +1803,11 @@
       function activeAddr(a) {
         return ['new', 'planned'].includes(a.status);
       }
+      /* Заявка, убранная оператором вручную (ошибка ввода, повтор). Это не отказ клиента
+         и не сорванный сбор, поэтому в отчётах и счётчиках её не показываем. */
+      function removedByOperator(a) {
+        return a && a.status === 'cancelled' && (a.cancellation_reason || a.closed_reason) === 'operator_removed';
+      }
       function renderToday() {
         const ds = document.getElementById('dash-date').value || todayStr(),
           isToday = ds === todayStr();
@@ -2925,25 +2930,26 @@
           btn.disabled = false;
         }
       }
-      /* Убрать адрес. Если база не даёт удалить (переписка, фото, подтверждённый сбор),
-         не упираемся в ошибку, а закрываем заявку: статус «Отменено», история остаётся. */
+      /* Убрать адрес. Закрывает сервер: напрямую из браузера нельзя — строку держит
+         внешний ключ на переписку, а поля закрытия защищены сторожем. */
       async function deleteAddrModal() {
-        if (!editAddrId || !confirm(T('Убрать этот адрес? Если по нему есть переписка или фото, заявка не удалится, а закроется со статусом «Отменено».'))) return;
-        const id = editAddrId;
-        const { error } = await sb.from('addresses').delete().eq('id', id);
-        if (error) {
-          const { error: keep } = await sb.from('addresses').update({ status: 'cancelled' }).eq('id', id);
-          if (keep) {
-            toast(Ops.error(keep));
-            return;
-          }
-          toast(T('Заявка закрыта: есть переписка или сбор, история сохранена.'));
+        const a = editAddrId ? ADDR.find((x) => x.id === editAddrId) : null;
+        if (!a) return;
+        const warn = a.collection_start ? T('Сбор согласован — клиенту уйдёт SMS об отмене. ') : '';
+        if (!confirm(warn + T('Убрать заявку по этому адресу? В отчёты она не попадёт, история сохранится.'))) return;
+        try {
+          const { data, error } = await sb.rpc('subnex_dispatch', { p_action: 'close_request', p_data: { address_id: a.id } });
+          if (error) throw error;
+          if (!data || data.closed !== true) throw new Error(data?.reason || 'CLOSE_FAILED');
+          closeModal('m-addr-bg');
+          toast(data.confirmed ? T('Заявка убрана, клиенту отправлено SMS об отмене.') : T('Заявка убрана.'));
+          await refreshAll(true);
+          QUEUE?.reload()
+            .then(() => QUEUE.render())
+            .catch(() => {});
+        } catch (e) {
+          toast(Ops.error(e));
         }
-        closeModal('m-addr-bg');
-        await refreshAll(true);
-        QUEUE?.reload()
-          .then(() => QUEUE.render())
-          .catch(() => {});
       }
 
       /* ---------- водители ---------- */
@@ -3880,6 +3886,7 @@
         for (const r of EV_RAW.log) {
           if (seen.has(r.id)) continue;
           if (src && r.source !== src) continue;
+          if (removedByOperator(r)) continue;
           const problem = EV_PROBLEM.has(r.status);
           rows.push({
             ...r,
@@ -4113,7 +4120,12 @@
       function crProblems(ym, charity) {
         const src = document.getElementById('cr-source').value;
         const list = ADDR.filter(
-          (a) => a.kind !== 'bank' && (a.date || '').slice(0, 7) === ym && crName(a) === charity && (!src || C.sourceOf(a) === src),
+          (a) =>
+            a.kind !== 'bank' &&
+            (a.date || '').slice(0, 7) === ym &&
+            crName(a) === charity &&
+            (!src || C.sourceOf(a) === src) &&
+            !removedByOperator(a),
         );
         const noanswer = list.filter((a) => a.status === 'noanswer').length;
         const problem = list.filter((a) => a.status === 'problem').length;
