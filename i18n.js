@@ -1276,6 +1276,9 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   'с запасом': 'with margin',
   'Расчёт по дорогам: прибытия, переезды и склад': 'Road-based calculation: arrivals, legs and depot',
   'По согласованному времени · дорога не рассчитана': 'By agreed times · roads not calculated',
+  'Времена в пути не получены — порядок выстроить не по чему': 'No travel times received — there is nothing to build the order from',
+  'День не укладывается в часы: порядок показан как есть, времена ориентировочные':
+    'The day does not fit the working hours: the order is shown as it stands and the times are approximate',
   'На этот день сборов нет.': 'No collections on this day.',
   'Открыть очередь заявок': 'Open the request queue',
   'Выезд ·': 'Departure ·',

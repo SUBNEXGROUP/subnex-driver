@@ -259,7 +259,19 @@
       if (n.earliest < opens || n.latest > closes) return { ok: false, code: 'OUTSIDE_HOURS', address: n.text };
       const first = stops.length === 0;
       const arrival = Math.max(cursor + leg, n.earliest, opens);
-      if (arrival > n.latest) return { ok: false, code: 'TIME_CONFLICT', from: previous, to: n.text, arrival, latest: n.latest };
+      /* placed и late нужны оптимизатору: по ним он сравнивает два несходящихся порядка —
+         где дальше уехали и насколько меньше опоздали. Без них выпрямить сломанный день нечем. */
+      if (arrival > n.latest)
+        return {
+          ok: false,
+          code: 'TIME_CONFLICT',
+          from: previous,
+          to: n.text,
+          arrival,
+          latest: n.latest,
+          placed: stops.length,
+          late: arrival - n.latest,
+        };
       const w = first ? 0 : Math.max(0, arrival - (cursor + leg));
       if (first) departure = arrival - leg;
       else {
@@ -359,8 +371,18 @@
    Возвращает лучший найденный порядок; если улучшений нет — исходный. */
   function optimizeOrder(nodes, order, config, hours, roads, startMinute, limitMs = 1500) {
     const fit = evaluate(nodes, order, config, hours, roads, startMinute);
-    if (!fit.ok || order.length < 3) return { order: [...order], fit, improved: false };
-    const cost = (f) => f.drive * 10 + f.wait;
+    if (order.length < 3) return { order: [...order], fit, improved: false };
+    /* Без времён в пути сравнивать нечего — только тогда и выходим. Раньше здесь стоял
+       выход и на «день не сходится», и получалось наоборот: сломанный день, который
+       выпрямить нужнее всего, оставался как был. Теперь несходящиеся порядки тоже
+       сравниваются — сначала по тому, сколько адресов удалось поставить, потом по
+       опозданию. Любой сходящийся порядок всегда лучше любого несходящегося. */
+    if (!fit.ok && fit.code === 'ROADS_REQUIRED') return { order: [...order], fit, improved: false };
+    const BROKEN = 1e9;
+    const cost = (f) =>
+      f.ok
+        ? f.drive * 10 + f.wait
+        : BROKEN + (nodes.length - (Number.isFinite(f.placed) ? f.placed : 0)) * 1e5 + (Number.isFinite(f.late) ? f.late : 1e4);
     let best = [...order],
       bestFit = fit,
       bestCost = cost(fit),
@@ -368,7 +390,8 @@
     const started = Date.now();
     const tryOrder = (candidate) => {
       const f = evaluate(nodes, candidate, config, hours, roads, startMinute);
-      if (f.ok && cost(f) < bestCost - 0.5) {
+      if (!f.ok && f.code === 'ROADS_REQUIRED') return false;
+      if (cost(f) < bestCost - 0.5) {
         best = candidate;
         bestFit = f;
         bestCost = cost(f);

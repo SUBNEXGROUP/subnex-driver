@@ -20,10 +20,10 @@
     <link rel="stylesheet" href="subnex-ui.css?v=20260919-dark" />
     <link rel="stylesheet" href="ops-chat.css?v=20260919-dark" />
     <link rel="stylesheet" href="ops-dispatch.css?v=20260919-dark" />
-    <script src="i18n.js?v=20260921-remind3"></script>
-    <script src="ops-chat.js?v=20260921-remind3"></script>
-    <script src="ops-dispatch-core.js?v=20260921-remind3"></script>
-    <script src="ops-dispatch.js?v=20260921-remind3"></script>
+    <script src="i18n.js?v=20260921-order"></script>
+    <script src="ops-chat.js?v=20260921-order"></script>
+    <script src="ops-dispatch-core.js?v=20260921-order"></script>
+    <script src="ops-dispatch.js?v=20260921-order"></script>
     <style>
       .leaflet-container {
         font-family: var(--body);
@@ -2206,9 +2206,13 @@
         document.getElementById('day-stats').innerHTML = stats
           .map((s) => `<div><div class="k">${s[0]}</div><div class="v">${s[1]}${s[2] ? ' <small>' + s[2] + '</small>' : ''}</div></div>`)
           .join('');
+        /* Раньше на любой несошедшийся день писали «дорога не рассчитана» — и это сбивало
+           с толку: дороги-то посчитаны, просто день не укладывается. Разделяем. */
         document.getElementById('day-route-sub').textContent = fit?.ok
           ? T('Расчёт по дорогам: прибытия, переезды и склад')
-          : T('По согласованному времени · дорога не рассчитана');
+          : fit?.code === 'ROADS_REQUIRED'
+            ? T('Времена в пути не получены — порядок выстроить не по чему')
+            : T('День не укладывается в часы: порядок показан как есть, времена ориентировочные');
         /* таймлайн */
         const tl = document.getElementById('day-tl');
         if (!list.length) {
