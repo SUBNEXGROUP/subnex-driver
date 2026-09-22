@@ -191,6 +191,8 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   'В течение дня — окно уйдёт утром': 'During the day — the window goes out in the morning',
   'Открыть фото этого адреса': 'Open the photos for this address',
   'Горизонт расширен до': 'Horizon extended to',
+  'Сервер отдал только': 'The server returned only',
+  'дней вперёд — дальше этого дня расчёт не заглядывает.': 'days ahead — the planner cannot look past that.',
   'Район не настроен.': 'This area is not set up.',
   'Подходящих дней в горизонте нет.': 'No suitable days within the horizon.',
   'Все подходящие дни заняты выездом в другую зону.': 'Every suitable day is taken by a trip to another area.',

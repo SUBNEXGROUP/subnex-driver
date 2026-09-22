@@ -1220,11 +1220,18 @@
         const trip = C.nextTripDays(rule, this.from, 1)[0];
         if (!trip) continue;
         const span = Math.round((Date.parse(trip + 'T12:00:00Z') - Date.parse(this.from + 'T12:00:00Z')) / 864e5) + 1;
-        if (span > days) days = Math.min(span, 120);
+        // 60 — потолок сервера. Просить больше бессмысленно: лишние дни он всё равно обрежет.
+        if (span > days) days = Math.min(span, 60);
       }
       if (days > this.days)
         this.notice(`${T('Горизонт расширен до')} ${days} ${T('дней: в выборке есть адреса из зоны с выездом раз в месяц.')}`);
       let snap = await this.call('snapshot', { from_day: this.from, days, address_ids: ids });
+      /* Сервер годами молча обрезал горизонт до двух недель, и адреса дальних зон из-за
+         этого оставались в очереди без внятной причины. Теперь обрезка видна сразу. */
+      if (snap.days.length < days) {
+        days = snap.days.length;
+        this.notice(`${T('Сервер отдал только')} ${days} ${T('дней вперёд — дальше этого дня расчёт не заглядывает.')}`);
+      }
       let roads = {};
       const skipped = [];
       /* Дорога считается по дням параллельно, по четыре за раз: раньше 14 дней шли
