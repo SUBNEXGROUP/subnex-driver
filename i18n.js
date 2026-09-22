@@ -311,6 +311,8 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   ' Участок: ': ' Leg: ',
   ' Расчётное прибытие ': ' Estimated arrival ',
   ', согласовано не позже ': ', agreed no later than ',
+  ' По расчёту маршрут заканчивается в ': ' The route is calculated to finish at ',
+  ' на следующий день': ' the next day',
   'Сейчас нет соединения. Сохранение плана требует интернета.': 'No connection right now. Saving a plan needs the internet.',
   'Нужно назначить водителя.': 'A driver must be assigned.',
   'Сначала добавьте адрес.': 'Add the address first.',

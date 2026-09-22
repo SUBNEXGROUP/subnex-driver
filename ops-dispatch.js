@@ -185,6 +185,14 @@
     if (Number.isFinite(detail?.arrival) && Number.isFinite(detail?.latest))
       text += T(' Расчётное прибытие ') + C.hm(detail.arrival) + T(', согласовано не позже ') + C.hm(detail.latest) + '.';
     if (detail?.address) text += ' ' + detail.address + '.';
+    /* «День уходит за полночь» без числа — бесполезная фраза. Показываем, во сколько
+       по расчёту заканчивается маршрут: сразу видно, насколько день перегружен. */
+    if (key === 'DAY_BOUNDARY' && Number.isFinite(detail?.finish))
+      text +=
+        T(' По расчёту маршрут заканчивается в ') +
+        C.hm(detail.finish % 1440) +
+        (detail.finish >= 1440 ? T(' на следующий день') : '') +
+        '.';
     return text;
   }
   async function rpc(sb, action, data) {
