@@ -1106,7 +1106,12 @@
       button.disabled = true;
       const result = await this.run(async () => {
         if (!data.agreed) throw new Error('AGREEMENT_REQUIRED');
-        await OpsDispatch.preflight({ sb: this.sb, hasOutbox: this.o.hasOutbox, address: this.data.address }, this.planner, data);
+        /* Клиент уже сказал «да». Значит он встаёт в день, даже если день переполнен:
+           отказывать согласившемуся человеку бессмысленно. Перегруз виден в «Дне маршрута». */
+        await OpsDispatch.preflight({ sb: this.sb, hasOutbox: this.o.hasOutbox, address: this.data.address }, this.planner, {
+          ...data,
+          overbook: true,
+        });
         return this.call('confirm', data);
       }, data.day);
       if (result) {

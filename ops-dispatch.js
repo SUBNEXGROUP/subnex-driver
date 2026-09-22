@@ -234,6 +234,9 @@
       start: payload.start,
       end: payload.end,
       reoffer: !!payload.reoffer,
+      /* Клиент уже согласился — его ставим в день, даже если день переполнен. Предложение
+         в полный день по-прежнему не уходит: overbook шлёт только ручное подтверждение. */
+      overbook: !!payload.overbook,
     });
     return {};
   }
@@ -288,9 +291,10 @@
     }
     return { ...geometry, state, warning: warning || (!state.fit.ok ? error({ code: state.fit.code, detail: state.fit }) : '') };
   }
-  /* Блокировка старта была чисто клиентской: сервер при p_action='start' fit не проверяет.
-   Из-за этого опоздание на один адрес запирало весь день, хотя сборы уже сделаны.
-   Теперь опоздание отличаем от невозможного дня и отдаём решение водителю (onLate). */
+  /* Опоздание — не то же самое, что невозможный день, и решает его водитель, а не программа.
+   Сервер день при старте проверяет, но нехватку времени пропускает по просьбе (overbook) —
+   иначе переполненный день нельзя было бы начать и никому не ушла бы SMS с окном прибытия.
+   Всё остальное (нет координат, нет времён в пути, перевес, день за полночь) не стартует. */
   /* Старт дня = утренняя оптимизация: дороги → лучший порядок → сервер замораживает план
      и ставит каждому адресу SMS с окном прибытия. Возвращает план дня; в .started — ответ
      сервера (eta_sent — скольким ушла SMS). */
@@ -299,14 +303,18 @@
     const roads = (await warm(o, day))?.roads;
     const state = await rpc(o.sb, 'day', { driver_id: o.driver.id, day });
     if (state.started_at) return state;
+    let overbook = false;
     if (!state.fit.ok) {
-      if (!lateOnly(state.fit, day)) throw { message: state.fit.code, details: state.fit };
+      if (state.fit.code !== 'TIME_CONFLICT') throw { message: state.fit.code, details: state.fit };
+      /* lateOnly — окно уже прошло (переставить нечего); иначе день просто перегружен. */
+      const fit = { ...state.fit, lateOnly: lateOnly(state.fit, day) };
       if (opts.onLate) {
-        if (!(await opts.onLate(state.fit))) throw { message: 'START_CANCELLED' };
+        if (!(await opts.onLate(fit))) throw { message: 'START_CANCELLED' };
       } else if (!opts.allowLate) throw { message: state.fit.code, details: state.fit };
+      overbook = true;
     }
     const order = betterOrder(state, roads) || undefined;
-    const started = await rpc(o.sb, 'start', { driver_id: o.driver.id, day, token: state.token, order });
+    const started = await rpc(o.sb, 'start', { driver_id: o.driver.id, day, token: state.token, order, overbook });
     const after = await rpc(o.sb, 'day', { driver_id: o.driver.id, day });
     after.started = started;
     return after;
