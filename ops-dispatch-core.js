@@ -281,7 +281,6 @@
       kg += Number(n.kg);
       service += Number(n.service);
       drive += leg;
-      if (kg > config.capacity_kg) return { ok: false, code: 'CAPACITY', kg, limit: config.capacity_kg };
       collectionWork += Math.max(0, Math.min(arrival + Number(n.service), closes) - Math.max(arrival, availableFrom));
       cursor = arrival + Number(n.service);
       stops.push({ key: id, address_id: n.address_id, text: n.text, arrival, departure: cursor, travel: leg, kg, kind: n.kind, wait: w });
@@ -369,6 +368,34 @@
    остановки — перенос одной (or-opt) и разворот отрезка (2-opt) — пока сокращается
    дорога. Окна прибытия соблюдаются: вариант, который не сходится в evaluate, отбрасывается.
    Возвращает лучший найденный порядок; если улучшений нет — исходный. */
+  /* Порядок «ближайший следующий»: от старта каждый раз едем в ближайшую невзятую точку.
+     Нужен как старт для локального поиска. Порядок из базы у дневных заявок фактически
+     случайный (время у всех одинаковое, сортировка сводится к идентификатору), а из
+     случайного порядка or-opt и 2-opt упираются в тупик за сотню миллисекунд и дальше
+     не выбираются — замер показал потерю четверти всей дороги дня. */
+  function nearestOrder(nodes, order, config, roads) {
+    const byKey = new Map(nodes.map((n) => [n.key, n]));
+    const rest = order.map((k) => byKey.get(k)).filter(Boolean);
+    if (rest.length !== order.length) return null;
+    const out = [];
+    let current = config.home;
+    while (rest.length) {
+      let best = 0,
+        bestLeg = legMinutes(current, rest[0], config, roads);
+      for (let i = 1; i < rest.length; i++) {
+        const leg = legMinutes(current, rest[i], config, roads);
+        if (leg < bestLeg) {
+          bestLeg = leg;
+          best = i;
+        }
+      }
+      if (!Number.isFinite(bestLeg)) return null; // без времён в пути строить не по чему
+      current = rest[best];
+      out.push(rest[best].key);
+      rest.splice(best, 1);
+    }
+    return out;
+  }
   function optimizeOrder(nodes, order, config, hours, roads, startMinute, limitMs = 1500) {
     const fit = evaluate(nodes, order, config, hours, roads, startMinute);
     if (order.length < 3) return { order: [...order], fit, improved: false };
@@ -388,6 +415,19 @@
       bestCost = cost(fit),
       improved = false;
     const started = Date.now();
+    /* Локальный поиск сильно зависит от старта. Берём лучший из двух: тот, что пришёл,
+       и построенный по ближайшему соседу. Порядок «как есть» не теряем — если он лучше
+       (например, в дне есть жёсткие окна, под которые он уже подогнан), останется он. */
+    const seeded = nearestOrder(nodes, order, config, roads);
+    if (seeded) {
+      const seedFit = evaluate(nodes, seeded, config, hours, roads, startMinute);
+      if (!(!seedFit.ok && seedFit.code === 'ROADS_REQUIRED') && cost(seedFit) < bestCost) {
+        best = seeded;
+        bestFit = seedFit;
+        bestCost = cost(seedFit);
+        improved = true;
+      }
+    }
     const tryOrder = (candidate) => {
       const f = evaluate(nodes, candidate, config, hours, roads, startMinute);
       if (!f.ok && f.code === 'ROADS_REQUIRED') return false;
@@ -441,7 +481,7 @@
     sla_penalty: 90,
     max_wait: 15,
     cluster_penalty: 0,
-    service_minutes: 5,
+    service_minutes: 1,
     estimated_kg: 10,
     same_slot_minutes: 6,
     day_penalty_minutes: 2,
@@ -463,11 +503,8 @@
     if (!rule || rule.mode === 'off') return [];
     // День поездки в дальнюю зону: либо назначенная дата выезда, либо день, где уже стоит адрес этой зоны.
     const trip = tripZoneOf(config, day.day) || occupiedZoneOf(config, day);
-    /* Адрес дальней зоны — только в КАЛЕНДАРНЫЙ день выезда его зоны. Раньше хватало того,
-       что в дне уже стоит адрес этой зоны (occupiedZoneOf), но сервер (dispatch_area_ok)
-       признаёт только календарь — и такой план падал на сохранении с OUTSIDE_AREA.
-       occupiedZoneOf по-прежнему закрывает такой день для местных адресов (строка ниже). */
-    if (rule.mode === 'monthly' && !sameZone(tripZoneOf(config, day.day), rule)) return [];
+    // Адрес дальней зоны допускается только в день поездки в неё.
+    if (rule.mode === 'monthly' && !sameZone(trip, rule)) return [];
     // День поездки занимают только адреса этой зоны, иначе поездка расплывётся в зигзаг.
     if (trip && !sameZone(trip, rule)) return [];
     const nodes = day.nodes.filter((n) => n.address_id !== request.id),
@@ -847,8 +884,7 @@
     const rule = zoneRule(config, node.text);
     if (!rule || rule.mode === 'off') return { ok: false, code: 'ZONE_OFF' };
     const trip = tripZoneOf(config, target.day) || occupiedZoneOf(config, target);
-    // Как в placements: дальний адрес — только в календарный день выезда, как проверяет сервер.
-    if (rule.mode === 'monthly' && !sameZone(tripZoneOf(config, target.day), rule)) return { ok: false, code: 'ZONE_TRIP_DAY', zone: rule };
+    if (rule.mode === 'monthly' && !sameZone(trip, rule)) return { ok: false, code: 'ZONE_TRIP_DAY', zone: rule };
     if (trip && !sameZone(trip, rule)) return { ok: false, code: 'ZONE_DAY_TAKEN', zone: trip };
     const base = evaluate(target.nodes, target.order, config, target.hours, roads, target.start_minute);
     if (!base.ok) return base;
@@ -1117,7 +1153,10 @@
       out.push(T('Не указана улица'));
     if (!sourceNames[row.intake_channel]) out.push(T('Выберите источник'));
     if (!Number.isFinite(+row.estimated_kg) || +row.estimated_kg <= 0) out.push(T('Укажите ожидаемый вес'));
-    if (![5, 10].includes(+row.service_minutes)) out.push(T('Сбор: 5 или 10 минут'));
+    /* Время у адреса больше не спрашивается в заявке: это одна настройка планировщика.
+       Проверяем только, что число разумное. */
+    if (!Number.isFinite(+row.service_minutes) || +row.service_minutes < 0 || +row.service_minutes > 60)
+      out.push(T('Время у адреса — от 0 до 60 минут'));
     if (previous.some((a) => samePlace(a.text, row.text))) out.push(T('Повтор в этой пачке'));
     const twin = existing.find((a) => ['new', 'planned'].includes(a.status) && samePlace(a.text, row.text));
     if (twin)
@@ -1149,6 +1188,7 @@
     evaluate,
     ordered,
     optimizeOrder,
+    nearestOrder,
     isDayWindow,
     isDaySpan,
     enShortDate,

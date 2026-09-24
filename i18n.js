@@ -153,7 +153,7 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   'Не указана улица': 'Street is missing',
   'Выберите источник': 'Choose a source',
   'Укажите ожидаемый вес': 'Enter the expected weight',
-  'Сбор: 5 или 10 минут': 'Collection: 5 or 10 minutes',
+  'Время у адреса — от 0 до 60 минут': 'Time at the address — 0 to 60 minutes',
   'Повтор в этой пачке': 'Duplicate within this batch',
   'Адрес уже есть в действующих заявках': 'This address is already among active requests',
   'Это тот же дом, что и «': 'This is the same house as “',
