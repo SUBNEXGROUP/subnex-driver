@@ -463,8 +463,11 @@
     if (!rule || rule.mode === 'off') return [];
     // День поездки в дальнюю зону: либо назначенная дата выезда, либо день, где уже стоит адрес этой зоны.
     const trip = tripZoneOf(config, day.day) || occupiedZoneOf(config, day);
-    // Адрес дальней зоны допускается только в день поездки в неё.
-    if (rule.mode === 'monthly' && !sameZone(trip, rule)) return [];
+    /* Адрес дальней зоны — только в КАЛЕНДАРНЫЙ день выезда его зоны. Раньше хватало того,
+       что в дне уже стоит адрес этой зоны (occupiedZoneOf), но сервер (dispatch_area_ok)
+       признаёт только календарь — и такой план падал на сохранении с OUTSIDE_AREA.
+       occupiedZoneOf по-прежнему закрывает такой день для местных адресов (строка ниже). */
+    if (rule.mode === 'monthly' && !sameZone(tripZoneOf(config, day.day), rule)) return [];
     // День поездки занимают только адреса этой зоны, иначе поездка расплывётся в зигзаг.
     if (trip && !sameZone(trip, rule)) return [];
     const nodes = day.nodes.filter((n) => n.address_id !== request.id),
@@ -844,7 +847,8 @@
     const rule = zoneRule(config, node.text);
     if (!rule || rule.mode === 'off') return { ok: false, code: 'ZONE_OFF' };
     const trip = tripZoneOf(config, target.day) || occupiedZoneOf(config, target);
-    if (rule.mode === 'monthly' && !sameZone(trip, rule)) return { ok: false, code: 'ZONE_TRIP_DAY', zone: rule };
+    // Как в placements: дальний адрес — только в календарный день выезда, как проверяет сервер.
+    if (rule.mode === 'monthly' && !sameZone(tripZoneOf(config, target.day), rule)) return { ok: false, code: 'ZONE_TRIP_DAY', zone: rule };
     if (trip && !sameZone(trip, rule)) return { ok: false, code: 'ZONE_DAY_TAKEN', zone: trip };
     const base = evaluate(target.nodes, target.order, config, target.hours, roads, target.start_minute);
     if (!base.ok) return base;
