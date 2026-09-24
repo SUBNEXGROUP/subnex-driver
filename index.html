@@ -17,13 +17,13 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
     />
-    <link rel="stylesheet" href="subnex-ui.css?v=20260924-buttons" />
+    <link rel="stylesheet" href="subnex-ui.css?v=20260924-waze" />
     <link rel="stylesheet" href="ops-chat.css?v=20260919-dark" />
     <link rel="stylesheet" href="ops-dispatch.css?v=20260919-dark" />
-    <script src="i18n.js?v=20260924-buttons"></script>
-    <script src="ops-chat.js?v=20260924-buttons"></script>
-    <script src="ops-dispatch-core.js?v=20260924-buttons"></script>
-    <script src="ops-dispatch.js?v=20260924-buttons"></script>
+    <script src="i18n.js?v=20260924-waze"></script>
+    <script src="ops-chat.js?v=20260924-waze"></script>
+    <script src="ops-dispatch-core.js?v=20260924-waze"></script>
+    <script src="ops-dispatch.js?v=20260924-waze"></script>
     <style>
       body {
         font-size: 15px;
@@ -2117,21 +2117,68 @@
           document.getElementById('d2d-photo-sec').style.display = 'none';
         }
       }
+      /* Навигация. Ссылка https://waze.com/ul — это СТРАНИЦА Waze, которая уже сама пробует
+         перекинуть в приложение: на телефоне сначала открывается браузер с предложением
+         скачать, и только иногда появляется переход в приложение. Поэтому открываем
+         приложение напрямую, а страницу оставляем запасным путём — если Waze не стоит.
+         На Android это intent-ссылка (система сама уйдёт на запасной адрес, когда
+         приложения нет), на iPhone — схема waze:// с переходом по таймеру.
+         Google Maps не трогаем: его обычная ссылка на телефоне открывает приложение сама. */
       function navUrl(app, a) {
+        return navTargets(app, a).web;
+      }
+      function navTargets(app, a) {
         const usePin = Number.isFinite(a.lat) && Number.isFinite(a.lng) && a.geocode_source !== 'postcode';
-        if (app === 'waze')
-          return usePin
-            ? 'https://waze.com/ul?ll=' + a.lat + ',' + a.lng + '&navigate=yes'
-            : 'https://waze.com/ul?q=' + encodeURIComponent(a.text) + '&navigate=yes';
+        if (app === 'waze') {
+          const q = usePin ? 'll=' + a.lat + ',' + a.lng : 'q=' + encodeURIComponent(a.text);
+          const web = 'https://waze.com/ul?' + q + '&navigate=yes';
+          return {
+            web,
+            deep: 'waze://?' + q + '&navigate=yes',
+            intent:
+              'intent://?' +
+              q +
+              '&navigate=yes#Intent;scheme=waze;package=com.waze;S.browser_fallback_url=' +
+              encodeURIComponent(web) +
+              ';end',
+          };
+        }
         const dest = usePin ? a.lat + ',' + a.lng : a.text;
-        return 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + encodeURIComponent(dest);
+        return { web: 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + encodeURIComponent(dest) };
+      }
+      const isAndroid = () => /android/i.test(navigator.userAgent || '');
+      const isIOS = () =>
+        /iphone|ipad|ipod/i.test(navigator.userAgent || '') ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      function navOpen(app, a) {
+        const t = navTargets(app, a);
+        if (t.intent && isAndroid()) {
+          location.href = t.intent;
+          return;
+        }
+        if (t.deep && isIOS()) {
+          /* Если приложение установлено, телефон уйдёт в него и вкладка спрячется —
+             тогда запасной переход отменяем, чтобы не открыть лишнюю страницу. */
+          const back = setTimeout(() => {
+            document.removeEventListener('visibilitychange', hide);
+            if (!document.hidden) window.location.href = t.web;
+          }, 900);
+          const hide = () => {
+            clearTimeout(back);
+            document.removeEventListener('visibilitychange', hide);
+          };
+          document.addEventListener('visibilitychange', hide);
+          location.href = t.deep;
+          return;
+        }
+        window.open(t.web, '_blank');
       }
       let NAVID = null;
       function navTo(id) {
         const a = ADDR.find((x) => x.id === id);
         if (!a) return;
         if (LOCAL.nav === 'google' || LOCAL.nav === 'waze') {
-          window.open(navUrl(LOCAL.nav, a), '_blank');
+          navOpen(LOCAL.nav, a);
           return;
         }
         NAVID = id;
@@ -2140,7 +2187,7 @@
       function navGo(app) {
         const a = ADDR.find((x) => x.id === NAVID);
         document.getElementById('nav-chooser').classList.remove('show');
-        if (a) window.open(navUrl(app, a), '_blank');
+        if (a) navOpen(app, a);
       }
       function navCancel() {
         document.getElementById('nav-chooser').classList.remove('show');
