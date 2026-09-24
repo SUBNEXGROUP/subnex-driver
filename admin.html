@@ -17,13 +17,13 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
     />
-    <link rel="stylesheet" href="subnex-ui.css?v=20260919-dark" />
+    <link rel="stylesheet" href="subnex-ui.css?v=20260924-layout" />
     <link rel="stylesheet" href="ops-chat.css?v=20260919-dark" />
     <link rel="stylesheet" href="ops-dispatch.css?v=20260919-dark" />
-    <script src="i18n.js?v=20260923-horizon"></script>
-    <script src="ops-chat.js?v=20260923-horizon"></script>
-    <script src="ops-dispatch-core.js?v=20260923-horizon"></script>
-    <script src="ops-dispatch.js?v=20260923-horizon"></script>
+    <script src="i18n.js?v=20260924-layout"></script>
+    <script src="ops-chat.js?v=20260924-layout"></script>
+    <script src="ops-dispatch-core.js?v=20260924-layout"></script>
+    <script src="ops-dispatch.js?v=20260924-layout"></script>
     <style>
       .leaflet-container {
         font-family: var(--body);
@@ -227,6 +227,9 @@
           <button data-page="cal">
             <svg class="ic"><use href="#i-cal" /></svg>Календарь
           </button>
+          <button data-page="layout">
+            <svg class="ic"><use href="#i-cal" /></svg>Раскладка
+          </button>
           <button data-page="day">
             <svg class="ic"><use href="#i-route" /></svg>День маршрута
           </button>
@@ -412,6 +415,45 @@
                 ><span><i style="background: var(--crit-soft); border: 1px solid var(--crit)"></i>bank holiday</span
                 ><span><i style="background: var(--surface-3); border: 1px solid var(--line-2)"></i>воскресенье</span>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ---------- РАСКЛАДКА ---------- -->
+        <section class="page" data-page="layout">
+          <div class="phead">
+            <div>
+              <h1>Раскладка</h1>
+              <p>Сколько работы стоит в каждом дне и сколько места осталось. Дорога — оценка по прямой с поправкой на дороги; точный порядок считается утром при старте маршрута.</p>
+            </div>
+            <div class="pactions">
+              <button class="btn btn-sm" onclick="renderLayout()">Обновить</button
+              ><button class="btn btn-sm" id="lay-preview" onclick="layoutPreview()">Посмотреть вечернюю раскладку</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="tscroll">
+              <table class="t">
+                <thead>
+                  <tr>
+                    <th>День</th>
+                    <th>Остановок</th>
+                    <th>Дорога</th>
+                    <th>Сбор</th>
+                    <th>Работы</th>
+                    <th>Окно</th>
+                    <th style="width: 160px">Загрузка</th>
+                    <th>Районы</th>
+                  </tr>
+                </thead>
+                <tbody id="lay-tbody"></tbody>
+              </table>
+            </div>
+            <div class="tfoot">
+              <span class="muted" id="lay-note"
+                >«Посмотреть вечернюю раскладку» прогоняет вечерний разбор вхолостую: показывает, куда лягут накопившиеся заявки, ничего не
+                записывая и никому не отправляя.</span
+              >
             </div>
           </div>
         </section>
@@ -1727,7 +1769,7 @@
 
       /* ---------- навигация ---------- */
       let PAGE = 'today';
-      const PAGES = ['today', 'requests', 'dups', 'cal', 'day', 'chat', 'banks', 'reports', 'settings'];
+      const PAGES = ['today', 'requests', 'dups', 'cal', 'layout', 'day', 'chat', 'banks', 'reports', 'settings'];
       function go(page, opts = {}) {
         if (!PAGES.includes(page)) page = 'today';
         PAGE = page;
@@ -1789,6 +1831,7 @@
               .catch(() => {});
         } else if (page === 'dups') renderDups();
         else if (page === 'cal') renderCal();
+        else if (page === 'layout') renderLayout();
         else if (page === 'day') renderDayPage(fresh);
         else if (page === 'chat') {
           if (!opts.skipChat) ensureChat();
@@ -2091,6 +2134,86 @@
       function calToday() {
         calCursor = new Date();
         renderCal();
+      }
+      /* Раскладка: что стоит в каждом дне вперёд и сколько места осталось.
+         Дорога — оценка сервера по прямой с поправкой; точный порядок считается утром. */
+      async function renderLayout(rows) {
+        const tb = document.getElementById('lay-tbody'),
+          drv = currentDriver();
+        if (!drv) {
+          tb.innerHTML = `<tr><td colspan="8" class="muted">${T('Выберите водителя.')}</td></tr>`;
+          return;
+        }
+        if (!rows) {
+          tb.innerHTML = `<tr><td colspan="8" class="muted">${T('Считаю…')}</td></tr>`;
+          try {
+            rows = (await OpsDispatch.rpc(sb, 'week', { driver_id: drv.id })).days || [];
+          } catch (e) {
+            tb.innerHTML = `<tr><td colspan="8" class="muted">${esc(Ops.error(e))}</td></tr>`;
+            return;
+          }
+        }
+        if (!rows.length) {
+          tb.innerHTML = `<tr><td colspan="8" class="muted">${T('Впереди нет дней со сборами.')}</td></tr>`;
+          return;
+        }
+        const hm = (m) => Math.floor(m / 60) + ':' + String(Math.round(m) % 60).padStart(2, '0');
+        tb.innerHTML = rows
+          .map((r) => {
+            const work = (r.drive || 0) + (r.service || 0),
+              win = r.window || 0;
+            /* Загрузка больше сотни — день не укладывается в рабочие часы. Это не запрет:
+               водитель увидит, по кому опоздание, и решит сам. */
+            const pct = win ? Math.round((work * 100) / win) : 0,
+              over = pct > 100;
+            return `<tr>
+            <td>${esc(dayShort(r.day))}${r.started ? ' <span class="muted">· ' + T('начат') + '</span>' : ''}</td>
+            <td>${r.stops}</td><td>${hm(r.drive || 0)}</td><td>${hm(r.service || 0)}</td>
+            <td><b>${hm(work)}</b></td><td>${hm(win)}</td>
+            <td><div class="bar"><i style="width:${Math.min(pct, 100)}%;background:${over ? 'var(--crit)' : pct > 80 ? 'var(--warn)' : 'var(--ok)'}"></i></div><span class="muted">${pct}%</span></td>
+            <td class="muted">${esc(r.areas || '')}</td></tr>`;
+          })
+          .join('');
+      }
+      /* Вечерний разбор вхолостую: показывает, куда лягут накопившиеся заявки, но ничего
+         не записывает и никому не отправляет. */
+      async function layoutPreview() {
+        const btn = document.getElementById('lay-preview'),
+          note = document.getElementById('lay-note'),
+          drv = currentDriver();
+        if (!drv || btn.disabled) return;
+        btn.disabled = true;
+        note.textContent = T('Считаю раскладку…');
+        try {
+          const r = await OpsDispatch.rpc(sb, 'layout_preview', { driver_id: drv.id });
+          const placed = r.placed || 0,
+            left = r.left || 0;
+          note.textContent =
+            placed || left
+              ? `${T('Вечером разложится заявок:')} ${placed}${left ? '. ' + T('Не поместилось: ') + left : ''}. ${T('Ниже — дни с учётом этой раскладки.')}`
+              : T('Накопленных заявок нет — вечером раскладывать нечего.');
+          /* Разбор возвращает только остановки и минуты. Рабочее окно и районы берём из
+             обычного отчёта по дням, иначе в таблице была бы пустая загрузка. */
+          const base = new Map(((await OpsDispatch.rpc(sb, 'week', { driver_id: drv.id })).days || []).map((d) => [d.day, d]));
+          const days = (r.days || []).filter((d) => !d.driver || d.driver === drv.name);
+          for (const d of days) {
+            const b = base.get(d.day) || {};
+            base.set(d.day, {
+              ...b,
+              day: d.day,
+              stops: d.stops,
+              drive: d.drive_minutes,
+              service: d.service_minutes,
+              window: b.window || 0,
+              areas: b.areas || '',
+            });
+          }
+          await renderLayout([...base.values()].sort((a, b) => (a.day < b.day ? -1 : 1)));
+        } catch (e) {
+          note.textContent = Ops.error(e);
+        } finally {
+          btn.disabled = false;
+        }
       }
       function renderCal() {
         const y = calCursor.getFullYear(),
