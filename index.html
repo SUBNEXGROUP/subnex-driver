@@ -17,13 +17,13 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
     />
-    <link rel="stylesheet" href="subnex-ui.css?v=20260924-noweight" />
+    <link rel="stylesheet" href="subnex-ui.css?v=20260924-buttons" />
     <link rel="stylesheet" href="ops-chat.css?v=20260919-dark" />
     <link rel="stylesheet" href="ops-dispatch.css?v=20260919-dark" />
-    <script src="i18n.js?v=20260924-noweight"></script>
-    <script src="ops-chat.js?v=20260924-noweight"></script>
-    <script src="ops-dispatch-core.js?v=20260924-noweight"></script>
-    <script src="ops-dispatch.js?v=20260924-noweight"></script>
+    <script src="i18n.js?v=20260924-buttons"></script>
+    <script src="ops-chat.js?v=20260924-buttons"></script>
+    <script src="ops-dispatch-core.js?v=20260924-buttons"></script>
+    <script src="ops-dispatch.js?v=20260924-buttons"></script>
     <style>
       body {
         font-size: 15px;
@@ -214,8 +214,9 @@
         <div id="map" class="ph-map"></div>
         <button class="ph-cta ghost" id="btn-opt" onclick="optimizeDay()">
           <svg class="ic" style="fill: currentColor; stroke: none"><use href="#i-bolt" /></svg>
-          <span data-i18n="optimize">Оптимизировать маршрут</span>
+          <span data-i18n="optimize">Пересчитать порядок</span>
         </button>
+        <p id="opt-note" class="small muted" data-i18n="optimizeNoSms">Пересчёт порядка. Время клиентам уйдёт при старте маршрута.</p>
         <div class="sign" id="signstrip">
           <div class="vals" id="sign-vals"></div>
           <div class="src" id="sign-src"></div>
@@ -463,8 +464,9 @@
           noteLbl: 'Заметка',
           dateLbl: 'Дата выезда',
           save: 'Сохранить',
-          optimize: 'Оптимизировать маршрут',
-          showRoute: 'Показать маршрут',
+          optimize: 'Пересчитать порядок',
+          optimizeNoSms: 'Пересчёт порядка. Время клиентам уйдёт при старте маршрута.',
+          showRoute: 'Пересчитать порядок',
           buildingRoute: 'Строю маршрут…',
           drivingTime: 'В пути',
           routeStart: 'Старт',
@@ -587,7 +589,7 @@
           loginAgain: 'Войдите заново.',
           changeRejected: 'Изменение не принято: ',
           rowChanged: 'Адрес уже изменён, удалён или передан другому водителю. Обновите данные.',
-          startRoute: 'Начать маршрут',
+          startRoute: 'Начать маршрут и разослать время',
           routeStarted: 'Маршрут начат · план зафиксирован',
           checkingRoute: 'Проверяю все сборы перед стартом…',
           routeStartedNote: 'Маршрут начат. Новые заявки будут ждать следующего дня.',
@@ -626,8 +628,9 @@
           noteLbl: 'Note',
           dateLbl: 'Collection date',
           save: 'Save',
-          optimize: 'Optimize route',
-          showRoute: 'Show route',
+          optimize: 'Recalculate the order',
+          optimizeNoSms: 'Recalculates the order only. Arrival times go out when you start the route.',
+          showRoute: 'Recalculate the order',
           buildingRoute: 'Building route…',
           drivingTime: 'Driving',
           routeStart: 'Start',
@@ -750,7 +753,7 @@
           loginAgain: 'Please sign in again.',
           changeRejected: 'Change rejected: ',
           rowChanged: 'This address was changed, deleted or reassigned. Refresh the data.',
-          startRoute: 'Start route',
+          startRoute: 'Start route and send the times',
           routeStarted: 'Route started · plan locked',
           checkingRoute: 'Checking all collections before the start…',
           routeStartedNote: 'Route started. New requests will wait for the next day.',
