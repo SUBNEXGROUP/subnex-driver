@@ -74,6 +74,20 @@
       A('a8', { text: '5 Auto Road, Newport NP20 5EE', phone: '07700900008', lat: 51.59, lng: -2.995, created_at: '2026-09-18T12:00:00Z', arrival_mode: 'day' }),
       A('b1', { text: 'Glyncoch Community Centre — Pontypridd CF37 3DA', kind: 'bank', bank_id: 'bk1', lat: 51.62, lng: -3.33, date: T, status: 'planned', collection_source: null, intake_channel: null, charity: null, bags_text: null, geocode_source: 'osm' }),
     );
+    /* Отчёт «Итоги месяца»: по адресу каждой категории, сделанные и несделанные (включается из теста). */
+    if (window.__reportFixture) {
+      addresses.splice(0);
+      addresses.push(
+        A('r1', { text: '1 Email Street, Cardiff CF14 1AA', phone: '07700900101', contact_name: 'Ann Email', contact_email: 'ann@example.com', date: T, status: 'done', done_at: T + 'T09:15:00Z', charity: 'Shelter Cymru', note: 'Knock loudly' }),
+        A('r2', { text: '2 Email Street, Cardiff CF14 1AB', phone: '07700900102', date: T, status: 'noanswer', done_at: T + 'T09:40:00Z', result_note: 'No one home' }),
+        A('r3', { text: '3 Whatsapp Road, Newport NP19 1AA', phone: '07700900103', date: T, status: 'done', done_at: T + 'T10:05:00Z', intake_channel: 'partner_whatsapp', charity: 'Kidney Wales' }),
+        A('r4', { text: '4 Missing Lane, Barry CF62 1AA', phone: '07700900104', date: T, status: 'done', done_at: T + 'T11:00:00Z', intake_channel: 'missing', collection_source: 'missing' }),
+        A('r5', { text: '5 Site Avenue, Penarth CF64 1AA', phone: '07700900105', date: T, status: 'done', done_at: T + 'T12:00:00Z', intake_channel: 'subnex_website', collection_source: 'subnex', charity: null }),
+        A('r6', { text: '6 Site Avenue, Penarth CF64 1AB', phone: '07700900106', date: T, cancelled_date: T, status: 'cancelled', cancellation_reason: 'customer_cancelled', intake_channel: 'subnex_website', collection_source: 'subnex' }),
+        A('r7', { text: '7 Removed Road, Cardiff CF10 9ZZ', phone: '07700900107', date: T, cancelled_date: T, status: 'cancelled', cancellation_reason: 'operator_removed' }),
+      );
+      photos.push({ id: 'p1', address_id: 'r1', path: 'd1/r1-a.jpg', kind: 'photo', driver_id: 'd1', created_at: T + 'T09:16:00Z' }, { id: 'p2', address_id: 'r1', path: 'd1/r1-b.jpg', kind: 'photo', driver_id: 'd1', created_at: T + 'T09:17:00Z' });
+    }
     zones = [
       { code: 'CF', prefix: 'CF', num_from: 0, num_to: 99, name: 'Кардифф', mode: 'regular' },
       { code: 'NP', prefix: 'NP', num_from: 0, num_to: 99, name: 'Ньюпорт', mode: 'regular' },
@@ -134,6 +148,11 @@
       },
       is(c, v) {
         q.filters.push((r) => r[c] === v);
+        return chain;
+      },
+      in(c, vals) {
+        const set = new Set((vals || []).map(String));
+        q.filters.push((r) => set.has(String(r[c])));
         return chain;
       },
       gte(c, v) {
@@ -401,7 +420,17 @@
           return { data: { zones }, error: null };
         }
         if (name === 'subnex_intake_admin') return { data: { tokens: [{ id: 'tk1', name: 'Почта партнёра', active: true, tail: 'f3b', driver: 'Kostia', used_count: 12, created_rows: 30, last_used_at: new Date().toISOString() }], recent: [] }, error: null };
-        if (name === 'subnex_reports') return { data: { totals: [] }, error: null };
+        if (name === 'subnex_reports') {
+          log('rpc', 'subnex_reports.' + args.p_action, args.p_data);
+          if (args.p_action === 'log') {
+            const ym = args.p_data.ym;
+            const rows = addresses
+              .filter((a) => a.kind !== 'bank' && ((a.status === 'cancelled' ? a.cancelled_date : a.date) || '').slice(0, 7) === ym)
+              .map((a) => ({ ...a, day: a.date || a.cancelled_date, source: C().sourceOf(a), bags: a.bags_text || '', received_at: a.created_at, driver: 'Kostia', zone: '', closed_at: a.status === 'cancelled' ? a.cancelled_date + 'T15:00:00Z' : null, photos: photos.filter((p) => p.address_id === a.id).length }));
+            return { data: { rows }, error: null };
+          }
+          return { data: { totals: [] }, error: null };
+        }
         if (name === 'subnex_move_request') {
           log('rpc', 'subnex_move_request', args.p_data);
           return { data: {}, error: null };

@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="subnex-ui.css?v=20260924-waze" />
     <link rel="stylesheet" href="ops-chat.css?v=20260919-dark" />
     <link rel="stylesheet" href="ops-dispatch.css?v=20260919-dark" />
-    <script src="i18n.js?v=20260924-waze"></script>
+    <script src="i18n.js?v=20260927-reports"></script>
     <script src="ops-chat.js?v=20260924-waze"></script>
     <script src="ops-dispatch-core.js?v=20260924-waze"></script>
     <script src="ops-dispatch.js?v=20260924-waze"></script>
@@ -197,7 +197,10 @@
             >Язык:
             <select
               id="ui-lang"
-              onchange="SubnexI18n.set(this.value); location.reload()"
+              onchange="
+                SubnexI18n.set(this.value);
+                location.reload();
+              "
               style="
                 background: transparent;
                 border: 0;
@@ -424,7 +427,10 @@
           <div class="phead">
             <div>
               <h1>Раскладка</h1>
-              <p>Сколько работы стоит в каждом дне и сколько места осталось. Дорога — оценка по прямой с поправкой на дороги; точный порядок считается утром при старте маршрута.</p>
+              <p>
+                Сколько работы стоит в каждом дне и сколько места осталось. Дорога — оценка по прямой с поправкой на дороги; точный порядок
+                считается утром при старте маршрута.
+              </p>
             </div>
             <div class="pactions">
               <button class="btn btn-sm" onclick="renderLayout()">Обновить</button
@@ -572,14 +578,34 @@
           <div class="phead">
             <div>
               <h1>Отчёты</h1>
-              <p>Месяц работы: сборы по charity для партнёров и вывозы для хостов контейнеров</p>
+              <p>Месяц работы: все адреса по категориям, сборы по charity для партнёров и вывозы для хостов контейнеров</p>
             </div>
             <div class="subtabs" id="rp-tabs">
-              <button data-sub="charity" aria-current="true">Партнёрам</button><button data-sub="events">Что случилось</button
-              ><button data-sub="hosts">Хостам</button>
+              <button data-sub="month" aria-current="true">Итоги месяца</button><button data-sub="charity">Партнёрам</button
+              ><button data-sub="events">Что случилось</button><button data-sub="hosts">Хостам</button>
             </div>
           </div>
-          <div id="rp-charity" class="stack">
+          <div id="rp-month" class="stack">
+            <div class="row">
+              <input type="month" class="field" id="mo-month" style="width: auto" onchange="renderMonth()" />
+              <button class="btn" onclick="renderMonth()">
+                <svg class="ic"><use href="#i-refresh" /></svg> Обновить
+              </button>
+              <button class="btn" onclick="monthAllPdf()">
+                <svg class="ic"><use href="#i-dl" /></svg> PDF по всем категориям
+              </button>
+              <button class="btn" onclick="monthCsv('')">
+                <svg class="ic"><use href="#i-dl" /></svg> Таблица за месяц (CSV для Excel)
+              </button>
+            </div>
+            <div class="tiles" id="mo-tiles"></div>
+            <div id="mo-cats" class="stack"></div>
+            <div class="muted small">
+              Сделано — адреса, где мешки забрали; считаются по дате сбора. Не сделано — никого не было дома, проблема на адресе или заявка
+              закрыта (по дате закрытия). Заявки, убранные вами как ошибка ввода, не считаются. PDF и CSV всегда по-английски.
+            </div>
+          </div>
+          <div id="rp-charity" hidden class="stack">
             <div class="note warn" id="cr-warn" hidden></div>
             <div class="row">
               <input type="month" class="field" id="cr-month" style="width: auto" onchange="renderCharity()" />
@@ -669,9 +695,9 @@
               </div>
               <div class="tfoot">
                 <span class="muted"
-                  >Сначала выполненные, затем проблемы, закрытые и запланированные. Ждущие ответа берутся из текущей очереди и от месяца
-                  не зависят, остальное — за выбранный месяц: дата сбора, а у закрытых — дата закрытия. PDF и CSV всегда по-английски, в
-                  CSV — все поля.</span
+                  >Сначала выполненные, затем проблемы, закрытые и запланированные. Ждущие ответа берутся из текущей очереди и от месяца не
+                  зависят, остальное — за выбранный месяц: дата сбора, а у закрытых — дата закрытия. PDF и CSV всегда по-английски, в CSV —
+                  все поля.</span
                 >
               </div>
             </div>
@@ -1439,7 +1465,8 @@
         const sel = document.getElementById('drv-select');
         const prev = sel.value || localStorage.getItem('console_driver') || OPS_PROFILE?.driver_id || active[0]?.id || '';
         sel.innerHTML =
-          active.map((d) => `<option value="${d.id}">${esc(d.name)}</option>`).join('') || `<option value="">${T('— нет водителей —')}</option>`;
+          active.map((d) => `<option value="${d.id}">${esc(d.name)}</option>`).join('') ||
+          `<option value="">${T('— нет водителей —')}</option>`;
         sel.value = active.some((d) => d.id === prev) ? prev : active[0]?.id || '';
         const opts =
           `<option value="">${T('— не назначен —')}</option>` +
@@ -1518,9 +1545,13 @@
         const p = await driverPoints(d.id);
         const pc = (t) => (C.postcode(t || '') || t || '').trim();
         document.getElementById('rail-points').innerHTML =
-          (C.validPoint(p.home) ? T('Старт ') + esc(pc(p.home.text) || T('задан')) : `<span style="color:var(--crit)">${T('Старт не задан')}</span>`) +
+          (C.validPoint(p.home)
+            ? T('Старт ') + esc(pc(p.home.text) || T('задан'))
+            : `<span style="color:var(--crit)">${T('Старт не задан')}</span>`) +
           '<br>' +
-          (C.validPoint(p.depot) ? T('Склад ') + esc(pc(p.depot.text) || T('задан')) : `<span style="color:var(--crit)">${T('Склад не задан')}</span>`) +
+          (C.validPoint(p.depot)
+            ? T('Склад ') + esc(pc(p.depot.text) || T('задан'))
+            : `<span style="color:var(--crit)">${T('Склад не задан')}</span>`) +
           '<br>' +
           (p.enabled ? `<span style="color:var(--rail-ink)">${T('Планировщик включён')}</span>` : T('Планировщик подготовлен, не включён'));
       }
@@ -1689,8 +1720,7 @@
         const rows = queue.filter((a) => extras.has(a.id)).sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)));
         const kept = [...dupOk()].map((id) => byId.get(id)).filter(Boolean);
         if (!rows.length && !kept.length) {
-          host.innerHTML =
-            `<div class="card"><div class="empty">${T('Повторов нет. Сюда попадают заявки, у которых совпал телефон или дом с уже существующей.')}</div></div>`;
+          host.innerHTML = `<div class="card"><div class="empty">${T('Повторов нет. Сюда попадают заявки, у которых совпал телефон или дом с уже существующей.')}</div></div>`;
           return;
         }
         const card = (a) => {
@@ -1794,7 +1824,7 @@
         const map = {
           req: ['queue', 'all'],
           bank: ['list', 'photos'],
-          rp: ['charity', 'hosts', 'events'],
+          rp: ['month', 'charity', 'hosts', 'events'],
           set: ['hours', 'dispatch', 'zones', 'intake', 'drivers', 'data'],
         };
         for (const s of map[group]) document.getElementById(group + '-' + s).hidden = s !== sub;
@@ -1804,6 +1834,7 @@
         if (group === 'bank' && sub === 'photos') renderPhotos();
         if (group === 'rp' && sub === 'hosts') renderReports();
         if (group === 'rp' && sub === 'charity') renderCharity();
+        if (group === 'rp' && sub === 'month') renderMonth();
         if (group === 'rp' && sub === 'events') renderEvents();
         if (group === 'set' && sub === 'hours') renderHours();
         if (group === 'set' && sub === 'dispatch') ensureSettingsDispatch();
@@ -1811,7 +1842,7 @@
         if (group === 'set' && sub === 'intake') renderIntake();
         if (group === 'set' && sub === 'drivers') renderDrivers();
       }
-      const SUB = { req: 'queue', bank: 'list', rp: 'charity', set: 'hours' };
+      const SUB = { req: 'queue', bank: 'list', rp: 'month', set: 'hours' };
       for (const g of ['req', 'bank', 'rp', 'set'])
         document.getElementById(g + '-tabs').addEventListener('click', (e) => {
           const b = e.target.closest('button[data-sub]');
@@ -1876,12 +1907,7 @@
           ZONES.filter((z) => z.mode === 'monthly')
             .map((z) => {
               const n = ADDR.filter(
-                (a) =>
-                  ['new', 'planned'].includes(a.status) &&
-                  a.kind !== 'bank' &&
-                  !a.date &&
-                  !a.collection_start &&
-                  inZone(a, z),
+                (a) => ['new', 'planned'].includes(a.status) && a.kind !== 'bank' && !a.date && !a.collection_start && inZone(a, z),
               ).length;
               const next = (z.dates || [])[0];
               return `<div class="tile far"><div class="lab">${esc(z.name)} ${T('· ждут')}</div><div class="val">${n}</div><div class="foot">${next ? T('выезд ') + esc(dayShort(next)) : T('день не задан')}</div></div>`;
@@ -1938,12 +1964,7 @@
           });
         for (const z of ZONES.filter((z) => z.mode === 'monthly')) {
           const list = ADDR.filter(
-            (a) =>
-              ['new', 'planned'].includes(a.status) &&
-              a.kind !== 'bank' &&
-              !a.date &&
-              !a.collection_start &&
-              inZone(a, z),
+            (a) => ['new', 'planned'].includes(a.status) && a.kind !== 'bank' && !a.date && !a.collection_start && inZone(a, z),
           );
           const next = (z.dates || [])[0];
           if (list.length && next && next <= addDays(todayStr(), 7))
@@ -2004,7 +2025,8 @@
         }).join('');
         const un = list.filter((a) => !a.driver_id);
         document.getElementById('dash-drivers').innerHTML =
-          (rows || '') + (un.length ? `<tr><td colspan="6" style="color:var(--crit)">${T('Не назначено водителю:')} ${un.length}</td></tr>` : '') ||
+          (rows || '') +
+            (un.length ? `<tr><td colspan="6" style="color:var(--crit)">${T('Не назначено водителю:')} ${un.length}</td></tr>` : '') ||
           `<tr><td colspan="6" class="empty">${T('Нет данных на эту дату')}</td></tr>`;
         document.getElementById('dash-drivers-sub').textContent = dayShort(ds);
         /* ближайшие дни */
@@ -2219,7 +2241,20 @@
         const y = calCursor.getFullYear(),
           m = calCursor.getMonth();
         const drv = currentDriver();
-        const months = [T('Январь'), T('Февраль'), T('Март'), T('Апрель'), T('Май'), T('Июнь'), T('Июль'), T('Август'), T('Сентябрь'), T('Октябрь'), T('Ноябрь'), T('Декабрь')];
+        const months = [
+          T('Январь'),
+          T('Февраль'),
+          T('Март'),
+          T('Апрель'),
+          T('Май'),
+          T('Июнь'),
+          T('Июль'),
+          T('Август'),
+          T('Сентябрь'),
+          T('Октябрь'),
+          T('Ноябрь'),
+          T('Декабрь'),
+        ];
         document.getElementById('cal-title').textContent = months[m] + ' ' + y;
         const startDow = (new Date(y, m, 1).getDay() + 6) % 7,
           days = new Date(y, m + 1, 0).getDate(),
@@ -2339,8 +2374,7 @@
         /* таймлайн */
         const tl = document.getElementById('day-tl');
         if (!list.length) {
-          tl.innerHTML =
-            `<div class="empty">${T('На этот день сборов нет.')}<br><button class="btn btn-sm" style="margin-top:10px" onclick="openDispatchAdmin('queue')">${T('Открыть очередь заявок')}</button></div>`;
+          tl.innerHTML = `<div class="empty">${T('На этот день сборов нет.')}<br><button class="btn btn-sm" style="margin-top:10px" onclick="openDispatchAdmin('queue')">${T('Открыть очередь заявок')}</button></div>`;
           renderDayMap([], null);
           updateGmaps([], null);
           return;
@@ -2378,7 +2412,15 @@
           const dayMode = a.arrival_mode === 'day' || (st != null && C.isDaySpan(a.collection_start, a.collection_end));
           const eta = etas[a.id];
           const win = eta
-            ? 'SMS: ' + C.hm(eta.from) + '–' + C.hm(eta.to) + (eta.state === 'accepted' ? '' : eta.state === 'pending' || eta.state === 'dispatching' ? T(' · отправляется') : T(' · не ушла'))
+            ? 'SMS: ' +
+              C.hm(eta.from) +
+              '–' +
+              C.hm(eta.to) +
+              (eta.state === 'accepted'
+                ? ''
+                : eta.state === 'pending' || eta.state === 'dispatching'
+                  ? T(' · отправляется')
+                  : T(' · не ушла'))
             : dayMode
               ? started
                 ? T('в течение дня · SMS не ушла')
@@ -2471,8 +2513,12 @@
         else DAY.map.setView([51.6, -3.4], 9);
         document.getElementById('day-legend').innerHTML =
           `<span><span class="sw" style="background:#48606C"></span>${T('в работе')}</span><span><span class="sw" style="background:#1F9A63"></span>${T('выполнено')}</span><span><span class="sw" style="background:#D24232"></span>${T('не отвечает')}</span><span><span class="sw" style="background:#D9A300"></span>${T('проблема')}</span>` +
-          (live ? `<span><span class="sw" style="background:#101416;box-shadow:0 0 0 2px #F2B807"></span>${T('водитель онлайн')}</span>` : '') +
-          (DAY.route?.sketch ? `<span style="color:var(--warn)">${T('Пунктир: дорога не рассчитана, точки соединены по порядку')}</span>` : '');
+          (live
+            ? `<span><span class="sw" style="background:#101416;box-shadow:0 0 0 2px #F2B807"></span>${T('водитель онлайн')}</span>`
+            : '') +
+          (DAY.route?.sketch
+            ? `<span style="color:var(--warn)">${T('Пунктир: дорога не рассчитана, точки соединены по порядку')}</span>`
+            : '');
       }
       function updateGmaps(list, p) {
         const a = document.getElementById('day-gmaps');
@@ -2786,7 +2832,9 @@
             : `<div class="empty">${T('Писем пока не приходило.')}</div>`;
         } catch (e) {
           host.innerHTML =
-            '<div class="empty">' + esc(Ops.error(e)) + `<br><span class="small">${T('Если раздела нет — выполните 13_intake.sql.')}</span></div>`;
+            '<div class="empty">' +
+            esc(Ops.error(e)) +
+            `<br><span class="small">${T('Если раздела нет — выполните 13_intake.sql.')}</span></div>`;
           log.innerHTML = '';
         }
       }
@@ -2956,7 +3004,10 @@
           fields.done_at = status === 'planned' ? null : old.done_at || new Date().toISOString();
         }
         if (old.text !== text) {
-          if (old.collection_start && !confirm(T('У адреса есть согласованное время. Текст адреса изменится, время останется. Продолжить?'))) {
+          if (
+            old.collection_start &&
+            !confirm(T('У адреса есть согласованное время. Текст адреса изменится, время останется. Продолжить?'))
+          ) {
             restore();
             return;
           }
@@ -3007,7 +3058,12 @@
         const confirmed = !!a.collection_start;
         document.getElementById('m-move-title').textContent = T('Перенести · ') + a.text;
         document.getElementById('mv-now').textContent = confirmed
-          ? T('Сейчас согласовано: ') + a.date + (C.isDaySpan(a.collection_start, a.collection_end) ? T(' (в течение дня)') : ', ' + Ops.ukTime(a.collection_start) + '–' + Ops.ukTime(a.collection_end)) + '.'
+          ? T('Сейчас согласовано: ') +
+            a.date +
+            (C.isDaySpan(a.collection_start, a.collection_end)
+              ? T(' (в течение дня)')
+              : ', ' + Ops.ukTime(a.collection_start) + '–' + Ops.ukTime(a.collection_end)) +
+            '.'
           : a.date
             ? T('Сейчас в маршруте на ') + a.date + '.'
             : T('Даты пока нет.');
@@ -3903,9 +3959,12 @@
          английский (отчёты идут в UK). TL(key, lang) — перевод для конкретного языка. */
       const TL = (k, lang) => (lang === 'en' ? (SubnexI18n.EN[k] !== undefined ? SubnexI18n.EN[k] : k) : k);
       const dayShortL = (d, lang) =>
-        new Intl.DateTimeFormat(lang === 'en' ? 'en-GB' : 'ru-RU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(
-          new Date(d + 'T12:00:00Z'),
-        );
+        new Intl.DateTimeFormat(lang === 'en' ? 'en-GB' : 'ru-RU', {
+          weekday: 'short',
+          day: 'numeric',
+          month: 'short',
+          timeZone: 'UTC',
+        }).format(new Date(d + 'T12:00:00Z'));
       const evLabel = (status, L) =>
         ({
           done: TL('Выполнено', L),
@@ -3949,7 +4008,7 @@
           if (error) throw error;
           return data.rows || [];
         } catch (e) {
-          return ADDR.filter((a) => a.kind !== 'bank' && ((a.date || a.cancelled_date || '').slice(0, 7) === ym)).map((a) => ({
+          return ADDR.filter((a) => a.kind !== 'bank' && (a.date || a.cancelled_date || '').slice(0, 7) === ym).map((a) => ({
             ...a,
             day: a.date || a.cancelled_date,
             source: C.sourceOf(a),
@@ -3979,17 +4038,37 @@
       };
       const evAgreementL = (r, L) => {
         const parts = [];
-        if (r.offered_at) parts.push((r.offer_auto ? TL('дата предложена автоматически', L) : TL('предложено', L)) + ' ' + tsShortL(r.offered_at, L));
+        if (r.offered_at)
+          parts.push((r.offer_auto ? TL('дата предложена автоматически', L) : TL('предложено', L)) + ' ' + tsShortL(r.offered_at, L));
         if (r.reminded_at) parts.push(TL('напоминание', L) + ' ' + tsShortL(r.reminded_at, L));
         if (r.confirmed_by === 'yes') parts.push('YES ' + tsShortL(r.collection_confirmed_at, L));
         else if (r.confirmed_by === 'manual') parts.push(TL('подтверждено вручную', L) + ' ' + tsShortL(r.collection_confirmed_at, L));
-        else if (r.collection_confirmed_at && !r.offered_at) parts.push(TL('подтверждено', L) + ' ' + tsShortL(r.collection_confirmed_at, L));
+        else if (r.collection_confirmed_at && !r.offered_at)
+          parts.push(TL('подтверждено', L) + ' ' + tsShortL(r.collection_confirmed_at, L));
         if (!parts.length && r.offer_state === 'awaiting') parts.push(TL('ждём YES', L));
         return parts.join(' · ');
       };
       /* Порядок в отчёте: сначала выполненные, затем не открыли/проблема, закрытые,
          запланированные, и в конце ждущие ответа. Внутри — по дате, новые выше. */
       const EV_ORDER = { done: 0, noanswer: 1, problem: 1, cancelled: 2, planned: 3, new: 3, waiting: 4 };
+      /* Строка журнала → подписи на нужном языке. Общая для «Что случилось» и «Итогов месяца». */
+      function evDecorate(r, L) {
+        return {
+          ...r,
+          source: r.source || C.sourceOf(r),
+          windowText: evWindowL(r, L),
+          what: evLabel(r.status, L),
+          when:
+            r.status === 'cancelled'
+              ? tsShortL(r.closed_at || r.collection_cancelled_at, L)
+              : ['done', 'noanswer', 'problem'].includes(r.status)
+                ? tsShortL(r.done_at, L)
+                : '',
+          reason: evReasonL(r, L),
+          problem: EV_PROBLEM.has(r.status),
+          order: EV_ORDER[r.status] ?? 3,
+        };
+      }
       function buildEventRows(L, src, only) {
         const rows = [];
         const seen = new Set();
@@ -4007,7 +4086,9 @@
             offer_auto: a.offer_auto,
             offer_state: 'awaiting',
             reminded_at: a.reminded_at,
-            windowText: C.isDaySpan(a.offered_start, a.offered_end) ? TL('в течение дня', L) : C.hm(C.ukMinute(a.offered_start)) + '–' + C.hm(C.ukMinute(a.offered_end || a.offered_start)),
+            windowText: C.isDaySpan(a.offered_start, a.offered_end)
+              ? TL('в течение дня', L)
+              : C.hm(C.ukMinute(a.offered_start)) + '–' + C.hm(C.ukMinute(a.offered_end || a.offered_start)),
             what: evWait(L),
             when: '',
             reason: TL('Предложено ', L) + dayShortL(day, L) + TL(', ответа нет', L),
@@ -4019,16 +4100,7 @@
           if (seen.has(r.id)) continue;
           if (src && r.source !== src) continue;
           if (removedByOperator(r)) continue;
-          const problem = EV_PROBLEM.has(r.status);
-          rows.push({
-            ...r,
-            windowText: evWindowL(r, L),
-            what: evLabel(r.status, L),
-            when: r.status === 'cancelled' ? tsShortL(r.closed_at || r.collection_cancelled_at, L) : ['done', 'noanswer', 'problem'].includes(r.status) ? tsShortL(r.done_at, L) : '',
-            reason: evReasonL(r, L),
-            problem,
-            order: EV_ORDER[r.status] ?? 3,
-          });
+          rows.push(evDecorate(r, L));
         }
         return rows
           .filter((r) => !only || r.problem)
@@ -4103,6 +4175,55 @@
       const E = (k) => TL(k, 'en');
 
       /* Все поля — в таблицу для Excel. Разделитель — точка с запятой, кодировка UTF-8 с BOM. */
+      /* Все поля журнала — колонки CSV (по-английски). Общие для «Что случилось» и «Итогов месяца». */
+      const logCsvCols = () => [
+        [E('Адрес'), (r) => r.text],
+        [E('Район'), (r) => r.zone],
+        [E('Источник'), (r) => C.sourceNames[r.source] || r.source],
+        ['Charity', (r) => r.charity],
+        [E('Мешки'), (r) => r.bags],
+        [E('Телефон'), (r) => r.phone],
+        [E('Контакт'), (r) => r.contact_name],
+        ['Email', (r) => r.contact_email],
+        [E('Заявка получена'), (r) => r.received_at],
+        [E('Дата сбора'), (r) => r.day],
+        [E('Окно'), (r) => r.windowText],
+        [E('Режим'), (r) => r.arrival_mode],
+        [E('Предложение отправлено'), (r) => r.offered_at],
+        [E('Автопредложение'), (r) => (r.offer_auto === true ? E('да') : r.offer_auto === false ? E('нет') : '')],
+        [E('Напоминание'), (r) => r.reminded_at],
+        [E('Подтверждено'), (r) => r.collection_confirmed_at],
+        [E('Как подтверждено'), (r) => (r.confirmed_by === 'yes' ? 'YES' : r.confirmed_by === 'manual' ? E('вручную') : '')],
+        [E('Окно из утренней SMS'), (r) => (Number.isFinite(r.eta_from) ? C.hm(r.eta_from) + '–' + C.hm(r.eta_to) : '')],
+        [E('Что произошло'), (r) => r.what],
+        [E('Когда'), (r) => (r.status === 'cancelled' ? r.closed_at || r.collection_cancelled_at : r.done_at)],
+        [E('Причина закрытия'), (r) => (r.status === 'cancelled' ? reasonL(r.cancellation_reason || r.closed_reason, 'en') : '')],
+        [E('Заметка о результате'), (r) => r.result_note],
+        [E('Примечание'), (r) => r.note],
+        [E('Водитель'), (r) => r.driver],
+        [E('SMS исходящих'), (r) => r.sms_out],
+        [E('SMS входящих'), (r) => r.sms_in],
+        [E('Фото'), (r) => r.photos],
+        ['id', (r) => r.id],
+      ];
+      function downloadCsv(cols, rows, fname) {
+        const cell = (v) => {
+          const s = v == null ? '' : String(v);
+          return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+        };
+        const lines = [cols.map((c) => cell(c[0])).join(';')];
+        rows.forEach((r) => lines.push(cols.map((c) => cell(c[1](r))).join(';')));
+        const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = fname;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          URL.revokeObjectURL(a.href);
+          a.remove();
+        }, 1000);
+      }
       function eventsCsv() {
         const rows = evExportRows();
         if (!rows.length) {
@@ -4110,52 +4231,7 @@
           return;
         }
         const ym = document.getElementById('ev-month').value || ymNow();
-        const cols = [
-          [E('Адрес'), (r) => r.text],
-          [E('Район'), (r) => r.zone],
-          [E('Источник'), (r) => C.sourceNames[r.source] || r.source],
-          ['Charity', (r) => r.charity],
-          [E('Мешки'), (r) => r.bags],
-          [E('Телефон'), (r) => r.phone],
-          [E('Контакт'), (r) => r.contact_name],
-          ['Email', (r) => r.contact_email],
-          [E('Заявка получена'), (r) => r.received_at],
-          [E('Дата сбора'), (r) => r.day],
-          [E('Окно'), (r) => r.windowText],
-          [E('Режим'), (r) => r.arrival_mode],
-          [E('Предложение отправлено'), (r) => r.offered_at],
-          [E('Автопредложение'), (r) => (r.offer_auto === true ? E('да') : r.offer_auto === false ? E('нет') : '')],
-          [E('Напоминание'), (r) => r.reminded_at],
-          [E('Подтверждено'), (r) => r.collection_confirmed_at],
-          [E('Как подтверждено'), (r) => (r.confirmed_by === 'yes' ? 'YES' : r.confirmed_by === 'manual' ? E('вручную') : '')],
-          [E('Окно из утренней SMS'), (r) => (Number.isFinite(r.eta_from) ? C.hm(r.eta_from) + '–' + C.hm(r.eta_to) : '')],
-          [E('Что произошло'), (r) => r.what],
-          [E('Когда'), (r) => (r.status === 'cancelled' ? r.closed_at || r.collection_cancelled_at : r.done_at)],
-          [E('Причина закрытия'), (r) => (r.status === 'cancelled' ? reasonL(r.cancellation_reason || r.closed_reason, 'en') : '')],
-          [E('Заметка о результате'), (r) => r.result_note],
-          [E('Примечание'), (r) => r.note],
-          [E('Водитель'), (r) => r.driver],
-          [E('SMS исходящих'), (r) => r.sms_out],
-          [E('SMS входящих'), (r) => r.sms_in],
-          [E('Фото'), (r) => r.photos],
-          ['id', (r) => r.id],
-        ];
-        const cell = (v) => {
-          const s = v == null ? '' : String(v);
-          return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-        };
-        const lines = [cols.map((c) => cell(c[0])).join(';')];
-        rows.forEach((r) => lines.push(cols.map((c) => cell(c[1](r))).join(';')));
-        const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'Subnex-log-' + ym + '.csv';
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => {
-          URL.revokeObjectURL(a.href);
-          a.remove();
-        }, 1000);
+        downloadCsv(logCsvCols(), rows, 'Subnex-log-' + ym + '.csv');
       }
 
       async function eventsPdf() {
@@ -4245,6 +4321,394 @@
         doc.content = body;
         doc.info = { title: E('Subnex — что случилось с адресами — ') + ymLabel(ym), author: 'Subnex Group Ltd' };
         return new Promise((res) => pdfMake.createPdf(doc).download('Subnex-events-' + ym + '.pdf', res));
+      }
+
+      /* ---------- Итоги месяца: каждый адрес по категориям ----------
+         Источник — полный журнал месяца с сервера (monthLog): сделанные по дате сбора,
+         закрытые — по дате закрытия. Фото подгружаются отдельно по id адресов месяца,
+         потому что общий список фото пульта держит только последние 60 дней. */
+      const MO_CATS = ['partner_email', 'partner_whatsapp', 'missing', 'subnex_website'];
+      const MO_NOT_DONE = new Set(['noanswer', 'problem', 'cancelled']);
+      let MO = { ym: '', rows: [], photos: new Map() };
+
+      async function monthPhotos(ids) {
+        const map = new Map();
+        for (let i = 0; i < ids.length; i += 100) {
+          try {
+            const { data, error } = await sb
+              .from('photos')
+              .select('*')
+              .in('address_id', ids.slice(i, i + 100))
+              .order('created_at', { ascending: true });
+            if (error) throw error;
+            for (const p of data || []) {
+              if (!map.has(p.address_id)) map.set(p.address_id, []);
+              map.get(p.address_id).push(p);
+            }
+          } catch (e) {
+            /* без фото отчёт всё равно собирается */
+          }
+        }
+        const paths = [...map.values()].flat().map((p) => p.path);
+        if (paths.length) {
+          try {
+            await Ops.signPhotos(sb, paths);
+          } catch (e) {}
+        }
+        return map;
+      }
+      async function loadMonth(ym) {
+        const log = (await monthLog(ym)).filter((r) => !removedByOperator(r));
+        const rows = log.filter((r) => r.status === 'done' || MO_NOT_DONE.has(r.status) || ['planned', 'new'].includes(r.status));
+        const ids = rows.filter((r) => r.status !== 'new').map((r) => r.id);
+        MO = { ym, rows, photos: await monthPhotos(ids) };
+        return MO;
+      }
+      /* Разбивка месяца по категориям, на нужном языке. */
+      function monthCats(L) {
+        const byDay = (x, y) =>
+          (x.day || '').localeCompare(y.day || '') ||
+          (x.done_at || '').localeCompare(y.done_at || '') ||
+          (x.text || '').localeCompare(y.text || '');
+        return MO_CATS.map((src) => {
+          const list = MO.rows.map((r) => evDecorate(r, L)).filter((r) => r.source === src);
+          return {
+            src,
+            name: C.sourceNames[src] || src,
+            done: list.filter((r) => r.status === 'done').sort(byDay),
+            notDone: list.filter((r) => MO_NOT_DONE.has(r.status)).sort(byDay),
+            ahead: list.filter((r) => ['planned', 'new'].includes(r.status)).length,
+          };
+        });
+      }
+      const moContact = (r, sep) => [r.contact_name, r.phone, r.contact_email].filter(Boolean).join(sep);
+      const moNotes = (r) => [(r.result_note || '').trim(), (r.note || '').trim()].filter(Boolean).join(' · ');
+      const moConfirm = (r, L) => evAgreementL(r, L);
+      const moDoneTime = (r) => (r.done_at ? C.hm(C.ukMinute(r.done_at)) : '');
+
+      async function renderMonth() {
+        const mEl = document.getElementById('mo-month');
+        if (!mEl.value) mEl.value = ymNow();
+        const ym = mEl.value;
+        const box = document.getElementById('mo-cats');
+        box.innerHTML = `<div class="card"><div class="empty"><span class="spin"></span> ${T('Собираю…')}</div></div>`;
+        document.getElementById('mo-tiles').innerHTML = '';
+        await loadMonth(ym);
+        if ((document.getElementById('mo-month').value || ymNow()) !== ym) return;
+        const L = SubnexI18n.lang;
+        const cats = monthCats(L);
+        const tot = cats.reduce((t, c) => t + c.done.length, 0),
+          totNot = cats.reduce((t, c) => t + c.notDone.length, 0),
+          totAhead = cats.reduce((t, c) => t + c.ahead, 0);
+        document.getElementById('mo-tiles').innerHTML =
+          `<div class="tile brand"><div class="lab">${T('Сделано адресов за месяц')}</div><div class="val">${tot}</div><div class="foot">${T('не сделано: ')}${totNot}${totAhead ? T(' · впереди: ') + totAhead : ''}</div></div>` +
+          cats
+            .map(
+              (c) =>
+                `<div class="tile${c.done.length ? ' ok' : ''}"><div class="lab">${esc(c.name)}</div><div class="val">${c.done.length}</div><div class="foot">${T('не сделано: ')}${c.notDone.length}${c.ahead ? T(' · впереди: ') + c.ahead : ''}</div></div>`,
+            )
+            .join('');
+        const dash = '<span class="muted">—</span>';
+        const thumbs = (r) => {
+          const ph = MO.photos.get(r.id) || [];
+          if (!ph.length) return r.photos ? esc(String(r.photos)) : dash;
+          return (
+            '<div class="row" style="gap:4px;flex-wrap:nowrap">' +
+            ph
+              .slice(0, 3)
+              .map(
+                (p) =>
+                  `<a href="${photoUrl(p.path)}" target="_blank" rel="noopener"><img src="${photoUrl(p.path)}" alt="photo" loading="lazy" style="width:44px;height:44px;object-fit:cover;border-radius:6px;display:block"></a>`,
+              )
+              .join('') +
+            (ph.length > 3 ? `<span class="muted small">+${ph.length - 3}</span>` : '') +
+            '</div>'
+          );
+        };
+        const doneTable = (c) =>
+          `<div class="tscroll"><table class="t"><thead><tr>` +
+          [
+            T('№'),
+            T('Дата'),
+            T('Адрес'),
+            'Charity',
+            T('Мешки'),
+            T('Клиент'),
+            T('Заявка получена'),
+            T('Согласование с клиентом'),
+            T('Окно'),
+            T('Забрали'),
+            T('Водитель'),
+            T('Заметка'),
+            T('Фото'),
+          ]
+            .map((h) => `<th>${esc(h)}</th>`)
+            .join('') +
+          `</tr></thead><tbody>` +
+          (c.done.length
+            ? c.done
+                .map(
+                  (r, i) =>
+                    `<tr><td class="num muted">${i + 1}</td>` +
+                    `<td class="mono" style="white-space:nowrap;font-size:12.3px">${r.day ? esc(dayShortL(r.day, L)) : dash}</td>` +
+                    `<td style="min-width:200px"><b>${esc(r.text)}</b>${r.zone ? `<br><span class="muted" style="font-size:11.5px">${esc(r.zone)}</span>` : ''}</td>` +
+                    `<td style="font-size:12.5px">${r.charity ? esc(r.charity) : dash}</td>` +
+                    `<td style="font-size:12.5px;white-space:nowrap">${r.bags ? esc(r.bags) : dash}</td>` +
+                    `<td style="font-size:12px">${[r.contact_name, r.phone, r.contact_email].filter(Boolean).map(esc).join('<br>') || dash}</td>` +
+                    `<td class="mono" style="white-space:nowrap;font-size:12px">${r.received_at ? esc(tsShortL(r.received_at, L)) : dash}</td>` +
+                    `<td style="font-size:12px">${esc(moConfirm(r, L)) || dash}</td>` +
+                    `<td style="font-size:12.3px;white-space:nowrap">${r.windowText ? esc(r.windowText) : dash}</td>` +
+                    `<td class="mono" style="white-space:nowrap;font-size:12px">${moDoneTime(r) || dash}</td>` +
+                    `<td style="font-size:12.3px">${r.driver ? esc(r.driver) : dash}</td>` +
+                    `<td style="font-size:12.3px">${moNotes(r) ? esc(moNotes(r)) : dash}</td>` +
+                    `<td>${thumbs(r)}</td></tr>`,
+                )
+                .join('')
+            : `<tr><td colspan="13" class="empty">${T('За этот месяц сделанных адресов нет')}</td></tr>`) +
+          `</tbody></table></div>`;
+        const notTable = (c) =>
+          `<div class="tscroll"><table class="t"><thead><tr>` +
+          [
+            T('Дата'),
+            T('Адрес'),
+            'Charity',
+            T('Что произошло'),
+            T('Когда'),
+            T('Причина / заметка'),
+            T('Клиент'),
+            T('Заявка получена'),
+            T('Фото'),
+          ]
+            .map((h) => `<th>${esc(h)}</th>`)
+            .join('') +
+          `</tr></thead><tbody>` +
+          c.notDone
+            .map(
+              (r) =>
+                `<tr><td class="mono" style="white-space:nowrap;font-size:12.3px">${r.day ? esc(dayShortL(r.day, L)) : dash}</td>` +
+                `<td style="min-width:200px"><b>${esc(r.text)}</b>${r.zone ? `<br><span class="muted" style="font-size:11.5px">${esc(r.zone)}</span>` : ''}</td>` +
+                `<td style="font-size:12.5px">${r.charity ? esc(r.charity) : dash}</td>` +
+                `<td><span class="chip ${r.problem ? 'st-bad' : 'ghost'}">${esc(r.what)}</span></td>` +
+                `<td class="mono" style="white-space:nowrap;font-size:12px">${r.when ? esc(r.when) : dash}</td>` +
+                `<td style="font-size:12.3px">${r.reason ? esc(r.reason) : dash}</td>` +
+                `<td style="font-size:12px">${[r.contact_name, r.phone, r.contact_email].filter(Boolean).map(esc).join('<br>') || dash}</td>` +
+                `<td class="mono" style="white-space:nowrap;font-size:12px">${r.received_at ? esc(tsShortL(r.received_at, L)) : dash}</td>` +
+                `<td>${thumbs(r)}</td></tr>`,
+            )
+            .join('') +
+          `</tbody></table></div>`;
+        box.innerHTML = cats
+          .map(
+            (c) =>
+              `<div class="card" data-mo-cat="${c.src}"><div class="card-h"><div><h3>${esc(c.name)} · ${c.done.length}</h3><div class="sub">${T('сделано')} ${c.done.length} · ${T('не сделано')} ${c.notDone.length}${c.ahead ? ' · ' + T('впереди') + ' ' + c.ahead : ''}</div></div>` +
+              `<div class="row" style="gap:6px"><button class="btn btn-sm" data-mo-pdf="${c.src}"><svg class="ic"><use href="#i-dl" /></svg> PDF</button><button class="btn btn-sm" data-mo-csv="${c.src}"><svg class="ic"><use href="#i-dl" /></svg> CSV</button></div></div>` +
+              doneTable(c) +
+              (c.notDone.length
+                ? `<details style="border-top:1px solid var(--line)"><summary style="cursor:pointer;padding:10px 14px;font-weight:600">${T('Не сделано')} · ${c.notDone.length}</summary>${notTable(c)}</details>`
+                : '') +
+              `</div>`,
+          )
+          .join('');
+      }
+      document.getElementById('mo-cats').addEventListener('click', (e) => {
+        const p = e.target.closest('button[data-mo-pdf]');
+        if (p) return monthPdf(p.dataset.moPdf);
+        const c = e.target.closest('button[data-mo-csv]');
+        if (c) monthCsv(c.dataset.moCsv);
+      });
+      async function ensureMonth() {
+        const ym = document.getElementById('mo-month').value || ymNow();
+        if (MO.ym !== ym) await loadMonth(ym);
+        return ym;
+      }
+
+      /* CSV: все поля журнала + категория + ссылки на фото. src пустой — все категории. */
+      async function monthCsv(src) {
+        const ym = await ensureMonth();
+        const rows = monthCats('en')
+          .filter((c) => !src || c.src === src)
+          .flatMap((c) => [...c.done, ...c.notDone]);
+        if (!rows.length) {
+          toast(T('Нечего выгружать'));
+          return;
+        }
+        const cols = [
+          [E('Категория'), (r) => C.sourceNames[r.source] || r.source],
+          ...logCsvCols().filter((c) => c[0] !== E('Источник') && c[0] !== E('Фото')),
+        ];
+        cols.splice(cols.length - 1, 0, [
+          E('Фото'),
+          (r) => (MO.photos.get(r.id) || []).map((p) => photoUrl(p.path)).join(' ') || r.photos || '',
+        ]);
+        const name = src ? '-' + (C.sourceNames[src] || src).replace(/[^\w]+/g, '-') : '';
+        downloadCsv(cols, rows, 'Subnex-addresses' + name + '-' + ym + '.csv');
+      }
+
+      /* PDF по категории — по-английски, альбомный: каждый сделанный адрес со всеми данными и фото,
+         затем несделанные с причиной. Уходит партнёру этой категории. */
+      async function monthPdf(src, silent) {
+        const ym = await ensureMonth();
+        const c = monthCats('en').find((x) => x.src === src);
+        if (!c || (!c.done.length && !c.notDone.length)) {
+          if (!silent) toast(T('Нет данных за этот месяц'));
+          return;
+        }
+        if (!silent) toast(T('Готовлю PDF…'));
+        /* Фото: по два на адрес, уменьшенные — чтобы файл остался лёгким. Качаем по 6 параллельно. */
+        const want = [...c.done, ...c.notDone].flatMap((r) => (MO.photos.get(r.id) || []).slice(0, 2).map((p) => p.path));
+        const img = new Map();
+        for (let i = 0; i < want.length; i += 6) {
+          const part = want.slice(i, i + 6);
+          const got = await Promise.all(part.map((p) => imgToData(p, 220)));
+          part.forEach((p, k) => got[k] && img.set(p, got[k]));
+        }
+        const pics = (r) => {
+          const list = (MO.photos.get(r.id) || [])
+            .slice(0, 2)
+            .map((p) => img.get(p.path))
+            .filter(Boolean);
+          if (!list.length) return { text: '—', color: '#8A8A85' };
+          return { columns: list.map((d) => ({ image: d.data, fit: [46, 46], width: 48 })), columnGap: 3 };
+        };
+        const body = [
+          { text: 'Monthly collections report', style: 'h1' },
+          {
+            text: 'Every address collected by Subnex Group for this category during the period below, with the details we hold for each one.',
+            margin: [0, 0, 0, 14],
+            color: '#3A3A38',
+          },
+          kvRow([
+            ['Category', c.name],
+            ['Period', ymLabel(ym)],
+            ['Report issued', ukDate(todayStr())],
+          ]),
+        ];
+        const box = (label, val, color) => ({
+          stack: [
+            { text: label, style: 'lbl' },
+            { text: String(val), fontSize: 19, bold: true, color: color || '#1A1A18', margin: [0, 3, 0, 0] },
+          ],
+        });
+        body.push({
+          table: {
+            widths: ['*', '*', '*'],
+            body: [
+              [
+                box('ADDRESSES COLLECTED', c.done.length, BRAND.dgreen),
+                box('NOT COMPLETED', c.notDone.length, c.notDone.length ? '#B3261E' : null),
+                box('TOTAL ADDRESSES', c.done.length + c.notDone.length),
+              ],
+            ],
+          },
+          layout: BOX_L,
+          margin: [0, 4, 0, 0],
+        });
+        const th = (t) => ({ text: t, style: 'th' });
+        if (c.done.length) {
+          const rows = [
+            [
+              th('#'),
+              th('DATE'),
+              th('ADDRESS'),
+              th('CHARITY'),
+              th('BAGS'),
+              th('CUSTOMER'),
+              th('REQUEST RECEIVED'),
+              th('CONFIRMATION'),
+              th('COLLECTED'),
+              th('NOTES'),
+              th('PHOTOS'),
+            ],
+          ];
+          c.done.forEach((r, i) =>
+            rows.push([
+              String(i + 1),
+              r.day ? dayShortL(r.day, 'en') : '—',
+              { text: r.text + (r.zone ? '\n' + r.zone : ''), bold: true },
+              r.charity || 'No charity specified',
+              r.bags || '—',
+              moContact(r, '\n') || '—',
+              r.received_at ? tsShortL(r.received_at, 'en') : '—',
+              moConfirm(r, 'en') || '—',
+              [moDoneTime(r), r.windowText].filter(Boolean).join('\n') || '—',
+              moNotes(r) || '—',
+              pics(r),
+            ]),
+          );
+          body.push({ text: 'Addresses collected · ' + c.done.length, style: 'sec' });
+          body.push({
+            table: {
+              headerRows: 1,
+              dontBreakRows: true,
+              widths: [14, 'auto', '*', 'auto', 'auto', 'auto', 'auto', 70, 'auto', '*', 100],
+              body: rows,
+            },
+            layout: tableL(rows.length),
+            fontSize: 7.5,
+          });
+        }
+        if (c.notDone.length) {
+          const rows = [
+            [
+              th('DATE'),
+              th('ADDRESS'),
+              th('CHARITY'),
+              th('OUTCOME'),
+              th('WHEN'),
+              th('REASON / NOTE'),
+              th('CUSTOMER'),
+              th('REQUEST RECEIVED'),
+              th('PHOTOS'),
+            ],
+          ];
+          c.notDone.forEach((r) =>
+            rows.push([
+              r.day ? dayShortL(r.day, 'en') : '—',
+              { text: r.text + (r.zone ? '\n' + r.zone : ''), bold: true },
+              r.charity || 'No charity specified',
+              { text: r.what, color: '#B3261E' },
+              r.when || '—',
+              r.reason || '—',
+              moContact(r, '\n') || '—',
+              r.received_at ? tsShortL(r.received_at, 'en') : '—',
+              pics(r),
+            ]),
+          );
+          body.push({ text: 'Collections not completed · ' + c.notDone.length, style: 'sec' });
+          body.push({
+            table: {
+              headerRows: 1,
+              dontBreakRows: true,
+              widths: ['auto', '*', 'auto', 'auto', 'auto', '*', 'auto', 'auto', 100],
+              body: rows,
+            },
+            layout: tableL(rows.length),
+            fontSize: 7.5,
+          });
+        }
+        body.push({
+          text: 'Questions about this report? Reply to this email or call us and we will check any collection listed here.',
+          style: 'note',
+          margin: [0, 12, 0, 0],
+        });
+        const doc = pdfShell('Subnex Group Ltd  ·  Collections report  ·  ' + c.name + '  ·  ' + ymLabel(ym), true);
+        doc.content = body;
+        doc.info = { title: 'Subnex collections report — ' + c.name + ' — ' + ymLabel(ym), author: 'Subnex Group Ltd' };
+        const fname = 'Subnex-' + c.name.replace(/[^\w]+/g, '-') + '-' + ym + '.pdf';
+        return new Promise((res) => pdfMake.createPdf(doc).download(fname, res));
+      }
+      async function monthAllPdf() {
+        await ensureMonth();
+        const cats = monthCats('en').filter((c) => c.done.length || c.notDone.length);
+        if (!cats.length) {
+          toast(T('Нет данных за этот месяц'));
+          return;
+        }
+        toast(T('Готовлю PDF…'));
+        for (const c of cats) {
+          await monthPdf(c.src, true);
+          await new Promise((r) => setTimeout(r, 600));
+        }
       }
 
       /* Незавершённые сборы charity за месяц — ТОЛЬКО счётчики.
@@ -4350,7 +4814,9 @@
         const warn = document.getElementById('cr-warn');
         warn.hidden = CRT_OK;
         if (!CRT_OK)
-          warn.textContent = T('Вес пока не сохраняется — выполните sql/14_charity_reports.sql в Supabase. Списки и PDF работают и без него.');
+          warn.textContent = T(
+            'Вес пока не сохраняется — выполните sql/14_charity_reports.sql в Supabase. Списки и PDF работают и без него.',
+          );
         CR_ROWS = crGroups(ym, src);
         const tb = document.getElementById('cr-tbody');
         if (!CR_ROWS.length) {

@@ -1553,4 +1553,23 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   'Часы и доступ': 'Hours and access',
   'Зоны выезда': 'Trip zones',
   'Приём заявок': 'Intake',
+  /* Отчёты → Итоги месяца */
+  'Итоги месяца': 'Month summary',
+  'Месяц работы: все адреса по категориям, сборы по charity для партнёров и вывозы для хостов контейнеров':
+    'The month’s work: every address by category, charity collections for partners and pickups for bank hosts',
+  'PDF по всем категориям': 'PDF for all categories',
+  'Таблица за месяц (CSV для Excel)': 'Month table (CSV for Excel)',
+  'Сделано — адреса, где мешки забрали; считаются по дате сбора. Не сделано — никого не было дома, проблема на адресе или заявка закрыта (по дате закрытия). Заявки, убранные вами как ошибка ввода, не считаются. PDF и CSV всегда по-английски.':
+    'Done — addresses where the bags were collected, counted by collection date. Not done — no one home, a problem at the address, or the request was closed (counted by closing date). Requests you removed as entry mistakes are not counted. PDF and CSV are always in English.',
+  'Сделано адресов за месяц': 'Addresses done this month',
+  'не сделано: ': 'not done: ',
+  ' · впереди: ': ' · ahead: ',
+  '№': '#',
+  Клиент: 'Customer',
+  Забрали: 'Collected',
+  'За этот месяц сделанных адресов нет': 'No addresses done this month',
+  сделано: 'done',
+  'не сделано': 'not done',
+  впереди: 'ahead',
+  'Не сделано': 'Not done',
 });
