@@ -125,6 +125,32 @@ async function open(lang) {
     lines[0],
   );
   ok('csv: без кириллицы', !/[А-Яа-яЁё]/.test(csv));
+  /* Партнёрам → PDF по charity: теперь поимённо, как в «Итогах месяца». */
+  await page.click('#rp-tabs button[data-sub="charity"]');
+  await page.waitForSelector('#cr-tbody button[data-crpdf]');
+  await page.evaluate(() => (window.__pdfs = []));
+  const shelter = await page.$$eval('#cr-tbody tr', (trs) => trs.findIndex((tr) => /Shelter Cymru/.test(tr.textContent)));
+  await page.click(`#cr-tbody button[data-crpdf="${shelter}"]`);
+  await page.waitForFunction(() => (window.__pdfs || []).length === 1, null, { timeout: 15000 });
+  const cpdf = await page.evaluate(() => ({
+    name: window.__pdfs[0].name,
+    orient: window.__pdfs[0].doc.pageOrientation,
+    json: JSON.stringify(window.__pdfs[0].doc.content),
+  }));
+  ok('charity pdf: имя файла', /^Subnex-Shelter-Cymru-\d{4}-\d{2}\.pdf$/.test(cpdf.name), cpdf.name);
+  ok('charity pdf: альбомный', cpdf.orient === 'landscape');
+  ok(
+    'charity pdf: каждый адрес с клиентом и заметкой',
+    /1 Email Street/.test(cpdf.json) && /Ann Email/.test(cpdf.json) && /Knock loudly/.test(cpdf.json) && /Missing Lane/.test(cpdf.json),
+  );
+  ok(
+    'charity pdf: колонка источника',
+    /SOURCE/.test(cpdf.json) && /Partner Email/.test(cpdf.json) && /Missing Collections/.test(cpdf.json),
+  );
+  ok('charity pdf: несделанные поимённо', /Collections not completed · 2/.test(cpdf.json) && /2 Email Street/.test(cpdf.json) && /Customer cancelled|cancelled/i.test(cpdf.json));
+  ok('charity pdf: нет «адреса не перечислены»', !/Individual addresses are not listed/.test(cpdf.json));
+  ok('charity pdf: чужая charity не попала', !/Whatsapp Road/.test(cpdf.json));
+  ok('charity pdf: без кириллицы', !/[А-Яа-яЁё]/.test(cpdf.json));
   ok('ru: ошибок в консоли нет', errors.length === 0, errors.join(' | '));
   await page.close();
 }

@@ -4516,8 +4516,8 @@
         const c = e.target.closest('button[data-mo-csv]');
         if (c) monthCsv(c.dataset.moCsv);
       });
-      async function ensureMonth() {
-        const ym = document.getElementById('mo-month').value || ymNow();
+      async function ensureMonth(ymArg) {
+        const ym = ymArg || document.getElementById('mo-month').value || ymNow();
         if (MO.ym !== ym) await loadMonth(ym);
         return ym;
       }
@@ -4544,18 +4544,10 @@
         downloadCsv(cols, rows, 'Subnex-addresses' + name + '-' + ym + '.csv');
       }
 
-      /* PDF по категории — по-английски, альбомный: каждый сделанный адрес со всеми данными и фото,
-         затем несделанные с причиной. Уходит партнёру этой категории. */
-      async function monthPdf(src, silent) {
-        const ym = await ensureMonth();
-        const c = monthCats('en').find((x) => x.src === src);
-        if (!c || (!c.done.length && !c.notDone.length)) {
-          if (!silent) toast(T('Нет данных за этот месяц'));
-          return;
-        }
-        if (!silent) toast(T('Готовлю PDF…'));
-        /* Фото: по два на адрес, уменьшенные — чтобы файл остался лёгким. Качаем по 6 параллельно. */
-        const want = [...c.done, ...c.notDone].flatMap((r) => (MO.photos.get(r.id) || []).slice(0, 2).map((p) => p.path));
+      /* Фото для PDF: по два на адрес, уменьшенные — чтобы файл остался лёгким. Качаем по 6 параллельно.
+         Возвращает функцию: строка → ячейка с миниатюрами. */
+      async function pdfPics(rows) {
+        const want = rows.flatMap((r) => (MO.photos.get(r.id) || []).slice(0, 2).map((p) => p.path));
         const img = new Map();
         for (let i = 0; i < want.length; i += 6) {
           const part = want.slice(i, i + 6);
@@ -4570,6 +4562,111 @@
           if (!list.length) return { text: '—', color: '#8A8A85' };
           return { columns: list.map((d) => ({ image: d.data, fit: [46, 46], width: 48 })), columnGap: 3 };
         };
+        return pics;
+      }
+      /* Таблицы адресов для PDF партнёру: сделанные со всеми данными и несделанные с причиной.
+         third — третья колонка: 'charity' (отчёт по категории) или 'source' (отчёт по charity). */
+      function addrTablesPdf(done, notDone, pics, third) {
+        const body = [];
+        const thirdHead = third === 'source' ? 'SOURCE' : 'CHARITY';
+        const thirdVal = (r) => (third === 'source' ? C.sourceNames[r.source] || r.source || '—' : r.charity || 'No charity specified');
+        const th = (t) => ({ text: t, style: 'th' });
+        if (done.length) {
+          const rows = [
+            [
+              th('#'),
+              th('DATE'),
+              th('ADDRESS'),
+              th(thirdHead),
+              th('BAGS'),
+              th('CUSTOMER'),
+              th('REQUEST RECEIVED'),
+              th('CONFIRMATION'),
+              th('COLLECTED'),
+              th('NOTES'),
+              th('PHOTOS'),
+            ],
+          ];
+          done.forEach((r, i) =>
+            rows.push([
+              String(i + 1),
+              r.day ? dayShortL(r.day, 'en') : '—',
+              { text: r.text + (r.zone ? '\n' + r.zone : ''), bold: true },
+              thirdVal(r),
+              r.bags || '—',
+              moContact(r, '\n') || '—',
+              r.received_at ? tsShortL(r.received_at, 'en') : '—',
+              moConfirm(r, 'en') || '—',
+              [moDoneTime(r), r.windowText].filter(Boolean).join('\n') || '—',
+              moNotes(r) || '—',
+              pics(r),
+            ]),
+          );
+          body.push({ text: 'Addresses collected · ' + done.length, style: 'sec' });
+          body.push({
+            table: {
+              headerRows: 1,
+              dontBreakRows: true,
+              widths: [14, 'auto', '*', 'auto', 'auto', 'auto', 'auto', 70, 'auto', '*', 100],
+              body: rows,
+            },
+            layout: tableL(rows.length),
+            fontSize: 7.5,
+          });
+        }
+        if (notDone.length) {
+          const rows = [
+            [
+              th('DATE'),
+              th('ADDRESS'),
+              th(thirdHead),
+              th('OUTCOME'),
+              th('WHEN'),
+              th('REASON / NOTE'),
+              th('CUSTOMER'),
+              th('REQUEST RECEIVED'),
+              th('PHOTOS'),
+            ],
+          ];
+          notDone.forEach((r) =>
+            rows.push([
+              r.day ? dayShortL(r.day, 'en') : '—',
+              { text: r.text + (r.zone ? '\n' + r.zone : ''), bold: true },
+              thirdVal(r),
+              { text: r.what, color: '#B3261E' },
+              r.when || '—',
+              r.reason || '—',
+              moContact(r, '\n') || '—',
+              r.received_at ? tsShortL(r.received_at, 'en') : '—',
+              pics(r),
+            ]),
+          );
+          body.push({ text: 'Collections not completed · ' + notDone.length, style: 'sec' });
+          body.push({
+            table: {
+              headerRows: 1,
+              dontBreakRows: true,
+              widths: ['auto', '*', 'auto', 'auto', 'auto', '*', 'auto', 'auto', 100],
+              body: rows,
+            },
+            layout: tableL(rows.length),
+            fontSize: 7.5,
+          });
+        }
+        return body;
+      }
+
+      /* PDF по категории — по-английски, альбомный: каждый сделанный адрес со всеми данными и фото,
+         затем несделанные с причиной. Уходит партнёру этой категории. */
+      async function monthPdf(src, silent) {
+        const ym = await ensureMonth();
+        const c = monthCats('en').find((x) => x.src === src);
+        if (!c || (!c.done.length && !c.notDone.length)) {
+          if (!silent) toast(T('Нет данных за этот месяц'));
+          return;
+        }
+        if (!silent) toast(T('Готовлю PDF…'));
+        const pics = await pdfPics([...c.done, ...c.notDone]);
         const body = [
           { text: 'Monthly collections report', style: 'h1' },
           {
@@ -4603,89 +4700,7 @@
           layout: BOX_L,
           margin: [0, 4, 0, 0],
         });
-        const th = (t) => ({ text: t, style: 'th' });
-        if (c.done.length) {
-          const rows = [
-            [
-              th('#'),
-              th('DATE'),
-              th('ADDRESS'),
-              th('CHARITY'),
-              th('BAGS'),
-              th('CUSTOMER'),
-              th('REQUEST RECEIVED'),
-              th('CONFIRMATION'),
-              th('COLLECTED'),
-              th('NOTES'),
-              th('PHOTOS'),
-            ],
-          ];
-          c.done.forEach((r, i) =>
-            rows.push([
-              String(i + 1),
-              r.day ? dayShortL(r.day, 'en') : '—',
-              { text: r.text + (r.zone ? '\n' + r.zone : ''), bold: true },
-              r.charity || 'No charity specified',
-              r.bags || '—',
-              moContact(r, '\n') || '—',
-              r.received_at ? tsShortL(r.received_at, 'en') : '—',
-              moConfirm(r, 'en') || '—',
-              [moDoneTime(r), r.windowText].filter(Boolean).join('\n') || '—',
-              moNotes(r) || '—',
-              pics(r),
-            ]),
-          );
-          body.push({ text: 'Addresses collected · ' + c.done.length, style: 'sec' });
-          body.push({
-            table: {
-              headerRows: 1,
-              dontBreakRows: true,
-              widths: [14, 'auto', '*', 'auto', 'auto', 'auto', 'auto', 70, 'auto', '*', 100],
-              body: rows,
-            },
-            layout: tableL(rows.length),
-            fontSize: 7.5,
-          });
-        }
-        if (c.notDone.length) {
-          const rows = [
-            [
-              th('DATE'),
-              th('ADDRESS'),
-              th('CHARITY'),
-              th('OUTCOME'),
-              th('WHEN'),
-              th('REASON / NOTE'),
-              th('CUSTOMER'),
-              th('REQUEST RECEIVED'),
-              th('PHOTOS'),
-            ],
-          ];
-          c.notDone.forEach((r) =>
-            rows.push([
-              r.day ? dayShortL(r.day, 'en') : '—',
-              { text: r.text + (r.zone ? '\n' + r.zone : ''), bold: true },
-              r.charity || 'No charity specified',
-              { text: r.what, color: '#B3261E' },
-              r.when || '—',
-              r.reason || '—',
-              moContact(r, '\n') || '—',
-              r.received_at ? tsShortL(r.received_at, 'en') : '—',
-              pics(r),
-            ]),
-          );
-          body.push({ text: 'Collections not completed · ' + c.notDone.length, style: 'sec' });
-          body.push({
-            table: {
-              headerRows: 1,
-              dontBreakRows: true,
-              widths: ['auto', '*', 'auto', 'auto', 'auto', '*', 'auto', 'auto', 100],
-              body: rows,
-            },
-            layout: tableL(rows.length),
-            fontSize: 7.5,
-          });
-        }
+        body.push(...addrTablesPdf(c.done, c.notDone, pics, 'charity'));
         body.push({
           text: 'Questions about this report? Reply to this email or call us and we will check any collection listed here.',
           style: 'note',
@@ -4709,24 +4724,6 @@
           await monthPdf(c.src, true);
           await new Promise((r) => setTimeout(r, 600));
         }
-      }
-
-      /* Незавершённые сборы charity за месяц — ТОЛЬКО счётчики.
-   Партнёрский отчёт по договорённости идёт без перечня адресов. */
-      function crProblems(ym, charity) {
-        const src = document.getElementById('cr-source').value;
-        const list = ADDR.filter(
-          (a) =>
-            a.kind !== 'bank' &&
-            (a.date || '').slice(0, 7) === ym &&
-            crName(a) === charity &&
-            (!src || C.sourceOf(a) === src) &&
-            !removedByOperator(a),
-        );
-        const noanswer = list.filter((a) => a.status === 'noanswer').length;
-        const problem = list.filter((a) => a.status === 'problem').length;
-        const cancelled = list.filter((a) => a.status === 'cancelled').length;
-        return { noanswer, problem, cancelled, total: noanswer + problem + cancelled };
       }
 
       /* ---------- отчёты партнёру по charity ---------- */
@@ -4867,78 +4864,67 @@
         if (b) charityPdf(CR_ROWS[Number(b.dataset.crpdf)]);
       });
 
+      /* PDF партнёру по charity — по-английски, альбомный: вес за месяц и каждый адрес со всеми данными
+         и фото, затем несделанные поимённо с причиной. Адреса берутся из полного журнала месяца. */
       async function charityPdf(g, silent) {
         if (!g || !g.items.length) {
           toast(T('Нет данных за этот месяц'));
           return;
         }
         const ym = document.getElementById('cr-month').value || ymNow();
+        const src = document.getElementById('cr-source').value;
         if (!silent) toast(T('Готовлю PDF…'));
+        await ensureMonth(ym);
+        const byDay = (x, y) =>
+          (x.day || '').localeCompare(y.day || '') ||
+          (x.done_at || '').localeCompare(y.done_at || '') ||
+          (x.text || '').localeCompare(y.text || '');
+        const all = MO.rows.map((r) => evDecorate(r, 'en')).filter((r) => crName(r) === g.charity && (!src || r.source === src));
+        const done = all.filter((r) => r.status === 'done').sort(byDay);
+        const notDone = all.filter((r) => MO_NOT_DONE.has(r.status)).sort(byDay);
+        const n = done.length || g.items.length;
         const kg = Number((CRT[g.charity] || {}).kg) || 0;
         const body = [
           { text: 'Monthly collection report', style: 'h1' },
           {
-            text: 'Household collections carried out by Subnex Group for this charity during the period below.',
+            text: 'Every household collection carried out by Subnex Group for this charity during the period below, with the details we hold for each address.',
             margin: [0, 0, 0, 14],
             color: '#3A3A38',
           },
-        ];
-        body.push(
           kvRow([
             ['Charity', crEN(g)],
             ['Period', ymLabel(ym)],
             ['Report issued', ukDate(todayStr())],
           ]),
-        );
-        const boxes = [
-          {
-            stack: [
-              { text: 'COLLECTIONS', style: 'lbl' },
-              { text: String(g.items.length), fontSize: 19, bold: true, margin: [0, 3, 0, 0] },
-            ],
-          },
-          {
-            stack: [
-              { text: 'TOTAL COLLECTED', style: 'lbl' },
-              { text: kg ? kg.toFixed(1) + ' kg' : '—', fontSize: 19, bold: true, color: BRAND.dgreen, margin: [0, 3, 0, 0] },
-            ],
-          },
-          {
-            stack: [
-              { text: 'AVERAGE PER COLLECTION', style: 'lbl' },
-              { text: kg ? (kg / g.items.length).toFixed(1) + ' kg' : '—', fontSize: 19, bold: true, margin: [0, 3, 0, 0] },
-            ],
-          },
         ];
-        body.push({ table: { widths: boxes.map(() => '*'), body: [boxes] }, layout: BOX_L, margin: [0, 4, 0, 0] });
+        const box = (label, val, color) => ({
+          stack: [
+            { text: label, style: 'lbl' },
+            { text: String(val), fontSize: 19, bold: true, color: color || '#1A1A18', margin: [0, 3, 0, 0] },
+          ],
+        });
+        body.push({
+          table: {
+            widths: ['*', '*', '*', '*'],
+            body: [
+              [
+                box('COLLECTIONS', n),
+                box('TOTAL COLLECTED', kg ? kg.toFixed(1) + ' kg' : '—', BRAND.dgreen),
+                box('AVERAGE PER COLLECTION', kg && n ? (kg / n).toFixed(1) + ' kg' : '—'),
+                box('NOT COMPLETED', notDone.length, notDone.length ? '#B3261E' : null),
+              ],
+            ],
+          },
+          layout: BOX_L,
+          margin: [0, 4, 0, 0],
+        });
         body.push({
           text: 'Weights are recorded at our sorting facility after collection and cover the whole period shown above.',
           style: 'note',
           margin: [0, 10, 0, 0],
         });
-        const pb = crProblems(ym, g.charity);
-        if (pb.total) {
-          body.push({ text: 'Collections not completed', style: 'sec' });
-          const pr = [
-            [
-              { text: 'REASON', style: 'th' },
-              { text: 'COUNT', style: 'th', alignment: 'right' },
-            ],
-          ];
-          if (pb.noanswer) pr.push(['No one home at the agreed time', { text: String(pb.noanswer), alignment: 'right' }]);
-          if (pb.problem) pr.push(['Could not collect — problem at the address', { text: String(pb.problem), alignment: 'right' }]);
-          if (pb.cancelled) pr.push(['Cancelled before collection', { text: String(pb.cancelled), alignment: 'right' }]);
-          pr.push([
-            { text: 'Total', bold: true },
-            { text: String(pb.total), alignment: 'right', bold: true },
-          ]);
-          body.push({ table: { widths: ['*', 'auto'], body: pr }, layout: tableL(pr.length), margin: [0, 4, 0, 0] });
-          body.push({
-            text: 'Individual addresses are not listed in this report. Ask us and we will confirm any single collection.',
-            style: 'note',
-            margin: [0, 6, 0, 0],
-          });
-        }
+        const pics = await pdfPics([...done, ...notDone]);
+        body.push(...addrTablesPdf(done, notDone, pics, 'source'));
         body.push({
           table: {
             widths: ['*'],
@@ -4948,7 +4934,7 @@
                   stack: [
                     { text: 'Questions about this report?', bold: true, margin: [0, 0, 0, 3] },
                     {
-                      text: 'Reply to this email or call us and we will check any collection made for you in this period.',
+                      text: 'Reply to this email or call us and we will check any collection listed here.',
                       color: '#3A3A38',
                     },
                   ],
@@ -4966,9 +4952,9 @@
             paddingBottom: () => 10,
             fillColor: () => BRAND.soft,
           },
-          margin: [0, 10, 0, 0],
+          margin: [0, 12, 0, 0],
         });
-        const doc = pdfShell('Subnex Group Ltd  ·  Collection report  ·  ' + crEN(g) + '  ·  ' + ymLabel(ym));
+        const doc = pdfShell('Subnex Group Ltd  ·  Collection report  ·  ' + crEN(g) + '  ·  ' + ymLabel(ym), true);
         doc.content = body;
         doc.info = { title: 'Subnex collection report — ' + crEN(g) + ' — ' + ymLabel(ym), author: 'Subnex Group Ltd' };
         const fname = 'Subnex-' + (crEN(g) || 'report').replace(/[^\w\-]+/g, '-').replace(/^-|-$/g, '') + '-' + ym + '.pdf';
