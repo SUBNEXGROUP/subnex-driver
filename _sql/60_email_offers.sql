@@ -37,7 +37,7 @@ create table if not exists subnex_private.email_outbox (
   id uuid primary key default gen_random_uuid(),
   offer_id uuid references subnex_private.email_offers(id) on delete cascade,
   address_id uuid not null references public.addresses(id) on delete cascade,
-  kind text not null check (kind in ('day_offer','reminder','confirmed','closed')),
+  kind text not null check (kind in ('day_offer','reminder','confirmed','collected','closed')),
   event_key text not null,
   to_email text not null,
   from_name text not null,
@@ -95,6 +95,10 @@ begin
   lead:='We have not heard back from you yet. We can collect your clothing donation from '||a.text||' on '||day_txt||'.';
   tail:='If that day does not suit you, just reply to this email and tell us which day works better.';
   btn:='Confirm collection';
+ elsif p_kind='collected' then
+  subj:='Thank you - your donation has been collected';
+  lead:='Your clothing donation from '||a.text||' has been collected. Thank you for your support - we really appreciate it.';
+  tail:='If you have more to donate in the future, just reply to this email and we will arrange another collection.';
  elsif p_kind='confirmed' then
   subj:='Collection confirmed: '||day_txt;
   lead:='Thank you for confirming. We will collect your clothing donation from '||a.text||' on '||day_txt||'.';
@@ -305,7 +309,7 @@ revoke all on function subnex_private.email_followups() from public;
 do $patch$
 declare def text; nd text; f text; pairs text[]; i int;
 begin
- foreach f in array array['subnex_private.auto_plan()','subnex_private.auto_layout(boolean)','subnex_private.auto_plan_skip(uuid)','public.subnex_dispatch(text,jsonb)'] loop
+ foreach f in array array['subnex_private.auto_plan()','subnex_private.auto_layout(boolean)','subnex_private.auto_plan_skip(uuid)','public.subnex_dispatch(text,jsonb)','subnex_private.notify_collected_address()'] loop
   def:=pg_get_functiondef(f::regprocedure);
   if position('email_route' in def)>0 or position('email_offers' in def)>0 then continue; end if;
   if not exists(select 1 from subnex_private.dispatch_backups where name='60:'||f) then
@@ -331,6 +335,10 @@ begin
     $q$and coalesce(num,'')!~'^\+447[0-9]{9}$' and subnex_private.email_route(a.id) is null then return 'NO_MOBILE'; end if;$q$,
     $q$if (select count(*) from public.sms_offers o where o.address_id=a.id and o.actor_id is null)>=1 then return 'ATTEMPT_USED'; end if;$q$,
     $q$if (select count(*) from public.sms_offers o where o.address_id=a.id and o.actor_id is null)+(select count(*) from subnex_private.email_offers eo where eo.address_id=a.id)>=1 then return 'ATTEMPT_USED'; end if;$q$]
+   when 'subnex_private.notify_collected_address()' then array[
+    $q$perform subnex_private.enqueue_auto_sms(new.id,'collected','collected');$q$,
+    $q$perform subnex_private.enqueue_auto_sms(new.id,'collected','collected');
+  perform subnex_private.email_enqueue(eo.id,'collected','collected') from subnex_private.email_offers eo where eo.address_id=new.id and eo.state='confirmed';$q$]
    else array[
     $q$subnex_private.auto_plan_skip(qa.id) as auto_skip$q$,
     $q$subnex_private.auto_plan_skip(qa.id) as auto_skip,(select to_jsonb(eo)-'token' from subnex_private.email_offers eo where eo.address_id=qa.id order by eo.created_at desc limit 1) as email_offer,subnex_private.email_route(qa.id) as email_route$q$,
