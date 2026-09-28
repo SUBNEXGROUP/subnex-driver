@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Confirm your collection</title>
+    <style>
+      :root {
+        --ink: #17201b;
+        --muted: #5f6b64;
+        --line: #dfe6e1;
+        --bg: #f3f6f4;
+        --card: #ffffff;
+        --green: #1f9d55;
+        --green-dark: #17804a;
+        --red: #b3261e;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg);
+        color: var(--ink);
+        font: 16px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 40px 16px;
+      }
+      .card {
+        width: 100%;
+        max-width: 460px;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 28px 24px;
+        box-shadow: 0 8px 30px rgba(23, 32, 27, 0.06);
+      }
+      .brand {
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--green);
+        margin-bottom: 14px;
+      }
+      h1 {
+        font-size: 22px;
+        line-height: 1.25;
+        margin: 0 0 16px;
+      }
+      .when {
+        background: var(--bg);
+        border-radius: 12px;
+        padding: 14px 16px;
+        margin: 0 0 18px;
+      }
+      .when b {
+        display: block;
+        font-size: 19px;
+      }
+      .when span {
+        color: var(--muted);
+      }
+      .addr {
+        color: var(--muted);
+        margin: 0 0 22px;
+      }
+      button {
+        width: 100%;
+        border: 0;
+        border-radius: 10px;
+        background: var(--green);
+        color: #fff;
+        font: inherit;
+        font-weight: 700;
+        font-size: 17px;
+        padding: 15px 18px;
+        cursor: pointer;
+      }
+      button:hover {
+        background: var(--green-dark);
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
+      .note {
+        font-size: 14px;
+        color: var(--muted);
+        margin: 16px 0 0;
+      }
+      .ok {
+        color: var(--green-dark);
+      }
+      .bad {
+        color: var(--red);
+      }
+      .spin {
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card" id="card" aria-live="polite">
+      <p class="spin">Loading your collection…</p>
+    </main>
+    <script src="config.js"></script>
+    <script>
+      (function () {
+        'use strict';
+        const card = document.getElementById('card');
+        const token = new URLSearchParams(location.search).get('t') || '';
+        const esc = (s) =>
+          String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+        async function rpc(action) {
+          const cfg = window.SUBNEX_CONFIG || {};
+          const res = await fetch(cfg.url.replace(/\/+$/, '') + '/rest/v1/rpc/subnex_email_confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', apikey: cfg.key, Authorization: 'Bearer ' + cfg.key },
+            body: JSON.stringify({ p_token: token, p_action: action }),
+          });
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          return res.json();
+        }
+
+        const head = (d) => `<div class="brand">${esc(d.brand || 'SUBNEX')}</div>`;
+        const when = (d) =>
+          d.day_text ? `<div class="when"><b>${esc(d.day_text)}</b>${d.window ? `<span>${esc(d.window)}</span>` : ''}</div>` : '';
+        const addr = (d) => (d.address ? `<p class="addr">${esc(d.address)}</p>` : '');
+        const reply = '<p class="note">If you have any questions, just reply to our email.</p>';
+
+        function show(d) {
+          if (d.state === 'sent' && d.ok) {
+            card.innerHTML =
+              head(d) +
+              '<h1>Confirm your clothing collection</h1>' +
+              when(d) +
+              addr(d) +
+              '<button id="go">Confirm collection</button>' +
+              '<p class="note">If this day does not suit you, just reply to our email and tell us which day works better.</p>';
+            document.getElementById('go').addEventListener('click', confirm);
+          } else if (d.state === 'confirmed') {
+            card.innerHTML =
+              head(d) +
+              `<h1 class="ok">${d.already ? 'Already confirmed' : 'Thank you — your collection is confirmed'}</h1>` +
+              when(d) +
+              addr(d) +
+              '<p>Please have your bags ready from the start of the day and leave them where we can see them from the street.</p>' +
+              reply;
+          } else if (d.state === 'invalid') {
+            card.innerHTML =
+              '<h1 class="bad">This link does not work</h1><p>Please open the link from our email again, or reply to the email and we will help.</p>';
+          } else {
+            card.innerHTML =
+              head(d) +
+              '<h1 class="bad">This date is no longer available</h1>' +
+              when(d) +
+              addr(d) +
+              '<p>Please reply to our email and we will arrange a new date for your collection.</p>';
+          }
+        }
+
+        async function confirm() {
+          const b = document.getElementById('go');
+          b.disabled = true;
+          b.textContent = 'Confirming…';
+          try {
+            show(await rpc('confirm'));
+          } catch (e) {
+            b.disabled = false;
+            b.textContent = 'Confirm collection';
+            card.insertAdjacentHTML('beforeend', '<p class="note bad">Something went wrong. Please try again in a minute.</p>');
+          }
+        }
+
+        if (!/^[0-9a-f]{64}$/.test(token)) {
+          show({ state: 'invalid' });
+          return;
+        }
+        rpc('peek')
+          .then(show)
+          .catch(() => {
+            card.innerHTML = '<h1 class="bad">Something went wrong</h1><p>Please try again in a minute.</p>';
+          });
+      })();
+    </script>
+  </body>
+</html>

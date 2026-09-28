@@ -1572,4 +1572,9 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   'не сделано': 'not done',
   впереди: 'ahead',
   'Не сделано': 'Not done',
+  /* Письма клиентам без мобильного (миграция 60) */
+  'SMS не уйдёт — дата уйдёт письмом': 'SMS will not go out — the date goes by email',
+  'Дата отправлена письмом ·': 'Date emailed ·',
+  '· ждём подтверждения': '· waiting for confirmation',
+  '· письмо уйдёт автоматически': '· email will go out automatically',
 });
