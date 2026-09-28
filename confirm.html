@@ -25,7 +25,13 @@
         min-height: 100vh;
         background: var(--bg);
         color: var(--ink);
-        font: 16px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+        font:
+          16px/1.5 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
+          Arial,
+          sans-serif;
         display: flex;
         align-items: flex-start;
         justify-content: center;
@@ -116,7 +122,10 @@
         const card = document.getElementById('card');
         const token = new URLSearchParams(location.search).get('t') || '';
         const esc = (s) =>
-          String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+          String(s == null ? '' : s).replace(
+            /[&<>"']/g,
+            (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
+          );
 
         async function rpc(action) {
           const cfg = window.SUBNEX_CONFIG || {};
@@ -130,8 +139,7 @@
         }
 
         const head = (d) => `<div class="brand">${esc(d.brand || 'SUBNEX')}</div>`;
-        const when = (d) =>
-          d.day_text ? `<div class="when"><b>${esc(d.day_text)}</b>${d.window ? `<span>${esc(d.window)}</span>` : ''}</div>` : '';
+        const when = (d) => (d.day_text ? `<div class="when"><b>${esc(d.day_text)}</b></div>` : '');
         const addr = (d) => (d.address ? `<p class="addr">${esc(d.address)}</p>` : '');
         const reply = '<p class="note">If you have any questions, just reply to our email.</p>';
 

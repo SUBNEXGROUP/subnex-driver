@@ -74,8 +74,8 @@ $$;
 -- Тексты писем (английский, британские даты). Бренд как в SMS: партнёрские — We Recycle Clothes.
 create or replace function subnex_private.email_content(p_kind text, p_offer uuid) returns jsonb
 language plpgsql stable security definer set search_path to '' as $$
-declare e subnex_private.email_offers; a public.addresses; c subnex_private.auto_plan_config; w jsonb;
- brand text; driver text; hi text; day_txt text; win text; link text; lead text; tail text; subj text; btn text; t text; h text;
+declare e subnex_private.email_offers; a public.addresses; c subnex_private.auto_plan_config;
+ brand text; driver text; hi text; day_txt text; link text; lead text; tail text; subj text; btn text; t text; h text;
 begin
  select * into e from subnex_private.email_offers where id=p_offer;
  select * into a from public.addresses where id=e.address_id;
@@ -84,23 +84,20 @@ begin
  driver:=nullif(btrim((select name from public.drivers where id=e.driver_id)),'');
  hi:='Hi '||coalesce(nullif(split_part(btrim(coalesce(a.contact_name,'')),' ',1),''),'there')||',';
  day_txt:=to_char(e.day,'FMDay FMDD FMMonth');
- w:=subnex_private.day_window(e.day);
- win:=case when w is null then '' else ', between '||subnex_private.sms_clock(subnex_private.dispatch_clock(w->>'opens'))
-      ||' and '||subnex_private.sms_clock(subnex_private.dispatch_clock(w->>'closes')) end;
  link:=c.email_confirm_url||'?t='||e.token;
  if p_kind='day_offer' then
   subj:='Please confirm your clothing collection on '||day_txt;
-  lead:='This is '||coalesce(driver||' from ','')||brand||'. We can collect your clothing donation from '||a.text||' on '||day_txt||win||'.';
+  lead:='This is '||coalesce(driver||' from ','')||brand||'. We can collect your clothing donation from '||a.text||' on '||day_txt||'.';
   tail:='If that day does not suit you, just reply to this email and tell us which day works better.';
   btn:='Confirm collection';
  elsif p_kind='reminder' then
   subj:='Reminder: please confirm your collection on '||day_txt;
-  lead:='We have not heard back from you yet. We can collect your clothing donation from '||a.text||' on '||day_txt||win||'.';
+  lead:='We have not heard back from you yet. We can collect your clothing donation from '||a.text||' on '||day_txt||'.';
   tail:='If that day does not suit you, just reply to this email and tell us which day works better.';
   btn:='Confirm collection';
  elsif p_kind='confirmed' then
   subj:='Collection confirmed: '||day_txt;
-  lead:='Thank you for confirming. We will collect your clothing donation from '||a.text||' on '||day_txt||win||'.';
+  lead:='Thank you for confirming. We will collect your clothing donation from '||a.text||' on '||day_txt||'.';
   tail:='Please have your bags ready from the start of the day and leave them where we can see them from the street. If we should knock instead, just reply to this email.';
  else
   subj:='Your collection request has been closed';
@@ -114,7 +111,7 @@ begin
    ||'<p>'||subnex_private.html_esc(hi)||'</p><p>'||subnex_private.html_esc(lead)||'</p>'
    ||case when btn is not null then
       '<p style="margin:26px 0"><a href="'||subnex_private.html_esc(link)||'" style="background:#1f9d55;color:#ffffff;text-decoration:none;font-weight:bold;padding:13px 26px;border-radius:8px;display:inline-block">'
-      ||btn||'</a></p><p style="font-size:13px;color:#6b6b66">If the button does not work, open this link: <a href="'||subnex_private.html_esc(link)||'">'||subnex_private.html_esc(link)||'</a></p>'
+      ||btn||'</a></p>'
      else '' end
    ||'<p>'||subnex_private.html_esc(tail)||'</p><p>Thank you,<br>'||coalesce(subnex_private.html_esc(driver)||'<br>','')||subnex_private.html_esc(brand)||'</p></div>';
  return jsonb_build_object('subject',subj,'text',t,'html',h,'from_name',brand);
