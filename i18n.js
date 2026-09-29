@@ -1577,4 +1577,10 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   'Дата отправлена письмом ·': 'Date emailed ·',
   '· ждём подтверждения': '· waiting for confirmation',
   '· письмо уйдёт автоматически': '· email will go out automatically',
+  /* Переписка: ввод как в мессенджере */
+  'Написать SMS…': 'Write an SMS…',
+  Отправить: 'Send',
+  'Отправить (Ctrl+Enter)': 'Send (Ctrl+Enter)',
+  'Ctrl+Enter — отправить · SMS уходит с номера компании': 'Ctrl+Enter to send · SMS goes from the company number',
+  Действия: 'Actions',
 });

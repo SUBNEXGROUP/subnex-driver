@@ -329,7 +329,10 @@ body.fullpage{overflow:hidden}
    поле для письма всегда внизу на виду. Без align-items:stretch карточка росла вместе со списком. */
 body.fullpage .console{height:100dvh;padding-bottom:14px;align-items:stretch}
 body.fullpage .main{height:100%}
-body.fullpage .oc-body{max-height:calc(100dvh - 150px)}
+body.fullpage .oc-body{max-height:none;height:100%}
+/* Переписка — на всю ширину и высоту: без заголовка страницы и без ограничения ширины пульта. */
+body.fullpage .console{max-width:none;padding-top:10px}
+body.fullpage .page[data-page="chat"] > .phead{display:none}
 body.fullpage .main{min-height:0}
 body.fullpage .page.active{min-height:0;flex:1}
 body.fullpage .inline-host{flex:1;min-height:0;display:flex;flex-direction:column}

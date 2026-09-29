@@ -68,6 +68,33 @@
 .oc-slots{display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:10px;margin:8px 0 12px}
 .oc-preview{font-size:12.5px;color:var(--ink-2);white-space:pre-wrap;background:var(--input);border:1px solid var(--line);border-radius:8px;padding:10px;margin:8px 0}
 .oc-help{font-size:12.3px;color:var(--muted);margin:8px 0}
+/* Шапка переписки в две строки */
+.oc-head{padding:10px 16px}
+.oc-head-row{display:flex;align-items:center;gap:10px;min-width:0}
+.oc-who{flex:1;min-width:0;display:flex;align-items:baseline;gap:12px}
+.oc-who strong{flex:none}
+.oc-addr{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13.5px;font-weight:500;color:var(--ink-2)}
+.oc-head-acts{display:flex;gap:6px;flex:none}
+.ops-root .oc-head-acts button{min-height:32px;padding:4px 10px;font-size:12.5px}
+.oc-chips{display:flex;flex-wrap:wrap;align-items:center}
+/* Ввод как в мессенджере: «+», поле в одну строку, «Отправить» */
+.oc-compose{padding:10px 16px 8px}
+/* Меню «+» раскрывается вверх, поверх переписки: блоку ввода нельзя обрезать содержимое. */
+.oc-compose:has(.oc-bar){overflow:visible;position:relative;z-index:3}
+.oc-bar{display:flex;align-items:flex-end;gap:8px}
+.ops-root .oc-bar textarea{flex:1;min-height:42px;max-height:180px;height:42px;resize:none;padding:10px 12px;line-height:1.4;border-radius:21px}
+.ops-root .oc-send{min-height:42px;border-radius:21px;padding:8px 18px;flex:none}
+.oc-bar-foot{display:flex;justify-content:space-between;gap:10px;margin-top:5px;padding:0 4px}
+.oc-bar-foot .oc-muted{font-size:11.5px}
+.oc-more{position:relative;flex:none}
+.oc-more summary{list-style:none;width:42px;height:42px;border-radius:50%;border:1px solid var(--line-2);background:var(--surface-2);display:grid;place-items:center;font-size:22px;font-weight:600;cursor:pointer;user-select:none;color:var(--ink)}
+.oc-more summary::-webkit-details-marker{display:none}
+.oc-more summary:hover{background:var(--hover)}
+.oc-more[open] summary{background:var(--ink);color:var(--ground);border-color:var(--ink)}
+.oc-menu{position:absolute;left:0;bottom:50px;z-index:5;min-width:240px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-2);padding:6px;display:flex;flex-direction:column;gap:2px}
+.ops-root .oc-menu button{border:0;background:transparent;text-align:left;border-radius:8px;min-height:38px;font-weight:600}
+.ops-root .oc-menu button:hover{background:var(--surface-2)}
+.ops-root .oc-menu button.oc-danger{color:var(--crit)}
 .oc-notice{padding:9px 20px;background:var(--warn-soft);color:var(--warn);font-size:13px;flex-shrink:0;display:none;font-weight:500}
 .oc-notice.on{display:block}
 .ops-inline .oc-notice{border-radius:8px;margin-bottom:10px}
