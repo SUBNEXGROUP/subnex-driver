@@ -1559,8 +1559,8 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
     'The month’s work: every address by category, charity collections for partners and pickups for bank hosts',
   'PDF по всем категориям': 'PDF for all categories',
   'Таблица за месяц (CSV для Excel)': 'Month table (CSV for Excel)',
-  'Сделано — адреса, где мешки забрали; считаются по дате сбора. Не сделано — никого не было дома, проблема на адресе или заявка закрыта (по дате закрытия). Заявки, убранные вами как ошибка ввода, не считаются. PDF и CSV всегда по-английски.':
-    'Done — addresses where the bags were collected, counted by collection date. Not done — no one home, a problem at the address, or the request was closed (counted by closing date). Requests you removed as entry mistakes are not counted. PDF and CSV are always in English.',
+  'Сделано — адреса, где мешки забрали; считаются по дате сбора. Не сделано — никого не было дома, проблема на адресе или заявка закрыта (по дате закрытия). Заявки, убранные вами как ошибка ввода, не считаются. PDF, Excel и CSV всегда по-английски.':
+    'Done — addresses where the bags were collected, counted by collection date. Not done — no one home, a problem at the address, or the request was closed (counted by closing date). Requests you removed as entry mistakes are not counted. PDF, Excel and CSV are always in English.',
   'Сделано адресов за месяц': 'Addresses done this month',
   'не сделано: ': 'not done: ',
   ' · впереди: ': ' · ahead: ',
@@ -1583,4 +1583,8 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   'Отправить (Ctrl+Enter)': 'Send (Ctrl+Enter)',
   'Ctrl+Enter — отправить · SMS уходит с номера компании': 'Ctrl+Enter to send · SMS goes from the company number',
   Действия: 'Actions',
+  /* Отчёты → Excel партнёрам */
+  'Excel партнёрам (по категориям)': 'Excel for partners (by category)',
+  'Готовлю Excel…': 'Preparing Excel…',
+  'Не удалось загрузить Excel — проверьте интернет': 'Could not load Excel — check the internet connection',
 });

@@ -594,6 +594,9 @@
               <button class="btn" onclick="monthAllPdf()">
                 <svg class="ic"><use href="#i-dl" /></svg> PDF по всем категориям
               </button>
+              <button class="btn" onclick="monthAllXlsx()">
+                <svg class="ic"><use href="#i-dl" /></svg> Excel партнёрам (по категориям)
+              </button>
               <button class="btn" onclick="monthCsv('')">
                 <svg class="ic"><use href="#i-dl" /></svg> Таблица за месяц (CSV для Excel)
               </button>
@@ -602,7 +605,7 @@
             <div id="mo-cats" class="stack"></div>
             <div class="muted small">
               Сделано — адреса, где мешки забрали; считаются по дате сбора. Не сделано — никого не было дома, проблема на адресе или заявка
-              закрыта (по дате закрытия). Заявки, убранные вами как ошибка ввода, не считаются. PDF и CSV всегда по-английски.
+              закрыта (по дате закрытия). Заявки, убранные вами как ошибка ввода, не считаются. PDF, Excel и CSV всегда по-английски.
             </div>
           </div>
           <div id="rp-charity" hidden class="stack">
@@ -4501,7 +4504,7 @@
           .map(
             (c) =>
               `<div class="card" data-mo-cat="${c.src}"><div class="card-h"><div><h3>${esc(c.name)} · ${c.done.length}</h3><div class="sub">${T('сделано')} ${c.done.length} · ${T('не сделано')} ${c.notDone.length}${c.ahead ? ' · ' + T('впереди') + ' ' + c.ahead : ''}</div></div>` +
-              `<div class="row" style="gap:6px"><button class="btn btn-sm" data-mo-pdf="${c.src}"><svg class="ic"><use href="#i-dl" /></svg> PDF</button><button class="btn btn-sm" data-mo-csv="${c.src}"><svg class="ic"><use href="#i-dl" /></svg> CSV</button></div></div>` +
+              `<div class="row" style="gap:6px"><button class="btn btn-sm" data-mo-pdf="${c.src}"><svg class="ic"><use href="#i-dl" /></svg> PDF</button><button class="btn btn-sm" data-mo-xlsx="${c.src}"><svg class="ic"><use href="#i-dl" /></svg> Excel</button><button class="btn btn-sm" data-mo-csv="${c.src}"><svg class="ic"><use href="#i-dl" /></svg> CSV</button></div></div>` +
               doneTable(c) +
               (c.notDone.length
                 ? `<details style="border-top:1px solid var(--line)"><summary style="cursor:pointer;padding:10px 14px;font-weight:600">${T('Не сделано')} · ${c.notDone.length}</summary>${notTable(c)}</details>`
@@ -4513,6 +4516,8 @@
       document.getElementById('mo-cats').addEventListener('click', (e) => {
         const p = e.target.closest('button[data-mo-pdf]');
         if (p) return monthPdf(p.dataset.moPdf);
+        const x = e.target.closest('button[data-mo-xlsx]');
+        if (x) return monthXlsx(x.dataset.moXlsx);
         const c = e.target.closest('button[data-mo-csv]');
         if (c) monthCsv(c.dataset.moCsv);
       });
@@ -4696,6 +4701,151 @@
         doc.info = { title: 'Subnex collections report — ' + c.name + ' — ' + ymLabel(ym), author: 'Subnex Group Ltd' };
         const fname = 'Subnex-' + c.name.replace(/[^\w]+/g, '-') + '-' + ym + '.pdf';
         return new Promise((res) => pdfMake.createPdf(doc).download(fname, res));
+      }
+      /* ---------- Excel партнёру за месяц (как их «Round - Collections») ----------
+         Отдельный файл на категорию. Колонки: Name · Collection Date · Address · Phone · N/bags · Status · Notes · Charity.
+         N/bags — как в заявке; Status — что отметил водитель (Collected / Not home / Problem), Notes — его описание.
+         Без килограммов. Вверху — сводка по charity формулами COUNTIFS, чтобы итог пересчитывался при правке. */
+      async function loadExcelJs() {
+        if (window.ExcelJS) return window.ExcelJS;
+        await new Promise((res, rej) => {
+          const el = document.createElement('script');
+          el.src = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';
+          el.onload = res;
+          el.onerror = () => rej(new Error('EXCEL_LOAD'));
+          document.head.appendChild(el);
+        });
+        return window.ExcelJS;
+      }
+      const XLSX_STATUS = { done: 'Collected', noanswer: 'Not home', problem: 'Problem' };
+      const shortAddr = (t) =>
+        String(t || '')
+          .replace(/,?\s*[A-Z]{1,2}[0-9][A-Z0-9]?\s*[0-9][A-Z]{2}\s*$/i, '')
+          .trim();
+      async function monthXlsx(src, silent) {
+        const ym = await ensureMonth();
+        const c = monthCats('en').find((x) => x.src === src);
+        const byDay = (x, y) =>
+          (x.day || '').localeCompare(y.day || '') ||
+          (x.done_at || '').localeCompare(y.done_at || '') ||
+          (x.text || '').localeCompare(y.text || '');
+        const rows = c ? [...c.done, ...c.notDone.filter((r) => XLSX_STATUS[r.status])].sort(byDay) : [];
+        if (!rows.length) {
+          if (!silent) toast(T('Нет данных за этот месяц'));
+          return;
+        }
+        if (!silent) toast(T('Готовлю Excel…'));
+        let ExcelJS;
+        try {
+          ExcelJS = await loadExcelJs();
+        } catch (e) {
+          toast(T('Не удалось загрузить Excel — проверьте интернет'));
+          return;
+        }
+        const wb = new ExcelJS.Workbook();
+        wb.creator = 'Subnex Group Ltd';
+        const ws = wb.addWorksheet('Collections');
+        [3.71, 26, 16, 52, 17, 14, 14, 40, 30].forEach((w, i) => (ws.getColumn(i + 1).width = w));
+        const charityOf = (r) => (r.charity || '').trim() || 'No charity specified';
+        const charities = [...new Set(rows.map(charityOf))].sort((a, b) => a.localeCompare(b));
+        const bold = { bold: true };
+        const line = { bottom: { style: 'thin', color: { argb: 'FF999999' } } };
+        ws.mergeCells('B1:D1');
+        ws.getCell('B1').value = 'Collections - ' + c.name + ' - ' + ymLabel(ym).toUpperCase();
+        ws.getCell('B1').font = { bold: true, size: 20 };
+        /* сводка: строка заголовков 2, по строке на charity, строка Total */
+        const hr = 2 + charities.length + 3; // строка заголовка таблицы
+        const first = hr + 1,
+          last = hr + rows.length;
+        const G = `$G$${first}:$G$${last}`,
+          I = `$I$${first}:$I$${last}`;
+        [
+          ['F2', 'Collected'],
+          ['G2', 'Not collected'],
+          ['I2', 'Charity'],
+        ].forEach(([ref, v]) => {
+          ws.getCell(ref).value = v;
+          ws.getCell(ref).font = bold;
+          ws.getCell(ref).border = line;
+        });
+        ws.getCell('E2').value = 'Addresses';
+        ws.getCell('E2').font = bold;
+        charities.forEach((ch, k) => {
+          const r = 3 + k;
+          const col = rows.filter((x) => charityOf(x) === ch);
+          ws.getCell('I' + r).value = ch;
+          ws.getCell('F' + r).value = {
+            formula: `COUNTIFS(${G},"Collected",${I},I${r})`,
+            result: col.filter((x) => x.status === 'done').length,
+          };
+          ws.getCell('G' + r).value = {
+            formula: `COUNTIFS(${G},"<>Collected",${I},I${r})`,
+            result: col.filter((x) => x.status !== 'done').length,
+          };
+        });
+        const tr = 3 + charities.length;
+        ws.getCell('E' + tr).value = 'Total';
+        ws.getCell('E' + tr).font = bold;
+        ws.getCell('F' + tr).value = { formula: `SUM(F3:F${tr - 1})`, result: rows.filter((x) => x.status === 'done').length };
+        ws.getCell('G' + tr).value = { formula: `SUM(G3:G${tr - 1})`, result: rows.filter((x) => x.status !== 'done').length };
+        ws.getCell('F' + tr).font = bold;
+        ws.getCell('G' + tr).font = bold;
+        const head = ['Name', 'Collection Date', 'Address', 'Phone', 'N/bags', 'Status', 'Notes', 'Charity'];
+        head.forEach((h, i) => {
+          const cell = ws.getCell(hr, i + 2);
+          cell.value = h;
+          cell.font = bold;
+          cell.border = line;
+        });
+        rows.forEach((r, k) => {
+          const n = first + k;
+          const d = r.day ? new Date(r.day + 'T12:00:00Z') : null;
+          const vals = [
+            (r.contact_name || '').trim() || shortAddr(r.text),
+            d,
+            r.text || '',
+            r.phone || '',
+            (r.bags || '').toString().trim(),
+            XLSX_STATUS[r.status],
+            (r.result_note || '').trim(),
+            charityOf(r),
+          ];
+          vals.forEach((v, i) => (ws.getCell(n, i + 2).value = v));
+          ws.getCell(n, 3).numFmt = 'dd/mm/yyyy';
+          ws.getCell(n, 7).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: r.status === 'done' ? 'FFFFFF00' : 'FFF4CCCC' },
+          };
+          ws.getCell(n, 8).alignment = { wrapText: true, vertical: 'top' };
+        });
+        ws.autoFilter = { from: { row: hr, column: 2 }, to: { row: last, column: 9 } };
+        ws.views = [{ state: 'frozen', ySplit: hr }];
+        ws.pageSetup = { orientation: 'landscape', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+        const buf = await wb.xlsx.writeBuffer();
+        const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'Subnex-Collections-' + c.name.replace(/[^\w]+/g, '-') + '-' + ym + '.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          URL.revokeObjectURL(a.href);
+          a.remove();
+        }, 1000);
+      }
+      async function monthAllXlsx() {
+        await ensureMonth();
+        const cats = monthCats('en').filter((c) => c.src !== 'subnex_website' && (c.done.length || c.notDone.length));
+        if (!cats.length) {
+          toast(T('Нет данных за этот месяц'));
+          return;
+        }
+        toast(T('Готовлю Excel…'));
+        for (const c of cats) {
+          await monthXlsx(c.src, true);
+          await new Promise((r) => setTimeout(r, 600));
+        }
       }
       async function monthAllPdf() {
         await ensureMonth();
