@@ -396,6 +396,49 @@
     }
     return out;
   }
+  /* Маршрут «от меня сейчас»: только оставшиеся адреса, старт — текущая точка (config.home подменён)
+     и текущая минута. Порядок строится заново по дорогам; окна и часы не запрещают, а лишь отмечаются
+     опозданием (late) — водитель уже в пути, ему нужна честная оценка, а не отказ. Ничего не сохраняет. */
+  function liveRoute(nodes, order, config, hours, roads, startMinute) {
+    const opens = hours && !hours.closed && hours.opens ? minute(hours.opens) : 0;
+    const start = Number.isFinite(startMinute) ? startMinute : opens;
+    let ord = order.filter((k) => nodes.some((n) => n.key === k));
+    for (const n of nodes) if (!ord.includes(n.key)) ord.push(n.key);
+    if (ord.length >= 2) {
+      const relaxed = nodes.map((n) => ({
+        ...n,
+        earliest: Number.isFinite(n.earliest) ? n.earliest : 0,
+        latest: 1439,
+      }));
+      try {
+        ord = optimizeOrder(relaxed, ord, config, { opens: '00:00', closes: '23:59', closed: false }, roads, start, 1500).order;
+      } catch (e) {}
+    }
+    const byKey = new Map(nodes.map((n) => [n.key, n]));
+    let cursor = start,
+      prev = config.home,
+      drive = 0,
+      service = 0,
+      late = 0;
+    const stops = [];
+    for (const k of ord) {
+      const n = byKey.get(k);
+      const leg = legMinutes(prev, n, config, roads);
+      if (!Number.isFinite(leg)) return { ok: false, code: 'ROADS_REQUIRED', to: n.text };
+      const arrival = Math.max(cursor + leg, Number.isFinite(n.earliest) ? n.earliest : 0, opens);
+      const over = Number.isFinite(n.latest) ? Math.max(0, arrival - n.latest) : 0;
+      late += over;
+      drive += leg;
+      service += Number(n.service) || 0;
+      stops.push({ key: k, address_id: n.address_id, text: n.text, arrival, travel: leg, late: over });
+      cursor = arrival + (Number(n.service) || 0);
+      prev = n;
+    }
+    const back = legMinutes(prev, config.depot, config, roads);
+    if (!Number.isFinite(back)) return { ok: false, code: 'ROADS_REQUIRED', to: 'depot' };
+    drive += back;
+    return { ok: true, order: ord, stops, start, drive, service, back, finish: cursor + back, late };
+  }
   function optimizeOrder(nodes, order, config, hours, roads, startMinute, limitMs = 1500) {
     const fit = evaluate(nodes, order, config, hours, roads, startMinute);
     if (order.length < 3) return { order: [...order], fit, improved: false };
@@ -1188,6 +1231,7 @@
     evaluate,
     ordered,
     optimizeOrder,
+    liveRoute,
     nearestOrder,
     isDayWindow,
     isDaySpan,

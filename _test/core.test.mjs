@@ -106,5 +106,28 @@ eq('nthWeekday последний четверг сентября 2026', C.nthWe
   eq('isDaySpan 30 мин', C.isDaySpan('2026-09-23T10:00:00+00:00', '2026-09-23T10:30:00+00:00'), false);
 }
 
+
+const ok = (name, cond, extra = '') => eq(name + (cond ? '' : ' ' + extra), !!cond, true);
+/* liveRoute: от текущей точки, только оставшиеся, лучший порядок, опоздание не валит расчёт */
+{
+  const P = (lat, lng) => ({ lat, lng });
+  const cfg = { home: P(51.6, -3.4), depot: P(51.66, -3.46), travel_factor: 1, leg_buffer_minutes: 0 };
+  const nodes = [
+    { key: 'a:1', address_id: '1', text: 'far', lat: 51.9, lng: -3.4, earliest: 480, latest: 1080, service: 2 },
+    { key: 'a:2', address_id: '2', text: 'near', lat: 51.61, lng: -3.4, earliest: 480, latest: 1080, service: 2 },
+    { key: 'a:3', address_id: '3', text: 'mid', lat: 51.7, lng: -3.4, earliest: 480, latest: 600, service: 2 },
+  ];
+  const pts = [cfg.home, cfg.depot, ...nodes];
+  const roads = {};
+  for (const a of pts) for (const b of pts) roads[C.pointKey(a) + '>' + C.pointKey(b)] = Math.round(Math.abs(a.lat - b.lat) * 2000 + Math.abs(a.lng - b.lng) * 2000) * 60 / 60;
+  const r = C.liveRoute(nodes, ['a:1', 'a:3', 'a:2'], cfg, { opens: '08:00', closes: '18:00' }, roads, 900);
+  ok('liveRoute: считает', r.ok, JSON.stringify(r));
+  ok('liveRoute: ближний первым', r.order[0] === 'a:2', r.order.join());
+  ok('liveRoute: старт = текущая минута', r.start === 900 && r.stops[0].arrival >= 900);
+  ok('liveRoute: опоздание отмечено, а не отказ', r.stops.find((s) => s.key === 'a:3').late > 0);
+  ok('liveRoute: финиш после последнего + дорога на склад', r.finish === r.stops.at(-1).arrival + 2 + r.back);
+  const miss = C.liveRoute(nodes, ['a:1'], cfg, { opens: '08:00', closes: '18:00' }, {}, 900);
+  ok('liveRoute: без дорог — ROADS_REQUIRED', !miss.ok && miss.code === 'ROADS_REQUIRED');
+}
 console.log(`\n${pass} ok, ${fail} fail`);
 process.exit(fail ? 1 : 0);

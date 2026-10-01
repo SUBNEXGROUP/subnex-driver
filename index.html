@@ -20,10 +20,10 @@
     <link rel="stylesheet" href="subnex-ui.css?v=20260929-chat" />
     <link rel="stylesheet" href="ops-chat.css?v=20260929-chat" />
     <link rel="stylesheet" href="ops-dispatch.css?v=20260919-dark" />
-    <script src="i18n.js?v=20260929-chat"></script>
+    <script src="i18n.js?v=20261001-live"></script>
     <script src="ops-chat.js?v=20260929-chat"></script>
-    <script src="ops-dispatch-core.js?v=20260924-waze"></script>
-    <script src="ops-dispatch.js?v=20260928-email"></script>
+    <script src="ops-dispatch-core.js?v=20261001-live"></script>
+    <script src="ops-dispatch.js?v=20261001-live"></script>
     <style>
       body {
         font-size: 15px;
@@ -180,7 +180,8 @@
               </div>
               <div class="fld"><label>Email</label><input class="field" id="driver-email" type="email" autocomplete="username" /></div>
               <div class="fld">
-                <label data-i18n="password">Пароль</label><input class="field" id="driver-password" type="password" autocomplete="current-password" />
+                <label data-i18n="password">Пароль</label
+                ><input class="field" id="driver-password" type="password" autocomplete="current-password" />
               </div>
               <button class="btn btn-acc btn-lg" id="driver-login" onclick="tryLogin()" data-i18n="login">Войти</button>
               <div class="err" id="pinerr" role="alert"></div>
@@ -204,7 +205,8 @@
           <div>
             <div class="big" id="cnt-today-left">0</div>
             <div class="lab">
-              <span data-i18n="left">Осталось</span> <span class="muted"><span data-i18n="ofWord">из</span> <span id="cnt-today">0</span></span>
+              <span data-i18n="left">Осталось</span>
+              <span class="muted"><span data-i18n="ofWord">из</span> <span id="cnt-today">0</span></span>
             </div>
           </div>
           <div class="bar"><i id="today-progress" style="width: 0%"></i></div>
@@ -217,6 +219,11 @@
           <span data-i18n="optimize">Пересчитать порядок</span>
         </button>
         <p id="opt-note" class="small muted" data-i18n="optimizeNoSms">Пересчёт порядка. Время клиентам уйдёт при старте маршрута.</p>
+        <button class="ph-cta ghost" id="btn-live" onclick="liveFromHere()" hidden>
+          <svg class="ic" style="fill: currentColor; stroke: none"><use href="#i-nav" /></svg>
+          <span data-i18n="liveBtn">Маршрут от меня сейчас</span>
+        </button>
+        <p id="live-note" class="small" style="white-space: pre-wrap" hidden></p>
         <div class="sign" id="signstrip">
           <div class="vals" id="sign-vals"></div>
           <div class="src" id="sign-src"></div>
@@ -233,7 +240,10 @@
         </div>
         <div class="card">
           <div class="card-b stack">
-            <div class="fld"><label data-i18n="addressLbl">Адрес</label><div class="addrbox" id="f-addr-text"></div></div>
+            <div class="fld">
+              <label data-i18n="addressLbl">Адрес</label>
+              <div class="addrbox" id="f-addr-text"></div>
+            </div>
             <div class="fld">
               <label data-i18n="bagsLbl">Мешков</label
               ><input class="field" type="number" id="f-bags" min="0" inputmode="numeric" placeholder="0" />
@@ -243,7 +253,9 @@
               ><input class="field" type="text" id="f-phone" inputmode="tel" placeholder="07xxxxxxxxx" />
             </div>
             <div class="fld"><label data-i18n="noteLbl">Заметка</label><input class="field" type="text" id="f-note" /></div>
-            <p class="muted small" data-i18n="editNote">Адрес, дату и время меняют в Пульте — так заявка не разойдётся с планом и перепиской.</p>
+            <p class="muted small" data-i18n="editNote">
+              Адрес, дату и время меняют в Пульте — так заявка не разойдётся с планом и перепиской.
+            </p>
             <button class="btn btn-pri btn-lg" id="btn-save-addr" onclick="saveAddress()">
               <svg class="ic"><use href="#i-save" /></svg> <span data-i18n="save">Сохранить</span>
             </button>
@@ -369,7 +381,10 @@
         </button>
         <div class="card">
           <div class="card-b stack">
-            <div class="fld"><label data-i18n="pointsLbl">Старт и склад</label><div class="addrbox" id="s-points"></div></div>
+            <div class="fld">
+              <label data-i18n="pointsLbl">Старт и склад</label>
+              <div class="addrbox" id="s-points"></div>
+            </div>
             <div class="fld">
               <label data-i18n="navAppLbl">Навигатор</label
               ><select class="field" id="s-nav">
@@ -388,7 +403,9 @@
             <button class="btn btn-pri btn-lg" onclick="saveSettings()">
               <svg class="ic"><use href="#i-save" /></svg> <span data-i18n="save">Сохранить</span>
             </button>
-            <p class="muted small" data-i18n="syncNote">Адреса и результаты синхронизируются с общей базой. Старт и склад задаются в Пульте.</p>
+            <p class="muted small" data-i18n="syncNote">
+              Адреса и результаты синхронизируются с общей базой. Старт и склад задаются в Пульте.
+            </p>
           </div>
         </div>
         <div class="ph-btns">
@@ -466,6 +483,13 @@
           save: 'Сохранить',
           optimize: 'Пересчитать порядок',
           optimizeNoSms: 'Пересчёт порядка. Время клиентам уйдёт при старте маршрута.',
+          liveBtn: 'Маршрут от меня сейчас',
+          liveBusy: 'Считаю от вашей точки…',
+          liveNote: 'Осталось {n} · в пути {drive} · на адресах {svc} мин · склад ≈ {fin}',
+          liveNoGps: 'GPS недоступен — посчитано от дома.',
+          liveEmpty: 'Все адреса отмечены — ехать больше некуда.',
+          liveMaps: 'Открыть в Google Maps',
+          liveLate: 'опоздание {m} мин',
           showRoute: 'Пересчитать порядок',
           buildingRoute: 'Строю маршрут…',
           drivingTime: 'В пути',
@@ -630,6 +654,13 @@
           save: 'Save',
           optimize: 'Recalculate the order',
           optimizeNoSms: 'Recalculates the order only. Arrival times go out when you start the route.',
+          liveBtn: 'Route from me now',
+          liveBusy: 'Calculating from your location…',
+          liveNote: '{n} left · driving {drive} · at addresses {svc} min · depot ≈ {fin}',
+          liveNoGps: 'No GPS — calculated from home.',
+          liveEmpty: 'All addresses are marked — nothing left to drive to.',
+          liveMaps: 'Open in Google Maps',
+          liveLate: '{m} min late',
           showRoute: 'Recalculate the order',
           buildingRoute: 'Building route…',
           drivingTime: 'Driving',
@@ -781,7 +812,10 @@
         if (params) for (const [name, v] of Object.entries(params)) s = s.split('{' + name + '}').join(String(v));
         return s;
       }
-      const durLabel = (m) => (m >= 60 ? Math.floor(m / 60) + ' ' + t('hourShort') + ' ' + (m % 60 ? (m % 60) + ' ' + t('minShort') : '') : m + ' ' + t('minShort'));
+      const durLabel = (m) =>
+        m >= 60
+          ? Math.floor(m / 60) + ' ' + t('hourShort') + ' ' + (m % 60 ? (m % 60) + ' ' + t('minShort') : '')
+          : m + ' ' + t('minShort');
 
       /* ---------- local prefs / cache / outbox ---------- */
       const LKEY = 'subnexDriver2_local';
@@ -1266,16 +1300,14 @@
               const path = p.address_id + '/' + p.id + '.jpg';
               const up = await sb.storage.from('photos').upload(path, p.blob, { contentType: 'image/jpeg', upsert: true });
               if (up.error) throw up.error;
-              const ins = await sb
-                .from('photos')
-                .insert({
-                  id: p.id,
-                  address_id: p.address_id,
-                  driver_id: p.driver_id,
-                  path,
-                  kind: p.kind || 'photo',
-                  comment: p.comment || '',
-                });
+              const ins = await sb.from('photos').insert({
+                id: p.id,
+                address_id: p.address_id,
+                driver_id: p.driver_id,
+                path,
+                kind: p.kind || 'photo',
+                comment: p.comment || '',
+              });
               if (ins.error && ins.error.code !== '23505') throw ins.error;
               try {
                 await pdbDel(p.id);
@@ -1769,12 +1801,23 @@
       function renderRouteButton() {
         const btn = document.getElementById('btn-opt');
         if (btn.disabled) return;
-        btn.innerHTML = '<svg class="ic" style="fill:currentColor;stroke:none"><use href="#i-nav"/></svg> <span>' + t('showRoute') + '</span>';
+        btn.innerHTML =
+          '<svg class="ic" style="fill:currentColor;stroke:none"><use href="#i-nav"/></svg> <span>' + t('showRoute') + '</span>';
       }
       /* Порядок дня: как посчитал планировщик, иначе по согласованному времени. */
       function orderedDayAddrs(ds) {
         const list = dayAddrs(ds);
         const r = LOCAL.routes[ds];
+        /* «От меня сейчас»: отмеченные сверху, оставшиеся — в пересчитанном порядке. */
+        if (r?.live?.day === ds && Array.isArray(r.live.order)) {
+          const pos = new Map(r.live.order.map((id, i) => [id, i]));
+          const base = r.dispatch && Array.isArray(r.order) ? new Map(r.order.map((id, i) => [id, i])) : null;
+          const rest = appointmentOrder(list).sort((a, b) => (base ? (base.get(a.id) ?? 999) - (base.get(b.id) ?? 999) : 0));
+          return [
+            ...rest.filter((a) => !pos.has(a.id)),
+            ...rest.filter((a) => pos.has(a.id)).sort((a, b) => pos.get(a.id) - pos.get(b.id)),
+          ];
+        }
         if (r?.dispatch && Array.isArray(r.order)) {
           const pos = new Map(r.order.map((id, i) => [id, i]));
           return appointmentOrder(list).sort((a, b) => (pos.get(a.id) ?? 999) - (pos.get(b.id) ?? 999));
@@ -1788,6 +1831,9 @@
         const startButton = document.getElementById('btn-start-route'),
           route = LOCAL.routes[ds];
         startButton.hidden = !isToday;
+        document.getElementById('btn-live').hidden = !isToday;
+        const liveNote = document.getElementById('live-note');
+        if (route?.live?.day !== ds) liveNote.hidden = true;
         startButton.disabled = !!route?.started_at;
         startButton.textContent = route?.started_at ? t('routeStarted') : t('startRoute');
         renderRouteButton();
@@ -1891,7 +1937,8 @@
           return;
         }
         const arrivals = new Map();
-        if (fit?.ok) fit.stops.forEach((s) => arrivals.set(s.address_id, s));
+        if (route?.live?.day === ds) route.live.stops.forEach((s) => arrivals.set(s.address_id, s));
+        else if (fit?.ok) fit.stops.forEach((s) => arrivals.set(s.address_id, s));
         const SERVICE = SubnexDispatchCore.PLAN_DEFAULTS.service_minutes;
         let prevEnd = null;
         const rows = [];
@@ -1902,12 +1949,14 @@
           const ar = arrivals.get(a.id);
           if (st != null && prevEnd != null && !ar && st - prevEnd >= 20) {
             const gap = st - prevEnd;
-            rows.push(
-              `<div class="ph-gap">${t('gapWord')} ${durLabel(gap)}</div>`,
-            );
+            rows.push(`<div class="ph-gap">${t('gapWord')} ${durLabel(gap)}</div>`);
           }
           const numCls = a.status === 'done' ? 'done' : a.status === 'noanswer' ? 'noanswer' : a.status === 'problem' ? 'problem' : '';
-          const win = ar ? '≈ ' + hm(ar.arrival) : st != null && !isDayMode(a) ? hm(st) : '';
+          const win = ar
+            ? '≈ ' + hm(ar.arrival % 1440) + (ar.late > 0 ? ' · ' + t('liveLate', { m: ar.late }) : '')
+            : st != null && !isDayMode(a)
+              ? hm(st)
+              : '';
           const eta = a.kind !== 'bank' ? etaLabel(a) : '';
           const winTail = eta
             ? ' · ' + esc(eta)
@@ -1937,7 +1986,11 @@
         const eta = LOCAL.routes[a.date]?.state?.eta?.[a.id];
         if (!eta) return '';
         const txt = t('smsWindow', { from: hm(eta.from), to: hm(eta.to) });
-        return eta.state === 'accepted' ? txt : eta.state === 'pending' || eta.state === 'dispatching' ? txt + ' · ' + t('smsPending') : txt + ' · ' + t('smsFailed');
+        return eta.state === 'accepted'
+          ? txt
+          : eta.state === 'pending' || eta.state === 'dispatching'
+            ? txt + ' · ' + t('smsPending')
+            : txt + ' · ' + t('smsFailed');
       }
       const isDayMode = (a) => a.arrival_mode === 'day' || SubnexDispatchCore.isDaySpan(a.collection_start, a.collection_end);
       /* ---------- route optimization ---------- */
@@ -2009,7 +2062,11 @@
             return;
           }
           const p = LOCAL.points || {};
-          const all = [...(hasCoords(p.home) ? [[p.home.lat, p.home.lng]] : []), ...list.map((a) => [a.lat, a.lng]), ...(hasCoords(p.depot) ? [[p.depot.lat, p.depot.lng]] : [])];
+          const all = [
+            ...(hasCoords(p.home) ? [[p.home.lat, p.home.lng]] : []),
+            ...list.map((a) => [a.lat, a.lng]),
+            ...(hasCoords(p.depot) ? [[p.depot.lat, p.depot.lng]] : []),
+          ];
           LOCAL.routes[ds] = { order: list.map((a) => a.id), sketch: true, km: null, min: null, geometry: all, stamp: Date.now() };
           saveLocal();
           if (currentDay === ds) renderDay();
@@ -2019,6 +2076,86 @@
         } finally {
           btn.disabled = false;
           renderRouteButton();
+        }
+      }
+      /* «Маршрут от меня сейчас»: текущая точка телефона и текущее время, только оставшиеся адреса,
+         лучший порядок по дорогам. Ничего не сохраняется на сервере и клиентам не уходит. */
+      async function liveFromHere() {
+        const ds = currentDay,
+          btn = document.getElementById('btn-live'),
+          note = document.getElementById('live-note');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spin"></span> ' + t('liveBusy');
+        const pos = await new Promise((res) => {
+          if (!('geolocation' in navigator)) return res(lastLoc || null);
+          navigator.geolocation.getCurrentPosition(
+            (p) => res({ lat: p.coords.latitude, lng: p.coords.longitude }),
+            () => res(lastLoc || null),
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+          );
+        });
+        const finished = dayAddrs(ds)
+          .filter((a) => ['done', 'noanswer', 'problem'].includes(a.status))
+          .map((a) => a.id);
+        try {
+          const r = await OpsDispatch.liveRoute(dispatchOptions(), ds, pos, finished);
+          const route = LOCAL.routes[ds] || {};
+          route.live =
+            r && r.ok && !r.empty
+              ? {
+                  day: ds,
+                  order: r.stops.map((x) => x.address_id),
+                  stops: r.stops,
+                  start: r.start,
+                  finish: r.finish,
+                  drive: r.drive,
+                  service: r.service,
+                  gps: r.gps,
+                  from: r.from,
+                  depot: r.depot,
+                }
+              : null;
+          LOCAL.routes[ds] = route;
+          saveLocal();
+          renderDay();
+          if (!r) note.textContent = '';
+          else if (r.empty) note.textContent = t('liveEmpty');
+          else if (!r.ok) note.textContent = OpsDispatch.error({ code: r.code, detail: r });
+          else {
+            const d = Math.floor(r.drive / 60) + ' h ' + (r.drive % 60) + ' min';
+            const left = dayAddrs(ds).filter((a) => route.live.order.includes(a.id) && hasCoords(a));
+            const byId = new Map(left.map((a) => [a.id, a]));
+            const pts = route.live.order.map((id) => byId.get(id)).filter(Boolean);
+            const url =
+              'https://www.google.com/maps/dir/?api=1&travelmode=driving&origin=' +
+              encodeURIComponent(r.from.lat + ',' + r.from.lng) +
+              '&destination=' +
+              encodeURIComponent(
+                hasCoords(r.depot)
+                  ? r.depot.lat + ',' + r.depot.lng
+                  : pts.length
+                    ? pts[pts.length - 1].lat + ',' + pts[pts.length - 1].lng
+                    : '',
+              ) +
+              '&waypoints=' +
+              encodeURIComponent(
+                pts
+                  .slice(0, 9)
+                  .map((a) => a.lat + ',' + a.lng)
+                  .join('|'),
+              );
+            note.innerHTML =
+              esc(t('liveNote', { n: r.stops.length, drive: d, svc: r.service, fin: hm(r.finish % 1440) })) +
+              (r.gps ? '' : '\n' + esc(t('liveNoGps'))) +
+              `\n<a href="${url}" target="_blank" rel="noopener">${esc(t('liveMaps'))}</a>`;
+          }
+          note.hidden = false;
+        } catch (e) {
+          toast(OpsDispatch.error(e));
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML =
+            '<svg class="ic" style="fill:currentColor;stroke:none"><use href="#i-nav"/></svg> <span>' + t('liveBtn') + '</span>';
         }
       }
       function optimizeDay() {
@@ -2036,7 +2173,9 @@
         '<svg class="ic" style="width:15px;height:15px;vertical-align:-2px;' + (st || '') + '"><use href="#i-' + n + '"/></svg>';
       const BANKPLATE_ICON = ICH('bin', 'stroke:#fff;width:11px;height:11px;');
       /* Метка контейнера собирается при показе, чтобы слушалась переключателя языка. */
-      Object.defineProperty(window, 'BANKPLATE', { get: () => '<span class="chip bank">' + BANKPLATE_ICON + ' ' + t('bankWord') + '</span>' });
+      Object.defineProperty(window, 'BANKPLATE', {
+        get: () => '<span class="chip bank">' + BANKPLATE_ICON + ' ' + t('bankWord') + '</span>',
+      });
       let FILL = null;
       const KGVALS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
       function renderFillSel() {
@@ -2103,7 +2242,11 @@
         document.getElementById('btn-edit').style.display = isBank ? 'none' : '';
         const smsBtn = document.getElementById('btn-sms');
         smsBtn.style.display = a.phone && !isBank ? '' : 'none';
-        document.getElementById('btn-sms-label').textContent = cancelled ? t('smsHistory') : a.collection_start ? t('smsChat') : t('smsArrange');
+        document.getElementById('btn-sms-label').textContent = cancelled
+          ? t('smsHistory')
+          : a.collection_start
+            ? t('smsChat')
+            : t('smsArrange');
         if (isBank) renderFillSel();
         document
           .querySelectorAll(
@@ -2148,8 +2291,7 @@
       }
       const isAndroid = () => /android/i.test(navigator.userAgent || '');
       const isIOS = () =>
-        /iphone|ipad|ipod/i.test(navigator.userAgent || '') ||
-        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        /iphone|ipad|ipod/i.test(navigator.userAgent || '') || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
       function navOpen(app, a) {
         const t = navTargets(app, a);
         if (t.intent && isAndroid()) {

@@ -74,6 +74,12 @@
       A('a8', { text: '5 Auto Road, Newport NP20 5EE', phone: '07700900008', lat: 51.59, lng: -2.995, created_at: '2026-09-18T12:00:00Z', arrival_mode: 'day' }),
       A('b1', { text: 'Glyncoch Community Centre — Pontypridd CF37 3DA', kind: 'bank', bank_id: 'bk1', lat: 51.62, lng: -3.33, date: T, status: 'planned', collection_source: null, intake_channel: null, charity: null, bags_text: null, geocode_source: 'osm' }),
     );
+    /* «Маршрут от меня сейчас»: телефон водителя прислал точку 5 минут назад, первый адрес дня уже сделан. */
+    if (window.__liveFixture) {
+      tables.driver_locations.push({ driver_id: 'd1', lat: 51.48, lng: -3.18, updated_at: new Date(Date.now() - 5 * 60000).toISOString() });
+      const a1 = addresses.find((a) => a.id === 'a1');
+      if (a1) Object.assign(a1, { status: 'done', done_at: new Date().toISOString() });
+    }
     /* Отчёт «Итоги месяца»: по адресу каждой категории, сделанные и несделанные (включается из теста). */
     if (window.__reportFixture) {
       addresses.splice(0);
@@ -178,6 +184,10 @@
         q.single = true;
         return chain;
       },
+      maybeSingle() {
+        q.single = true;
+        return chain;
+      },
       then(res, rej) {
         return Promise.resolve(run()).then(res, rej);
       },
@@ -243,8 +253,8 @@
             return { key: 'a:' + a.id, address_id: a.id, text: a.text, lat: a.lat, lng: a.lng, earliest: C().minute(h.start), latest: C().minute(h.end), service: 5, kg: 10, kind: 'hold' };
           }),
       );
-  const roadsAll = () => {
-    const pts = [HOME, DEPOT, ...addresses.filter((a) => a.lat != null)];
+  const roadsAll = (extra) => {
+    const pts = [HOME, DEPOT, ...addresses.filter((a) => a.lat != null), ...(extra ? [extra] : [])];
     const out = {};
     for (const a of pts)
       for (const b of pts) {
@@ -396,7 +406,7 @@
   function routing(body) {
     log('edge', 'subnex-routing.' + body.action, body);
     if (body.action === 'health') return { ok: true, provider: 'openrouteservice', enabled: true };
-    if (body.action === 'matrix') return { roads: roadsAll(), provider: 'openrouteservice' };
+    if (body.action === 'matrix') return { roads: roadsAll(body.from && Number.isFinite(body.from.lat) ? body.from : null), provider: 'openrouteservice' };
     const st = dayState(body.day);
     const byId = new Map(st.nodes.map((n) => [n.key, n]));
     const pts = [config.home, ...st.order.map((k) => byId.get(k)), config.depot];

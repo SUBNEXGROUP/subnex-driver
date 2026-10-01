@@ -20,10 +20,10 @@
     <link rel="stylesheet" href="subnex-ui.css?v=20260929-chat" />
     <link rel="stylesheet" href="ops-chat.css?v=20260929-chat" />
     <link rel="stylesheet" href="ops-dispatch.css?v=20260919-dark" />
-    <script src="i18n.js?v=20260929-chat"></script>
+    <script src="i18n.js?v=20261001-live"></script>
     <script src="ops-chat.js?v=20260929-chat"></script>
-    <script src="ops-dispatch-core.js?v=20260924-waze"></script>
-    <script src="ops-dispatch.js?v=20260928-email"></script>
+    <script src="ops-dispatch-core.js?v=20261001-live"></script>
+    <script src="ops-dispatch.js?v=20261001-live"></script>
     <style>
       .leaflet-container {
         font-family: var(--body);
@@ -482,7 +482,9 @@
               />
               <button class="btn btn-sm" onclick="dayShift(1)">›</button>
               <a class="btn btn-sm" id="day-gmaps" target="_blank" rel="noopener" hidden>Google Maps</a>
-              <button class="btn btn-sm" onclick="renderDayPage(true)">Пересчитать</button>
+              <button class="btn btn-sm" onclick="recalcDay()" title="Сегодня — от текущей точки водителя (GPS); другие дни — от дома">
+                Пересчитать
+              </button>
               <button class="btn btn-sm btn-pri" onclick="openDispatchAdmin('queue')">+ Заявки на этот день</button>
             </div>
           </div>
@@ -2287,7 +2289,7 @@
       }
 
       /* ---------- ДЕНЬ МАРШРУТА ---------- */
-      const DAY = { date: null, map: null, route: null };
+      const DAY = { date: null, map: null, route: null, live: null };
       const hasCoords = (a) => a && Number.isFinite(a.lat) && Number.isFinite(a.lng);
       function dayShift(n) {
         DAY.date = addDays(DAY.date || todayStr(), n);
@@ -2307,13 +2309,59 @@
           return x === y ? String(a.created_at).localeCompare(String(b.created_at)) : x - y;
         });
       }
+      /* «Пересчитать»: сегодня — от текущей точки водителя (GPS телефона) и текущего времени,
+         только оставшиеся адреса, лучший порядок; ничего не сохраняется и клиентам не уходит.
+         Другие дни — прежний пересчёт от дома. */
+      async function recalcDay() {
+        const ds = DAY.date || todayStr();
+        const drv = currentDriver();
+        if (ds !== todayStr() || !drv) {
+          DAY.live = null;
+          return renderDayPage(true);
+        }
+        toast(T('Пересчитываю от текущей точки…'));
+        let loc = null;
+        try {
+          const { data } = await sb.from('driver_locations').select('*').eq('driver_id', drv.id).maybeSingle();
+          loc = data || null;
+        } catch (e) {}
+        const ageMin = loc ? Math.round((Date.now() - Date.parse(loc.updated_at)) / 60000) : null;
+        const usable = loc && ageMin <= 120;
+        const finished = dayList()
+          .filter((a) => ['done', 'noanswer', 'problem'].includes(a.status))
+          .map((a) => a.id);
+        try {
+          const r = await OpsDispatch.liveRoute(
+            { sb, driver: drv, hasOutbox: () => false },
+            ds,
+            usable ? { lat: loc.lat, lng: loc.lng } : null,
+            finished,
+          );
+          DAY.live = r
+            ? {
+                ...r,
+                day: ds,
+                locAt: usable ? loc.updated_at : null,
+                warn: !usable
+                  ? T('Свежей GPS-точки телефона нет — посчитано от дома. Откройте приложение водителя, чтобы точка обновилась.')
+                  : ageMin > 15
+                    ? T('GPS-точка телефона обновлялась') + ' ' + ageMin + ' ' + T('мин назад — расчёт может быть неточным.')
+                    : '',
+              }
+            : null;
+        } catch (e) {
+          DAY.live = null;
+          toast(OpsDispatch.error(e));
+        }
+        renderDayPage(false);
+      }
       async function renderDayPage(fresh) {
         const ds = DAY.date || todayStr();
         DAY.date = ds;
         const drv = currentDriver();
         document.getElementById('day-date').value = ds;
         document.getElementById('day-title').textContent = cap(dayLabel(ds)) + (ds === todayStr() ? T(' · сегодня') : '');
-        const list = dayList();
+        let list = dayList();
         const done = list.filter((a) => a.status === 'done').length,
           withTime = list.filter((a) => a.collection_start).length;
         const trip = tripZoneOn(ds);
@@ -2325,6 +2373,7 @@
             : T('сборов нет')) +
           (BH[ds] ? ' · bank holiday' : '');
         if (fresh) DAY.route = null;
+        if (fresh || (DAY.live && DAY.live.day !== ds)) DAY.live = null;
         const note = document.getElementById('day-note');
         note.hidden = true;
         let fit = null,
@@ -2351,13 +2400,36 @@
             note.hidden = false;
           }
         }
+        /* «От меня сейчас»: оставшиеся адреса в новом порядке после уже отмеченных. */
+        const live = DAY.live && DAY.live.day === ds && DAY.live.ok && !DAY.live.empty ? DAY.live : null;
+        if (live) {
+          const pos = new Map(live.stops.map((x, i) => [x.address_id, i]));
+          list = [
+            ...list.filter((a) => !pos.has(a.id)),
+            ...list.filter((a) => pos.has(a.id)).sort((a, b) => pos.get(a.id) - pos.get(b.id)),
+          ];
+        }
+        if (DAY.live && DAY.live.day === ds && (DAY.live.empty || !DAY.live.ok || DAY.live.warn)) {
+          note.textContent = DAY.live.empty
+            ? T('Все адреса дня уже отмечены — ехать больше некуда.')
+            : DAY.live.warn || OpsDispatch.error({ code: DAY.live.code, detail: DAY.live });
+          note.hidden = false;
+        }
         /* статистика */
         const stats = [
           [T('Сборов'), list.length, ''],
           [T('Выполнено'), done, ''],
           [T('С окном'), withTime, T('из ') + list.length],
         ];
-        if (fit?.ok) {
+        const hmm = (m) => Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0');
+        if (live) {
+          stats.push(
+            [T('Осталось'), live.stops.length, T('адресов')],
+            [T('Ещё в пути'), hmm(live.drive), T('ч:мин')],
+            [T('На адресах'), live.service, T('мин')],
+            [T('Склад'), C.hm(live.finish % 1440), T('≈ финиш')],
+          );
+        } else if (fit?.ok) {
           stats.push(
             [T('Выезд'), C.hm(fit.departure), T('из дома')],
             [T('Склад'), C.hm(fit.finish), T('прибытие')],
@@ -2369,11 +2441,17 @@
           .join('');
         /* Раньше на любой несошедшийся день писали «дорога не рассчитана» — и это сбивало
            с толку: дороги-то посчитаны, просто день не укладывается. Разделяем. */
-        document.getElementById('day-route-sub').textContent = fit?.ok
-          ? T('Расчёт по дорогам: прибытия, переезды и склад')
-          : fit?.code === 'ROADS_REQUIRED'
-            ? T('Времена в пути не получены — порядок выстроить не по чему')
-            : T('День не укладывается в часы: порядок показан как есть, времена ориентировочные');
+        document.getElementById('day-route-sub').textContent = live
+          ? T('От текущей точки в') +
+            ' ' +
+            C.hm(live.start % 1440) +
+            (live.gps ? T(' · GPS водителя') : T(' · от дома')) +
+            T(' · порядок для водителя, клиентам ничего не уходит')
+          : fit?.ok
+            ? T('Расчёт по дорогам: прибытия, переезды и склад')
+            : fit?.code === 'ROADS_REQUIRED'
+              ? T('Времена в пути не получены — порядок выстроить не по чему')
+              : T('День не укладывается в часы: порядок показан как есть, времена ориентировочные');
         /* таймлайн */
         const tl = document.getElementById('day-tl');
         if (!list.length) {
@@ -2383,13 +2461,18 @@
           return;
         }
         const arrivals = new Map();
-        if (fit?.ok) fit.stops.forEach((s) => arrivals.set(s.address_id, s));
+        if (live) live.stops.forEach((s) => arrivals.set(s.address_id, s));
+        else if (fit?.ok) fit.stops.forEach((s) => arrivals.set(s.address_id, s));
         /* Окна, отправленные клиентам утром при старте (сервер хранит их в очереди авто-SMS). */
         const etas = DAY.route?.state?.eta || {};
         const started = !!DAY.route?.state?.started_at;
         const p = drv ? await driverPoints(drv.id) : { home: {}, depot: {} };
         const rows = [];
-        if (fit?.ok)
+        if (live)
+          rows.push(
+            `<div class="tl-row term"><div class="tl-time">${C.hm(live.start % 1440)}</div><div class="tl-axis"><i class="tl-node"></i></div><div class="tl-body"><div class="term-line">${live.gps ? T('Сейчас · точка водителя по GPS') : T('Сейчас · от дома')}${live.locAt ? ' · ' + esc(T('обновлена')) + ' ' + C.hm(C.ukMinute(live.locAt)) : ''}<small>${T('Отмеченные адреса не считаются; остальные — в лучшем порядке по дорогам.')}</small></div></div></div>`,
+          );
+        else if (fit?.ok)
           rows.push(
             `<div class="tl-row term"><div class="tl-time">${C.hm(fit.departure)}</div><div class="tl-axis"><i class="tl-node"></i></div><div class="tl-body"><div class="term-line">${T('Выезд ·')} ${esc(p.home.text || T('старт'))}<small>${T('Дорога до первого клиента')} ${fit.stops[0]?.travel ?? '—'} ${T('мин с запасом.')}</small></div></div></div>`,
           );
@@ -2434,17 +2517,32 @@
                   : C.hm(st) + '–' + C.hm(en)
                 : T('время не согласовано');
           rows.push(
-            `<div class="tl-row ${cls}"><div class="tl-time">${ar ? '≈ ' + C.hm(ar.arrival) : st != null ? C.hm(st) : ''}</div><div class="tl-axis"><i class="tl-node"></i></div><div class="tl-body"><button class="stop tap ${a.status === 'done' ? 'done' : ''} ${st == null ? 'held' : ''}" onclick="openAddrModal('${a.id}')"><div class="stop-top"><b>${i + 1}. ${a.kind === 'bank' ? BANKPL + ' ' : ''}${esc(a.text)}</b><span class="win">${win}</span></div><div class="det">${bagsLabel(a) ? '<span>' + esc(bagsLabel(a)) + '</span>' : ''}${a.phone ? '<span class="mono">' + esc(a.phone) + '</span>' : ''}<span class="chip st-${a.status}">${ST(a.status)}</span>${a.intake_channel || a.collection_source ? '<span class="chip src-' + ({ subnex_website: 'site', partner_email: 'mail', partner_whatsapp: 'wapart', missing: 'wamiss' }[C.sourceOf(a)] || 'wamiss') + '">' + esc(C.sourceNames[C.sourceOf(a)]) + '</span>' : ''}${!hasCoords(a) ? `<span class="chip st-bad">${T('нет координат')}</span>` : a.geocode_source === 'postcode' ? `<span class="chip ghost">${T('точка по индексу')}</span>` : ''}${a.charity ? '<span class="chip ghost">' + esc(a.charity) + '</span>' : ''}${photoCount(a.id) ? `<span class="chip ghost" onclick="event.stopPropagation();openAddrGallery('${a.id}')" title="${T('Открыть фото этого адреса')}">📷 ${photoCount(a.id)}</span>` : ''}${a.note ? '<span>' + esc(a.note) + '</span>' : ''}</div></button></div></div>`,
+            `<div class="tl-row ${cls}"><div class="tl-time">${ar ? '≈ ' + C.hm(ar.arrival % 1440) : st != null ? C.hm(st) : ''}${ar && ar.late > 0 ? `<br><span style="color:var(--crit);font-size:11px">${T('опоздание')} ${ar.late} ${T('мин')}</span>` : ''}</div><div class="tl-axis"><i class="tl-node"></i></div><div class="tl-body"><button class="stop tap ${a.status === 'done' ? 'done' : ''} ${st == null ? 'held' : ''}" onclick="openAddrModal('${a.id}')"><div class="stop-top"><b>${i + 1}. ${a.kind === 'bank' ? BANKPL + ' ' : ''}${esc(a.text)}</b><span class="win">${win}</span></div><div class="det">${bagsLabel(a) ? '<span>' + esc(bagsLabel(a)) + '</span>' : ''}${a.phone ? '<span class="mono">' + esc(a.phone) + '</span>' : ''}<span class="chip st-${a.status}">${ST(a.status)}</span>${a.intake_channel || a.collection_source ? '<span class="chip src-' + ({ subnex_website: 'site', partner_email: 'mail', partner_whatsapp: 'wapart', missing: 'wamiss' }[C.sourceOf(a)] || 'wamiss') + '">' + esc(C.sourceNames[C.sourceOf(a)]) + '</span>' : ''}${!hasCoords(a) ? `<span class="chip st-bad">${T('нет координат')}</span>` : a.geocode_source === 'postcode' ? `<span class="chip ghost">${T('точка по индексу')}</span>` : ''}${a.charity ? '<span class="chip ghost">' + esc(a.charity) + '</span>' : ''}${photoCount(a.id) ? `<span class="chip ghost" onclick="event.stopPropagation();openAddrGallery('${a.id}')" title="${T('Открыть фото этого адреса')}">📷 ${photoCount(a.id)}</span>` : ''}${a.note ? '<span>' + esc(a.note) + '</span>' : ''}</div></button></div></div>`,
           );
           prevEnd = en != null ? en + SERVICE : null;
         });
-        if (fit?.ok)
+        if (live)
+          rows.push(
+            `<div class="tl-row term"><div class="tl-time">${C.hm(live.finish % 1440)}</div><div class="tl-axis"><i class="tl-node"></i></div><div class="tl-body"><div class="term-line">${T('Склад ·')} ${esc(p.depot.text || '')}<small>${T('Дорога до склада')} ${live.back} ${T('мин после последнего адреса.')}</small></div></div></div>`,
+          );
+        else if (fit?.ok)
           rows.push(
             `<div class="tl-row term"><div class="tl-time">${C.hm(fit.finish)}</div><div class="tl-axis"><i class="tl-node"></i></div><div class="tl-body"><div class="term-line">${T('Склад ·')} ${esc(p.depot.text || '')}<small>${T('После последнего сбора; за пределы часов прибытия это не выводит.')}</small></div></div></div>`,
           );
         tl.innerHTML = rows.join('');
-        renderDayMap(list, geometry, p);
-        updateGmaps(list, p);
+        if (live) {
+          const left = list.filter((a) => arrivals.has(a.id) && hasCoords(a));
+          geometry = [
+            [live.from.lat, live.from.lng],
+            ...left.map((a) => [a.lat, a.lng]),
+            ...(hasCoords(p.depot) ? [[p.depot.lat, p.depot.lng]] : []),
+          ];
+          renderDayMap(list, geometry, p);
+          updateGmaps(left, { home: live.from, depot: p.depot });
+        } else {
+          renderDayMap(list, geometry, p);
+          updateGmaps(list, p);
+        }
       }
       function renderDayMap(list, geometry, p) {
         if (typeof L === 'undefined') return;

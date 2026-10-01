@@ -259,6 +259,25 @@
       return null;
     }
   }
+  /* «От меня сейчас»: оставшиеся адреса дня от текущей точки (GPS) и текущего времени. Порядок —
+     лучший по дорогам; ничего не сохраняется, клиентам ничего не уходит. finishedIds — уже отмеченные. */
+  async function liveRoute(o, day, from, finishedIds = []) {
+    online(o);
+    const st = await rpc(o.sb, 'day', { driver_id: o.driver.id, day });
+    if (!st.enabled) return null;
+    const all = st.started_at ? st.fit?.nodes || st.nodes : st.nodes;
+    const cfg = st.started_at ? st.fit?.config || st.config : st.config;
+    const done = new Set(finishedIds);
+    const nodes = (all || []).filter((n) => !done.has(n.address_id));
+    if (!nodes.length) return { ok: true, empty: true, state: st };
+    const gps = C.validPoint(from);
+    const start = gps ? { lat: from.lat, lng: from.lng } : cfg.home;
+    const roads = (await edge(o.sb, { action: 'matrix', driver_id: o.driver.id, day, address_ids: [], from: start }))?.roads || {};
+    const startMinute = day === C.ukDay() ? C.ukMinute(new Date()) : null;
+    const base = st.fit?.order?.length ? st.fit.order : st.order || [];
+    const r = C.liveRoute(nodes, base, { ...cfg, home: start }, st.hours, roads, startMinute);
+    return { ...r, state: st, from: start, gps, depot: cfg.depot };
+  }
   async function routeDay(o, day) {
     const before = await rpc(o.sb, 'day', { driver_id: o.driver.id, day });
     if (!before.enabled) return null;
@@ -2113,6 +2132,7 @@
     warm,
     preflight,
     routeDay,
+    liveRoute,
     startDay,
     lateOnly,
     dayIssueText,
