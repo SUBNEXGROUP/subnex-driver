@@ -2402,6 +2402,12 @@
         }
         /* «От меня сейчас»: оставшиеся адреса в новом порядке после уже отмеченных. */
         const live = DAY.live && DAY.live.day === ds && DAY.live.ok && !DAY.live.empty ? DAY.live : null;
+        /* Список дня — в порядке маршрута: раньше он шёл по времени заявки, и у дней «в течение дня»
+           прибытия выглядели вперемешку (10:41, 15:08, 08:45…). */
+        if (!live && fit?.ok && Array.isArray(fit.stops)) {
+          const pos = new Map(fit.stops.map((x, i) => [x.address_id, i]));
+          list = [...list].sort((a, b) => (pos.get(a.id) ?? 1e6) - (pos.get(b.id) ?? 1e6));
+        }
         if (live) {
           const pos = new Map(live.stops.map((x, i) => [x.address_id, i]));
           list = [
