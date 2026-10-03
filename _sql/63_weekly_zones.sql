@@ -53,10 +53,11 @@ end $patch$;
 -- Раскладка районов. Узкий диапазон важнее широкого (dispatch_zone_for).
 insert into subnex_private.dispatch_zones(code,prefix,num_from,num_to,name,mode,weekday,week_of_month,weekdays,updated_at) values
  ('CF','CF',0,99,'Cardiff','weekly',null,null,'{1,3,6}',now()),
- ('CF61-71','CF',61,71,'Vale of Glamorgan','weekly',null,null,'{1}',now()),
+ ('CF61-71','CF',61,71,'Vale of Glamorgan','weekly',null,null,'{1,6}',now()),
  ('CF31-48','CF',31,48,'Valleys and Bridgend','weekly',null,null,'{6}',now()),
  ('CF72','CF',72,72,'Llantrisant and Pontyclun','weekly',null,null,'{6}',now()),
- ('CF81-83','CF',81,83,'Caerphilly','weekly',null,null,'{6}',now()),
+ ('CF81-82','CF',81,82,'Bargoed and Hengoed','weekly',null,null,'{6}',now()),
+ ('CF83','CF',83,83,'Caerphilly','weekly',null,null,'{1,3,6}',now()),
  ('NP','NP',0,99,'Newport and East Wales','weekly',null,null,'{1,3}',now()),
  ('NP12-13','NP',12,13,'Blackwood and Ebbw Vale','weekly',null,null,'{6}',now()),
  ('NP22-24','NP',22,24,'Tredegar and Rhymney','weekly',null,null,'{6}',now()),
