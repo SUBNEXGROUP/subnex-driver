@@ -20,10 +20,10 @@
     <link rel="stylesheet" href="subnex-ui.css?v=20260929-chat" />
     <link rel="stylesheet" href="ops-chat.css?v=20260929-chat" />
     <link rel="stylesheet" href="ops-dispatch.css?v=20260919-dark" />
-    <script src="i18n.js?v=20261001-live"></script>
+    <script src="i18n.js?v=20261003-zones"></script>
     <script src="ops-chat.js?v=20260929-chat"></script>
-    <script src="ops-dispatch-core.js?v=20261001-live"></script>
-    <script src="ops-dispatch.js?v=20261001-live"></script>
+    <script src="ops-dispatch-core.js?v=20261003-zones"></script>
+    <script src="ops-dispatch.js?v=20261003-zones"></script>
     <style>
       .leaflet-container {
         font-family: var(--body);
@@ -86,6 +86,19 @@
       }
       .hcell.off .h {
         color: var(--crit);
+      }
+      .mz-days {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 14px;
+        padding-top: 4px;
+      }
+      .mz-days label {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 14px;
+        cursor: pointer;
       }
     </style>
   </head>
@@ -807,6 +820,7 @@
               </div>
               <div class="card-b">
                 <ol class="stack" style="gap: 9px; padding-left: 18px; font-size: 13px; color: var(--ink-2)">
+                  <li><b>По дням недели</b> — адреса ставятся только в отмеченные дни (например, Кардифф — пн, ср, сб).</li>
                   <li><b>Обычный район</b> — адреса распределяются в любой рабочий день, как обычно.</li>
                   <li><b>Выезд раз в месяц</b> — адреса ждут своего дня. Клиентам не предлагается никакая другая дата.</li>
                   <li>В день выезда ставятся <b>только адреса этого района</b>: поездка не разбавляется ближними сборами.</li>
@@ -1162,10 +1176,20 @@
           <div class="f-group">
             <label class="f">Режим</label
             ><select class="field" id="mz-mode" onchange="zoneModeChange()">
+              <option value="weekly">По дням недели</option>
               <option value="regular">Обычный район — в любой рабочий день</option>
               <option value="monthly">Выезд раз в месяц</option>
               <option value="off">Выключен — не распределять</option>
             </select>
+          </div>
+          <div class="f-group" id="mz-days-wrap" hidden>
+            <label class="f">Дни выезда</label>
+            <div class="mz-days" id="mz-days">
+              <label><input type="checkbox" value="1" /> Пн</label><label><input type="checkbox" value="2" /> Вт</label
+              ><label><input type="checkbox" value="3" /> Ср</label><label><input type="checkbox" value="4" /> Чт</label
+              ><label><input type="checkbox" value="5" /> Пт</label><label><input type="checkbox" value="6" /> Сб</label
+              ><label><input type="checkbox" value="0" /> Вс</label>
+            </div>
           </div>
           <div class="fgrid" id="mz-day-wrap" hidden>
             <div class="f-group">
@@ -2821,7 +2845,9 @@
           const n = z.waiting ?? waiting(z.prefix),
             next = (z.dates || [])[0];
           const badge =
-            z.mode === 'regular'
+            z.mode === 'weekly'
+              ? `<span class="chip st-ok">${T('по дням:')} ${esc(C.weekdaysText(z.weekdays))}</span>`
+              : z.mode === 'regular'
               ? `<span class="chip st-ok">${T('обычный район')}</span>`
               : z.mode === 'monthly'
                 ? `<span class="chip st-far">${T('раз в месяц')}</span>`
@@ -2838,7 +2864,9 @@
         document.getElementById('mz-prefix').value = z ? z.code || z.prefix : '';
         document.getElementById('mz-prefix').disabled = false;
         document.getElementById('mz-name').value = z ? z.name : '';
-        document.getElementById('mz-mode').value = z ? z.mode : 'monthly';
+        document.getElementById('mz-mode').value = z ? z.mode : 'weekly';
+        const zd = new Set((z && z.weekdays) || [1, 3, 6]);
+        document.querySelectorAll('#mz-days input').forEach((b) => (b.checked = zd.has(+b.value)));
         document.getElementById('mz-weekday').value = z && z.weekday != null ? z.weekday : 4;
         document.getElementById('mz-week').value = z && z.week_of_month != null ? z.week_of_month : 5;
         document.getElementById('mz-del').style.display = z ? '' : 'none';
@@ -2848,8 +2876,17 @@
       }
       function zoneModeChange() {
         const monthly = document.getElementById('mz-mode').value === 'monthly';
+        const weekly = document.getElementById('mz-mode').value === 'weekly';
         document.getElementById('mz-day-wrap').hidden = !monthly;
+        document.getElementById('mz-days-wrap').hidden = !weekly;
         const p = document.getElementById('mz-preview');
+        if (weekly) {
+          const d = zoneDays();
+          p.textContent = d.length
+            ? T('Адреса этого района ставятся только в дни:') + ' ' + C.weekdaysText(d) + '.'
+            : T('Отметьте хотя бы один день.');
+          return;
+        }
         if (!monthly) {
           p.textContent =
             document.getElementById('mz-mode').value === 'off'
@@ -2869,7 +2906,8 @@
           next.map((d) => dayShort(d)).join(', ') +
           '.';
       }
-      for (const id of ['mz-weekday', 'mz-week']) document.getElementById(id).addEventListener('change', zoneModeChange);
+      for (const id of ['mz-weekday', 'mz-week', 'mz-days']) document.getElementById(id).addEventListener('change', zoneModeChange);
+      const zoneDays = () => [...document.querySelectorAll('#mz-days input:checked')].map((b) => +b.value);
       async function zoneSave() {
         const btn = document.getElementById('mz-save');
         btn.disabled = true;
@@ -2879,6 +2917,7 @@
           if (!parsed) throw new Error(T('Код района: буквы индекса и, если нужно, номера — BS, SA43, SA14-99.'));
           if (parsed[3] && +parsed[3] < +parsed[2]) throw new Error(T('Второй номер диапазона должен быть больше первого.'));
           const mode = document.getElementById('mz-mode').value;
+          if (mode === 'weekly' && !zoneDays().length) throw new Error(T('Отметьте хотя бы один день.'));
           const { error } = await sb.rpc('subnex_zones', {
             p_action: 'save',
             p_data: {
@@ -2888,6 +2927,7 @@
               mode,
               weekday: +document.getElementById('mz-weekday').value,
               week_of_month: +document.getElementById('mz-week').value,
+              weekdays: zoneDays(),
             },
           });
           if (error) throw error;

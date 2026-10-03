@@ -161,6 +161,20 @@
     const pick = week >= 5 ? hits[hits.length - 1] : hits[week - 1];
     return pick ? `${y}-${String(m).padStart(2, '0')}-${String(pick).padStart(2, '0')}` : null;
   }
+  /* Район по дням недели (mode 'weekly'): адрес ставится только в дни из weekdays (0=вс … 6=сб). */
+  const weekdayOf = (day) => {
+    const [y, m, d] = String(day).split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  };
+  const SHORT_DAYS = () => [T('вс'), T('пн'), T('вт'), T('ср'), T('чт'), T('пт'), T('сб')];
+  const weekdaysText = (list) =>
+    (Array.isArray(list) ? [...list] : [])
+      .map(Number)
+      .sort((x, y) => ((x + 6) % 7) - ((y + 6) % 7))
+      .map((d) => SHORT_DAYS()[d] || '?')
+      .join(', ');
+  const weeklyOk = (rule, day) =>
+    !rule || rule.mode !== 'weekly' || (Array.isArray(rule.weekdays) && rule.weekdays.map(Number).includes(weekdayOf(day)));
   const zoneTripDay = (rule, day) =>
     rule && rule.mode === 'monthly' && Number.isFinite(rule.weekday) ? nthWeekday(day, rule.weekday, rule.week_of_month || 5) : null;
   /* Зона, чей выезд назначен на этот день: такой день занимают только её адреса.
@@ -224,6 +238,8 @@
       const d = nextTripDays(rule, from, 1)[0];
       return `${T('Зона «')}${rule.name}${T('» — выезд раз в месяц')}${d ? T(': ближайший ') + d : ''}${T('. Заявка ждёт этого дня.')}`;
     }
+    if (rule.mode === 'weekly')
+      return `${T('Зона «')}${rule.name}${T('» — выезд по дням:')} ${weekdaysText(rule.weekdays)}${T('. В горизонте нет открытого дня из этих.')}`;
     return null;
   }
 
@@ -548,6 +564,8 @@
     const trip = tripZoneOf(config, day.day) || occupiedZoneOf(config, day);
     // Адрес дальней зоны допускается только в день поездки в неё.
     if (rule.mode === 'monthly' && !sameZone(trip, rule)) return [];
+    // Район по дням недели — только в свои дни.
+    if (!weeklyOk(rule, day.day)) return [];
     // День поездки занимают только адреса этой зоны, иначе поездка расплывётся в зигзаг.
     if (trip && !sameZone(trip, rule)) return [];
     const nodes = day.nodes.filter((n) => n.address_id !== request.id),
@@ -763,7 +781,7 @@
          «нет открытых дней» вместо честного «дня выезда в горизонте вообще нет». */
       if (d.started_at || (d.hours && d.hours.closed)) continue;
       const issue = dayIssue(plan, node, d.day, config, roads);
-      if (issue.code === 'ZONE_TRIP_DAY' || issue.code === 'DAY_OUT_OF_RANGE') continue;
+      if (issue.code === 'ZONE_TRIP_DAY' || issue.code === 'ZONE_WEEKDAY' || issue.code === 'DAY_OUT_OF_RANGE') continue;
       tripDays++;
       if (issue.code === 'ZONE_DAY_TAKEN') {
         taken++;
@@ -928,6 +946,7 @@
     if (!rule || rule.mode === 'off') return { ok: false, code: 'ZONE_OFF' };
     const trip = tripZoneOf(config, target.day) || occupiedZoneOf(config, target);
     if (rule.mode === 'monthly' && !sameZone(trip, rule)) return { ok: false, code: 'ZONE_TRIP_DAY', zone: rule };
+    if (!weeklyOk(rule, target.day)) return { ok: false, code: 'ZONE_WEEKDAY', zone: rule };
     if (trip && !sameZone(trip, rule)) return { ok: false, code: 'ZONE_DAY_TAKEN', zone: trip };
     const base = evaluate(target.nodes, target.order, config, target.hours, roads, target.start_minute);
     if (!base.ok) return base;
@@ -1256,6 +1275,9 @@
     zoneRule,
     zoneKey,
     zoneTripDay,
+    weekdayOf,
+    weeklyOk,
+    weekdaysText,
     tripZoneOf,
     occupiedZoneOf,
     activeZones,

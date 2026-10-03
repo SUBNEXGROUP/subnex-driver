@@ -122,6 +122,7 @@
     ZONE_OFF: T('Этот район выключен в настройках зон выезда.'),
     ZONE_TRIP_DAY: T('Адрес дальней зоны — его ставят только в день выезда в эту зону.'),
     ZONE_DAY_TAKEN: T('В этот день назначен выезд в другую зону.'),
+    ZONE_WEEKDAY: T('Этот район обслуживается в другие дни недели.'),
     ROUTE_STARTED: T('Маршрут этого дня уже начат. Новые заявки остаются в очереди на следующие дни.'),
     DAY_OUT_OF_RANGE: T('Этот день вне рассчитанного плана.'),
     START_CANCELLED: T('Старт отменён.'),
@@ -147,6 +148,8 @@
         return T('В этот день машина уже загружена полностью.');
       case 'ZONE_TRIP_DAY':
         return `${T('Это адрес дальней зоны')}${r.zone && r.zone.name ? ' «' + r.zone.name + '»' : ''} ${T('— его ставят только в день выезда в неё.')}`;
+      case 'ZONE_WEEKDAY':
+        return `${T('Район')}${r.zone && r.zone.name ? ' «' + r.zone.name + '»' : ''} ${T('обслуживается только по дням:')} ${C.weekdaysText(r.zone && r.zone.weekdays)}.`;
       case 'ZONE_DAY_TAKEN':
         return `${T('В этот день назначен выезд')}${r.zone && r.zone.name ? T(' в «') + r.zone.name + '»' : ''} ${T('— чужие адреса туда не ставим.')}`;
       default:
@@ -998,7 +1001,8 @@
           const d = C.nextTripDays(z, C.ukDay(), 1)[0];
           return `<span class="od-chip" style="background:var(--far-soft);color:var(--far)">${esc(z.name)} ${T('· выезд')} ${d ? label(d) : T('не задан')}</span>`;
         }
-        return `<span class="od-muted">${T('Ждёт распределения')}</span>${a.auto_skip ? `<br><span class="od-muted" style="font-size:11.5px">${esc(skipText(a.auto_skip))}</span>` : ''}`;
+        const days = z.mode === 'weekly' ? ` <span class="od-chip">${esc(z.name)} · ${esc(C.weekdaysText(z.weekdays))}</span>` : '';
+        return `<span class="od-muted">${T('Ждёт распределения')}</span>${days}${a.auto_skip ? `<br><span class="od-muted" style="font-size:11.5px">${esc(skipText(a.auto_skip))}</span>` : ''}`;
       };
       const acts = (a) => {
         const b = [];

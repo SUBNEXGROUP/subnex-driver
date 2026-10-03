@@ -129,5 +129,21 @@ const ok = (name, cond, extra = '') => eq(name + (cond ? '' : ' ' + extra), !!co
   const miss = C.liveRoute(nodes, ['a:1'], cfg, { opens: '08:00', closes: '18:00' }, {}, 900);
   ok('liveRoute: без дорог — ROADS_REQUIRED', !miss.ok && miss.code === 'ROADS_REQUIRED');
 }
+/* ---------- районы по дням недели ---------- */
+{
+  const zones = [
+    { code: 'CF', prefix: 'CF', num_from: 0, num_to: 99, name: 'Cardiff', mode: 'weekly', weekdays: [1, 3, 6] },
+    { code: 'CF31-48', prefix: 'CF', num_from: 31, num_to: 48, name: 'Valleys', mode: 'weekly', weekdays: [6] },
+  ];
+  const cfg = { zones };
+  eq('weekly: Кардифф в пн', C.weeklyOk(C.zoneRule(cfg, '1 X St, Cardiff CF11 6EB'), '2026-10-05'), true);
+  eq('weekly: Кардифф во вт — нет', C.weeklyOk(C.zoneRule(cfg, '1 X St, Cardiff CF11 6EB'), '2026-10-06'), false);
+  eq('weekly: долины только в сб', C.weeklyOk(C.zoneRule(cfg, '3 X Rd, Treorchy CF42 6DT'), '2026-10-05'), false);
+  eq('weekly: долины в сб', C.weeklyOk(C.zoneRule(cfg, '3 X Rd, Treorchy CF42 6DT'), '2026-10-10'), true);
+  eq('weekly: обычный район без ограничений', C.weeklyOk({ mode: 'regular' }, '2026-10-06'), true);
+  const day = { day: '2026-10-06', hours: { opens: '08:00', closes: '18:00' }, nodes: [], order: [] };
+  eq('weekly: placements во вт пусто', C.placements(day, { id: 'x', text: '1 X St, Cardiff CF11 6EB', lat: 51.47, lng: -3.19 }, cfg, {}), []);
+}
+
 console.log(`\n${pass} ok, ${fail} fail`);
 process.exit(fail ? 1 : 0);
