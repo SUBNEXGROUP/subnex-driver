@@ -6,16 +6,35 @@
     <meta name="robots" content="noindex, nofollow" />
     <meta name="referrer" content="no-referrer" />
     <title>Confirm your collection</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
     <style>
+      /* Две темы: клиентам с сайта — тёмная в стиле subnex.co.uk, партнёрским — светлая, как раньше. */
       :root {
+        --bg: #f3f6f4;
+        --card: #ffffff;
         --ink: #17201b;
         --muted: #5f6b64;
         --line: #dfe6e1;
-        --bg: #f3f6f4;
-        --card: #ffffff;
+        --soft: #f3f6f4;
         --green: #1f9d55;
-        --green-dark: #17804a;
+        --green-ink: #ffffff;
         --red: #b3261e;
+        --head: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+        --body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      }
+      body.site {
+        --bg: #0d0d1a;
+        --card: #1c1c30;
+        --ink: #ffffff;
+        --muted: #8888aa;
+        --line: #2a2a44;
+        --soft: #12121f;
+        --green: #2ecc71;
+        --green-ink: #0a1a0d;
+        --red: #ff6b6b;
+        --head: 'Poppins', Arial, sans-serif;
+        --body: 'Inter', Arial, sans-serif;
       }
       * {
         box-sizing: border-box;
@@ -25,75 +44,128 @@
         min-height: 100vh;
         background: var(--bg);
         color: var(--ink);
-        font:
-          16px/1.5 -apple-system,
-          BlinkMacSystemFont,
-          'Segoe UI',
-          Roboto,
-          Arial,
-          sans-serif;
+        font: 16px/1.55 var(--body);
         display: flex;
-        align-items: flex-start;
-        justify-content: center;
-        padding: 40px 16px;
+        flex-direction: column;
+        align-items: center;
+        padding: 32px 16px;
+      }
+      .logo {
+        display: none;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        max-width: 480px;
+        margin-bottom: 18px;
+        text-decoration: none;
+      }
+      body.site .logo {
+        display: flex;
+      }
+      .logo img {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+      }
+      .logo b {
+        display: block;
+        font: 800 18px/1.1 var(--head);
+        color: #fff;
+      }
+      .logo small {
+        display: block;
+        font: 700 10px/1.2 var(--head);
+        letter-spacing: 3px;
+        color: var(--green);
       }
       .card {
         width: 100%;
-        max-width: 460px;
+        max-width: 480px;
         background: var(--card);
         border: 1px solid var(--line);
-        border-radius: 16px;
-        padding: 28px 24px;
-        box-shadow: 0 8px 30px rgba(23, 32, 27, 0.06);
+        border-radius: 22px;
+        padding: 30px 26px;
       }
-      .brand {
-        font-size: 13px;
-        font-weight: 700;
-        letter-spacing: 0.08em;
+      .eyebrow {
+        font: 700 11px/1 var(--head);
+        letter-spacing: 3px;
         text-transform: uppercase;
         color: var(--green);
-        margin-bottom: 14px;
+        margin-bottom: 12px;
       }
       h1 {
-        font-size: 22px;
-        line-height: 1.25;
+        font: 800 25px/1.2 var(--head);
+        letter-spacing: -0.4px;
+        margin: 0 0 12px;
+      }
+      p {
         margin: 0 0 16px;
       }
-      .when {
-        background: var(--bg);
-        border-radius: 12px;
-        padding: 14px 16px;
-        margin: 0 0 18px;
+      .muted {
+        color: var(--muted);
       }
-      .when b {
+      .info {
+        background: var(--soft);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        margin: 18px 0 20px;
+      }
+      .info div {
+        padding: 13px 16px;
+      }
+      .info div + div {
+        border-top: 1px solid var(--line);
+      }
+      .info small {
         display: block;
-        font-size: 19px;
-      }
-      .when span {
+        font-size: 11px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
         color: var(--muted);
+        margin-bottom: 3px;
       }
-      .addr {
-        color: var(--muted);
-        margin: 0 0 22px;
+      .info b {
+        font-size: 16px;
       }
       button {
         width: 100%;
         border: 0;
-        border-radius: 10px;
+        border-radius: 100px;
         background: var(--green);
-        color: #fff;
-        font: inherit;
-        font-weight: 700;
-        font-size: 17px;
-        padding: 15px 18px;
+        color: var(--green-ink);
+        font: 700 16px/1 var(--head);
+        padding: 16px 18px;
         cursor: pointer;
-      }
-      button:hover {
-        background: var(--green-dark);
       }
       button:disabled {
         opacity: 0.6;
         cursor: default;
+      }
+      .other {
+        margin-top: 22px;
+        padding-top: 18px;
+        border-top: 1px solid var(--line);
+      }
+      .other h2 {
+        font: 700 15px/1.3 var(--head);
+        margin: 0 0 10px;
+      }
+      .days {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .days button {
+        background: transparent;
+        color: var(--ink);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        font: 600 14px/1.3 var(--body);
+        padding: 12px 10px;
+      }
+      .days button:hover {
+        border-color: var(--green);
+        color: var(--green);
       }
       .note {
         font-size: 14px;
@@ -101,20 +173,37 @@
         margin: 16px 0 0;
       }
       .ok {
-        color: var(--green-dark);
+        color: var(--green);
       }
       .bad {
         color: var(--red);
       }
-      .spin {
+      .foot {
+        margin-top: 18px;
+        font-size: 12px;
         color: var(--muted);
+        text-align: center;
+      }
+      .foot a {
+        color: var(--green);
+        text-decoration: none;
+      }
+      @media (max-width: 380px) {
+        .days {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>
   <body>
+    <a class="logo" href="https://subnex.co.uk"
+      ><img src="https://subnex.co.uk/favicon.png" alt="" />
+      <span><b>SUBNEX</b><small>GROUP</small></span></a
+    >
     <main class="card" id="card" aria-live="polite">
-      <p class="spin">Loading your collection…</p>
+      <p class="muted">Loading your collection…</p>
     </main>
+    <div class="foot" id="foot"></div>
     <script src="config.js"></script>
     <script>
       (function () {
@@ -127,62 +216,85 @@
             (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
           );
 
-        async function rpc(action) {
+        async function rpc(action, day) {
           const cfg = window.SUBNEX_CONFIG || {};
+          const body = { p_token: token, p_action: action };
+          if (day) body.p_day = day;
           const res = await fetch(cfg.url.replace(/\/+$/, '') + '/rest/v1/rpc/subnex_email_confirm', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', apikey: cfg.key, Authorization: 'Bearer ' + cfg.key },
-            body: JSON.stringify({ p_token: token, p_action: action }),
+            body: JSON.stringify(body),
           });
           if (!res.ok) throw new Error('HTTP ' + res.status);
           return res.json();
         }
 
-        const head = (d) => `<div class="brand">${esc(d.brand || 'SUBNEX')}</div>`;
-        const when = (d) => (d.day_text ? `<div class="when"><b>${esc(d.day_text)}</b></div>` : '');
-        const addr = (d) => (d.address ? `<p class="addr">${esc(d.address)}</p>` : '');
+        const brand = (d) => (d.site ? '' : `<div class="eyebrow">${esc(d.brand || 'SUBNEX')}</div>`);
+        const info = (d, withBags) =>
+          '<div class="info">' +
+          (d.day_text ? `<div><small>Collection date</small><b>${esc(d.day_text)}</b></div>` : '') +
+          (d.address ? `<div><small>Collection address</small><b>${esc(d.address)}</b></div>` : '') +
+          (withBags && d.bags ? `<div><small>Bags</small><b>${esc(d.bags)}</b></div>` : '') +
+          '</div>';
         const reply = '<p class="note">If you have any questions, just reply to our email.</p>';
 
         function show(d) {
+          if (d.site) {
+            document.body.classList.add('site');
+            document.getElementById('foot').innerHTML =
+              'SUBNEX Group · Free home clothing collection across South Wales<br><a href="https://subnex.co.uk">subnex.co.uk</a>';
+          }
           if (d.state === 'sent' && d.ok) {
+            const opts = Array.isArray(d.options) ? d.options : [];
             card.innerHTML =
-              head(d) +
+              brand(d) +
+              (d.site ? '<div class="eyebrow">— Your collection date —</div>' : '') +
               '<h1>Confirm your clothing collection</h1>' +
-              when(d) +
-              addr(d) +
-              '<button id="go">Confirm collection</button>' +
-              '<p class="note">If this day does not suit you, just reply to our email and tell us which day works better.</p>';
-            document.getElementById('go').addEventListener('click', confirm);
+              info(d, true) +
+              '<button id="go">Confirm this date</button>' +
+              (opts.length
+                ? '<div class="other"><h2>Does another day suit you better?</h2><p class="muted" style="font-size:14px">These are the days we collect in your area. Tap one to book it instead.</p><div class="days">' +
+                  opts.map((o) => `<button data-day="${esc(o.day)}">${esc(o.day_text)}</button>`).join('') +
+                  '</div></div>'
+                : '<p class="note">If this day does not suit you, just reply to our email and tell us which day works better.</p>');
+            document.getElementById('go').addEventListener('click', () => confirm(null));
+            card.querySelectorAll('[data-day]').forEach((b) => b.addEventListener('click', () => confirm(b.dataset.day)));
           } else if (d.state === 'confirmed') {
             card.innerHTML =
-              head(d) +
+              brand(d) +
+              (d.site ? '<div class="eyebrow">— Booking confirmed —</div>' : '') +
               `<h1 class="ok">${d.already ? 'Already confirmed' : 'Thank you — your collection is confirmed'}</h1>` +
-              when(d) +
-              addr(d) +
-              '<p>Please have your bags ready from the start of the day and leave them where we can see them from the street.</p>' +
+              info(d, false) +
+              '<p>On the morning of your collection we will send you a time window. Please leave your bags out that morning where we can see them from the street.</p>' +
               reply;
+          } else if (d.state === 'day_taken') {
+            card.insertAdjacentHTML(
+              'beforeend',
+              '<p class="note bad">Sorry, that day has just filled up. Please choose another day.</p>',
+            );
+            document.querySelectorAll('#card button').forEach((b) => (b.disabled = false));
           } else if (d.state === 'invalid') {
             card.innerHTML =
               '<h1 class="bad">This link does not work</h1><p>Please open the link from our email again, or reply to the email and we will help.</p>';
           } else {
             card.innerHTML =
-              head(d) +
+              brand(d) +
               '<h1 class="bad">This date is no longer available</h1>' +
-              when(d) +
-              addr(d) +
+              info(d, false) +
               '<p>Please reply to our email and we will arrange a new date for your collection.</p>';
           }
         }
 
-        async function confirm() {
-          const b = document.getElementById('go');
-          b.disabled = true;
-          b.textContent = 'Confirming…';
+        async function confirm(day) {
+          const buttons = document.querySelectorAll('#card button');
+          buttons.forEach((b) => (b.disabled = true));
+          const go = document.getElementById('go');
+          if (go && !day) go.textContent = 'Confirming…';
           try {
-            show(await rpc('confirm'));
+            show(await rpc('confirm', day));
           } catch (e) {
-            b.disabled = false;
-            b.textContent = 'Confirm collection';
+            buttons.forEach((b) => (b.disabled = false));
+            if (go) go.textContent = 'Confirm this date';
             card.insertAdjacentHTML('beforeend', '<p class="note bad">Something went wrong. Please try again in a minute.</p>');
           }
         }
