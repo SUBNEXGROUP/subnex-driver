@@ -163,6 +163,13 @@
         font: 600 14px/1.3 var(--body);
         padding: 12px 10px;
       }
+      button.danger {
+        background: transparent;
+        color: var(--red);
+        border: 1px solid var(--red);
+        font-size: 15px;
+        padding: 13px 16px;
+      }
       .days button:hover {
         border-color: var(--green);
         color: var(--green);
@@ -260,13 +267,41 @@
             document.getElementById('go').addEventListener('click', () => confirm(null));
             card.querySelectorAll('[data-day]').forEach((b) => b.addEventListener('click', () => confirm(b.dataset.day)));
           } else if (d.state === 'confirmed') {
+            const opts = Array.isArray(d.options) ? d.options : [];
+            const manage = d.site && d.manage;
             card.innerHTML =
               brand(d) +
               (d.site ? '<div class="eyebrow">— Booking confirmed —</div>' : '') +
-              `<h1 class="ok">${d.already ? 'Already confirmed' : 'Thank you — your collection is confirmed'}</h1>` +
-              info(d, false) +
+              `<h1 class="ok">${d.changed ? 'Your new date is confirmed' : d.already ? 'Your collection is booked' : 'Thank you — your collection is confirmed'}</h1>` +
+              info(d, true) +
               '<p>On the morning of your collection we will send you a time window. Please leave your bags out that morning where we can see them from the street.</p>' +
-              reply;
+              (manage && opts.length
+                ? '<div class="other"><h2>Need a different day?</h2><p class="muted" style="font-size:14px">These are the days we collect in your area. Tap one to move your collection.</p><div class="days">' +
+                  opts.map((o) => `<button data-move="${esc(o.day)}">${esc(o.day_text)}</button>`).join('') +
+                  '</div></div>'
+                : '') +
+              (manage
+                ? '<div class="other"><h2>Can no longer make it?</h2><button id="cancel" class="danger">Cancel my collection</button></div>'
+                : reply);
+            card.querySelectorAll('[data-move]').forEach((b) => b.addEventListener('click', () => act('change', b.dataset.move)));
+            const c = document.getElementById('cancel');
+            if (c)
+              c.addEventListener('click', () => {
+                if (window.confirm('Cancel your collection on ' + (d.day_text || 'this day') + '?')) act('cancel', null);
+              });
+          } else if (d.state === 'cancelled') {
+            card.innerHTML =
+              brand(d) +
+              (d.site ? '<div class="eyebrow">— Booking cancelled —</div>' : '') +
+              '<h1>Your collection has been cancelled</h1>' +
+              info(d, false) +
+              '<p>No problem — we will not come. If you would like a collection in the future, you can book again any time.</p>' +
+              '<button onclick="location.href=\'https://subnex.co.uk/#book\'">Book a new collection</button>';
+          } else if (d.state === 'locked') {
+            card.insertAdjacentHTML(
+              'beforeend',
+              '<p class="note bad">Your collection is already on its way today, so it can no longer be changed online. Please reply to our email.</p>',
+            );
           } else if (d.state === 'day_taken') {
             card.insertAdjacentHTML(
               'beforeend',
@@ -282,6 +317,17 @@
               '<h1 class="bad">This date is no longer available</h1>' +
               info(d, false) +
               '<p>Please reply to our email and we will arrange a new date for your collection.</p>';
+          }
+        }
+
+        async function act(action, day) {
+          const buttons = document.querySelectorAll('#card button');
+          buttons.forEach((b) => (b.disabled = true));
+          try {
+            show(await rpc(action, day));
+          } catch (e) {
+            buttons.forEach((b) => (b.disabled = false));
+            card.insertAdjacentHTML('beforeend', '<p class="note bad">Something went wrong. Please try again in a minute.</p>');
           }
         }
 
@@ -305,7 +351,8 @@
         }
         rpc('peek')
           .then(show)
-          .catch(() => {
+          .catch((e) => {
+            console.error(e);
             card.innerHTML = '<h1 class="bad">Something went wrong</h1><p>Please try again in a minute.</p>';
           });
       })();
