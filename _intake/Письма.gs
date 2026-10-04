@@ -28,6 +28,19 @@ function письмаСервер(action, data) {
   return JSON.parse(body);
 }
 
+/** Адрес отправителя: если сервер просит отправить с другого адреса (collections@subnex.co.uk)
+ *  и этот адрес подключён к ящику как «Отправлять письма как», письмо уходит с него.
+ *  Если не подключён — уходит с этого ящика, но ответ клиента придёт на нужный адрес. */
+function письмоОпции(job) {
+  const opts = { htmlBody: job.html, name: job.from_name };
+  if (job.from_email) {
+    const aliases = GmailApp.getAliases().map(function (x) { return String(x).toLowerCase(); });
+    if (aliases.indexOf(String(job.from_email).toLowerCase()) >= 0) opts.from = job.from_email;
+    else opts.replyTo = job.from_email;
+  }
+  return opts;
+}
+
 /** Рабочая функция: её запускает автозапуск каждые 5 минут. */
 function отправлятьПисьма() {
   const lock = LockService.getScriptLock();
@@ -36,7 +49,7 @@ function отправлятьПисьма() {
     const jobs = (письмаСервер('claim', { limit: ПИСЕМ_ЗА_РАЗ }).jobs) || [];
     jobs.forEach(function (job) {
       try {
-        GmailApp.sendEmail(job.to, job.subject, job.text, { htmlBody: job.html, name: job.from_name });
+        GmailApp.sendEmail(job.to, job.subject, job.text, письмоОпции(job));
         письмаСервер('done', { id: job.id, ok: true });
       } catch (e) {
         const text = String(e && e.message ? e.message : e);
@@ -58,6 +71,9 @@ function проверитьОтправкуПисем() {
   Logger.log('Связь с приложением есть. Письма включены в приложении: ' + (r.enabled ? 'да' : 'НЕТ') +
              '. Ждут отправки: ' + r.pending + '.');
   Logger.log('Письма будут уходить с ящика: ' + Session.getEffectiveUser().getEmail());
+  const aliases = GmailApp.getAliases();
+  Logger.log('Подключённые адреса «Отправлять как»: ' + (aliases.length ? aliases.join(', ') : 'нет') +
+             '. Для писем «заявка принята» нужен collections@subnex.co.uk.');
   Logger.log('Сегодня Gmail ещё разрешает отправить: ' + MailApp.getRemainingDailyQuota() + ' писем.');
 }
 
