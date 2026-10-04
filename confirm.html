@@ -220,7 +220,7 @@
           const cfg = window.SUBNEX_CONFIG || {};
           const body = { p_token: token, p_action: action };
           if (day) body.p_day = day;
-          const res = await fetch(cfg.url.replace(/\/+$/, '') + '/rest/v1/rpc/subnex_email_confirm', {
+          const res = await fetch(cfg.url.replace(/\/+$/, '') + '/rest/v1/rpc/subnex_email_choose', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', apikey: cfg.key, Authorization: 'Bearer ' + cfg.key },
             body: JSON.stringify(body),

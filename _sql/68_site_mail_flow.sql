@@ -77,7 +77,7 @@ begin
   rows:=jsonb_build_array(jsonb_build_array('Collection date',day_txt),jsonb_build_array('Collection address',a.text));
   tip:='Please leave your bags out in the morning where we can see them from the street. Tomorrow morning we will email you a time window. If your plans have changed, just reply to this email.'; step:=3;
  elsif p_kind='eta' then
-  subj:='We are collecting today between '||coalesce(win,'—'); eyebrow:='Collection today'; h1:='We will be with you between '||coalesce(win,'—');
+  subj:='We are collecting today between '||coalesce(replace(win,' – ',' and '),'—'); eyebrow:='Collection today'; h1:='We will be with you between '||coalesce(replace(win,' – ',' and '),'—');
   intro:='Good morning, '||first||'. Your collection is today and our driver is on the way.';
   rows:=jsonb_build_array(jsonb_build_array('Arrival window',coalesce(win,'—')),jsonb_build_array('Collection address',a.text));
   tip:='Please make sure your bags are outside and easy to see from the street. If anything has changed, just reply to this email.'; step:=3;
@@ -120,13 +120,13 @@ begin
  h:='<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
   ||'<meta name="color-scheme" content="dark light"><meta name="supported-color-schemes" content="dark light"></head>'
   ||'<body style="margin:0;padding:0;background:#0D0D1A">'
-  ||'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#0D0D1A" style="background:#0D0D1A"><tr><td align="center" style="padding:28px 12px">'
+  ||'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#0D0D1A" style="background:#0D0D1A"><tr><td align="center" style="padding:24px 10px">'
   ||'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px">'
   ||'<tr><td style="padding:0 4px 20px 4px"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>'
   ||'<td style="padding-right:10px"><img src="https://subnex.co.uk/favicon.png" width="40" height="40" alt="SUBNEX" style="display:block;border:0;border-radius:50%"></td>'
   ||'<td style="font-family:Poppins,Arial,Helvetica,sans-serif;line-height:1.1"><div style="color:#FFFFFF;font-size:18px;font-weight:800;letter-spacing:-.2px">SUBNEX</div>'
   ||'<div style="color:#2ECC71;font-size:10px;font-weight:700;letter-spacing:3px">GROUP</div></td></tr></table></td></tr>'
-  ||'<tr><td bgcolor="#1C1C30" style="background:#1C1C30;border:1px solid #2A2A44;border-radius:22px;padding:34px 30px">'
+  ||'<tr><td bgcolor="#1C1C30" style="background:#1C1C30;border:1px solid #2A2A44;border-radius:22px;padding:28px 22px">'
   ||'<div style="font-family:Poppins,Arial,Helvetica,sans-serif;color:#2ECC71;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;margin-bottom:12px">&#8212;&nbsp; '||subnex_private.html_esc(eyebrow)||' &nbsp;&#8212;</div>'
   ||'<h1 style="margin:0 0 14px 0;font-family:Poppins,Arial,Helvetica,sans-serif;color:#FFFFFF;font-size:26px;line-height:1.2;font-weight:800;letter-spacing:-.4px">'||subnex_private.html_esc(h1)||'</h1>'
   ||'<p style="margin:0 0 24px 0;font-family:Arial,Helvetica,sans-serif;color:#B8B8D0;font-size:15px;line-height:1.6">'||subnex_private.html_esc(intro)||'</p>'
@@ -257,13 +257,12 @@ begin
  end if;
  return new;
 end $$;
-drop trigger if exists subnex_site_status_mail on public.addresses;
-create trigger subnex_site_status_mail after update of status on public.addresses
+create or replace trigger subnex_site_status_mail after update of status on public.addresses
  for each row execute function subnex_private.site_status_mail();
 
 -- Страница подтверждения: другие возможные дни по зоне и подтверждение выбранного дня.
-drop function if exists public.subnex_email_confirm(text,text);
-create or replace function public.subnex_email_confirm(p_token text, p_action text default 'peek', p_day date default null) returns jsonb
+-- Новая функция с выбором дня; страница confirm.html вызывает её.
+create or replace function public.subnex_email_choose(p_token text, p_action text default 'peek', p_day date default null) returns jsonb
 language plpgsql security definer set search_path to '' as $$
 declare e subnex_private.email_offers; a public.addresses; h subnex_private.dispatch_holds; w jsonb; info jsonb; live boolean; g text; g2 text;
  opts jsonb:='[]'; days date[]; r jsonb;
@@ -331,8 +330,9 @@ begin
  perform subnex_private.email_enqueue(e.id,'confirmed','confirmed:'||e.id);
  return info||'{"ok":true,"state":"confirmed"}';
 end $$;
-revoke all on function public.subnex_email_confirm(text,text,date) from public;
-grant execute on function public.subnex_email_confirm(text,text,date) to anon, authenticated;
+revoke all on function public.subnex_email_choose(text,text,date) from public;
+grant execute on function public.subnex_email_choose(text,text,date) to anon, authenticated;
+-- Старая public.subnex_email_confirm(text,text) не меняется: старые ссылки работают как раньше.
 
 revoke all on function subnex_private.site_email(uuid) from public;
 revoke all on function subnex_private.site_mail(text,uuid,jsonb) from public;
