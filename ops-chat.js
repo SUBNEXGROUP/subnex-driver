@@ -68,8 +68,14 @@
   const resultStatuses = ['done', 'noanswer', 'problem'];
   const collectionState = (a) => collectionStates[a?.status] || a?.status || T('Не указан');
   const isClosed = (a) => !!a && (a.status === 'cancelled' || !!a.collection_cancelled_at);
+  /* Переписка по почте: клиент с сайта ответил на наше письмо. Ответ из чата уходит письмом
+     с collections@subnex.co.uk, а не SMS; дату клиент меняет сам по ссылке из писем. */
+  const isMail = (t) => String(t?.phone || '').startsWith('mailto:');
+  const whoLabel = (t) => (isMail(t) ? '✉ ' + t.phone.slice(7) : t?.phone || '');
   const threadState = (t) =>
-    (t.closed_request && !t.address_id) || t.address_status === 'cancelled'
+    isMail(t)
+      ? T('Почта')
+      : (t.closed_request && !t.address_id) || t.address_status === 'cancelled'
       ? T('Заявка закрыта')
       : resultStatuses.includes(t.address_status)
         ? collectionStates[t.address_status]
@@ -234,6 +240,8 @@
     pending_auto: T('Ожидает автоматической отправки'),
     auto_skipped: T('Не отправлено — заявка или условия изменились'),
     received: T('Получено'),
+    email_queued: T('Письмо в очереди'),
+    email_sent: T('Письмо отправлено'),
     dispatching: T('Отправка начата — ожидаем статус'),
     unknown: T('Результат неизвестен — проверьте Twilio'),
     accepted: T('Принято Twilio'),
@@ -336,7 +344,7 @@
         (this.inline
           ? ''
           : `<header class="oc-top"><div class="oc-brand">SUBNEX <span class="oc-brand-acc">SMS</span><small>${T('Переписка и сборы')}</small></div><nav>${this.admin ? `<button data-act="settings">${T('График и доступ')}</button>` : ''}<button data-act="close">${T('Закрыть ×')}</button></nav></header>`) +
-        `<div class="oc-notice" role="status"></div><div class="oc-body"><aside class="oc-side"><div class="oc-filters"><div class="oc-row oc-between"><b>${T('Переписки')}</b><button class="oc-primary" data-act="new">${T('+ Новая')}</button></div><input id="oc-search" type="search" placeholder="${T('Телефон или адрес')}" aria-label="${T('Поиск переписки')}"><select id="oc-source" aria-label="${T('Категория')}"><option value="">${T('Все категории')}</option>${Object.entries(
+        `<div class="oc-notice" role="status"></div><div class="oc-body"><aside class="oc-side"><div class="oc-filters"><div class="oc-row oc-between"><b>${T('Переписки')}</b><button class="oc-primary" data-act="new">${T('+ Новая')}</button></div><input id="oc-search" type="search" placeholder="${T('Телефон, почта или адрес')}" aria-label="${T('Поиск переписки')}"><select id="oc-source" aria-label="${T('Категория')}"><option value="">${T('Все категории')}</option>${Object.entries(
           sources,
         )
           .map(([v, n]) => `<option value="${v}">${n}</option>`)
@@ -458,7 +466,7 @@
           list
             .map(
               (t) =>
-                `<button data-act="thread" data-id="${esc(t.id)}" class="oc-thread ${t.id === this.threadId ? 'active' : ''}"><strong>${t.needs_attention ? '<span class="oc-dot"></span>' : ''}${esc(t.phone)}</strong><p>${esc(t.address || t.closed_request?.text || T('Адрес не привязан'))}</p><p>${esc(t.last_body || T('Сообщений пока нет'))}</p><small>${esc(threadState(t))} · ${esc(ukTime(t.last_activity))}</small></button>`,
+                `<button data-act="thread" data-id="${esc(t.id)}" class="oc-thread ${t.id === this.threadId ? 'active' : ''}"><strong>${t.needs_attention ? '<span class="oc-dot"></span>' : ''}${esc(whoLabel(t))}</strong><p>${esc(t.address || t.email_ref?.text || t.closed_request?.text || T('Адрес не привязан'))}</p><p>${esc(t.last_body || T('Сообщений пока нет'))}</p><small>${esc(threadState(t))} · ${esc(ukTime(t.last_activity))}</small></button>`,
             )
             .join('') || `<div class="oc-empty">${T('Переписок по этому фильтру нет.')}</div>`;
         this.$('[data-act=prev]').disabled = this.offset === 0;
@@ -548,6 +556,14 @@
     }
     renderHead() {
       const { thread: t, address: a, offer: o } = this.data;
+      if (isMail(t)) {
+        const r = t.email_ref || {};
+        this.$('.oc-head').innerHTML =
+          `<div class="oc-head-row"><button class="oc-back" data-act="back">←</button><div class="oc-who"><strong>${esc(whoLabel(t))}</strong><span class="oc-addr" title="${esc(r.text || '')}">${esc([r.name, r.text].filter(Boolean).join(' · ') || T('Клиент с сайта'))}</span></div><div class="oc-head-acts">${this.admin ? `<button data-act="assign">${T('Водитель')}</button>` : ''}<button data-act="refresh" aria-label="${T('Обновить переписку')}" title="${T('Обновить переписку')}">↻</button><button data-act="read" title="${T('Отметить просмотренным')}" aria-label="${T('Отметить просмотренным')}">✓</button></div></div>` +
+          `<div class="oc-chips"><span class="oc-chip">✉ ${T('Почта · клиент с сайта')}</span></div>` +
+          `<p class="oc-help">${T('Клиент ответил на наше письмо. Ваш ответ уйдёт письмом с collections@subnex.co.uk в ту же цепочку. Дату и отмену клиент меняет сам по ссылке из писем; заявка — в разделе «Адреса».')}</p>`;
+        return;
+      }
       const c = !a ? t.closed_request : isClosed(a) ? { text: a.text, source: a.collection_source, reason: a.cancellation_reason } : null;
       const finished = !!a && resultStatuses.includes(a.status),
         closed = !!c;
@@ -579,7 +595,7 @@
         messages
           .map(
             (m) =>
-              `<article class="oc-message ${m.direction === 'out' ? 'out' : ''}"><div class="oc-text">${esc(m.body)}</div>${m.num_media ? `<div class="oc-help">${T('Вложений:')} ` + m.num_media + ` ${T('(файлы не загружены)')}</div>` : ''}<footer><span class="${['unknown', 'failed', 'undelivered', 'dispatching'].includes(m.status) ? 'oc-error' : ''}">${esc(statuses[m.status] || m.status)}${m.error_code ? ' · ' + esc(m.error_code) + (smsErrorText(m.error_code) ? ' · ' + esc(smsErrorText(m.error_code)) : '') : ''}</span> · ${esc(ukDate(m.created_at))} ${esc(ukTime(m.created_at))}</footer></article>`,
+              `<article class="oc-message ${m.direction === 'out' ? 'out' : ''}">${m.direction === 'in' && m.request_payload?.channel === 'email' && m.request_payload.subject ? `<div class="oc-help">✉ ${esc(m.request_payload.subject)}</div>` : ''}<div class="oc-text">${esc(m.body)}</div>${m.num_media ? `<div class="oc-help">${T('Вложений:')} ` + m.num_media + ` ${T('(файлы не загружены)')}</div>` : ''}<footer><span class="${['unknown', 'failed', 'undelivered', 'dispatching'].includes(m.status) ? 'oc-error' : ''}">${esc(statuses[m.status] || m.status)}${m.error_code ? ' · ' + esc(m.error_code) + (smsErrorText(m.error_code) ? ' · ' + esc(smsErrorText(m.error_code)) : '') : ''}</span> · ${esc(ukDate(m.created_at))} ${esc(ukTime(m.created_at))}</footer></article>`,
           )
           .join('');
       if (box.innerHTML !== html) box.innerHTML = html || `<div class="oc-empty">${T('Напишите первое сообщение.')}</div>`;
@@ -615,7 +631,7 @@
       const plannerNote = this.planner ? `<p class=oc-help>${T('Интервал выбран по маршруту. Перед отправкой проверим его ещё раз.')}</p>` : '';
       this.$('.oc-compose').innerHTML =
         this.mode === 'reply'
-          ? `${plannerNote}<div class="oc-bar">${more}<textarea id="oc-body" rows="1" maxlength="1000" placeholder="${T('Написать SMS…')}"></textarea><button class="oc-primary oc-send" id="oc-send" data-act="send" title="${T('Отправить (Ctrl+Enter)')}" ${t.opted_out ? 'disabled' : ''}>${T('Отправить')}</button></div><div class="oc-bar-foot"><span class="oc-muted" id="oc-count"></span><span class="oc-muted">${T('Ctrl+Enter — отправить · SMS уходит с номера компании')}</span></div>`
+          ? `${plannerNote}<div class="oc-bar">${more}<textarea id="oc-body" rows="1" maxlength="1000" placeholder="${isMail(t) ? T('Написать письмо…') : T('Написать SMS…')}"></textarea><button class="oc-primary oc-send" id="oc-send" data-act="send" title="${T('Отправить (Ctrl+Enter)')}" ${t.opted_out ? 'disabled' : ''}>${T('Отправить')}</button></div><div class="oc-bar-foot"><span class="oc-muted" id="oc-count"></span><span class="oc-muted">${isMail(t) ? T('Ctrl+Enter — отправить · письмо уйдёт с collections@subnex.co.uk') : T('Ctrl+Enter — отправить · SMS уходит с номера компании')}</span></div>`
           : `${plannerNote}<div class="oc-controls"><button data-act="mode" data-mode="reply">← ${T('Сообщение')}</button><button data-act="mode" data-mode="offer" ${!schedulable ? 'disabled' : ''} class="${isOffer ? 'active' : ''}">${T('Предложить время')}</button><button data-act="mode" data-mode="confirm" ${!schedulable || a.collection_start ? 'disabled' : ''} class="${manual ? 'active' : ''}">${T('Подтвердить вручную')}</button></div>${isOffer || manual ? `<div class="oc-slots"><label>${T('Дата')}<input id="oc-day" type="date" min="${ukDate()}" value="${esc(draft?.day || a?.date || (this.data.offer?.starts_at ? ukDate(this.data.offer.starts_at) : ukDate()))}"></label><label>${T('С')}<input id="oc-start" type="time" value="${esc(draft?.start || (a?.collection_start ? ukTime(a.collection_start) : this.data.offer?.starts_at ? ukTime(this.data.offer.starts_at) : '09:00'))}"></label><label>${T('До')}<input id="oc-end" type="time" value="${esc(draft?.end || (a?.collection_end ? ukTime(a.collection_end) : this.data.offer?.ends_at ? ukTime(this.data.offer.ends_at) : '09:30'))}"></label></div><div class="oc-help">${this.dayOnly ? T('Время Великобритании. Клиенту обещается день, окно прибытия уйдёт утром при старте маршрута.') : T('Время Великобритании. Новый интервал прибытия — 30 минут; время сбора учитывается отдельно.')}</div>${(isOffer || manual) && ['subnex', 'partner', 'missing'].includes(a?.collection_source) ? `<label class="oc-dayonly" style="margin-top:8px"><input id="oc-dayonly" type="checkbox" ${this.dayOnly ? 'checked' : ''}>${T('Только дата — окно прибытия придёт клиенту утром, когда водитель начнёт маршрут')}</label>` : ''}` : ''}${manual ? `<label><input id="oc-agreed" type="checkbox">${this.dayOnly ? T('Клиент согласовал эту дату в переписке или по телефону.') : T('Клиент согласовал эту дату и время в переписке или по телефону.')}</label>${a?.date ? `<label style="margin-top:10px"><input id="oc-change-agreed" type="checkbox">${T('Клиент согласен изменить ранее назначенный срок.')}</label>` : ''}<p class="oc-help">${this.dayOnly ? T('Сбор встанет на этот день без времени. Окно прибытия уйдёт клиенту утром, когда водитель начнёт маршрут.') : T('Подтверждение добавит адрес в маршрут. Автоматическая SMS подтвердит запись клиенту.')}</p><button class="oc-green" id="oc-confirm" data-act="confirm">${T('Подтвердить и добавить в маршрут')}</button>` : `<label for="oc-body">${isOffer ? T('Текст предложения') : T('Сообщение клиенту')}</label><textarea id="oc-body" maxlength="1000" placeholder="${T('Текст SMS…')}"></textarea>${isOffer ? '<div class="oc-preview" id="oc-preview"></div>' : ''}<div class="oc-row oc-between" style="margin-top:8px"><span class="oc-muted" id="oc-count"></span><button class="oc-primary" id="oc-send" data-act="send" ${t.opted_out ? 'disabled' : ''}>${isOffer ? T('Отправить предложение') : T('Отправить SMS')}</button></div><p class="oc-help">${isOffer ? (a.date ? T('У клиента уже подтверждено время. Оно останется в силе, пока клиент не ответит YES на новое предложение.') : T('Адрес попадёт в маршрут после точного ответа YES. Другой ответ откроет ручное согласование.')) : T('SMS отправляется с номера компании. Статус «Доставлено» не подтверждает сбор.')}</p>`}`;
       const body = this.$('#oc-body');
       if (body) {

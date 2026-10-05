@@ -1381,6 +1381,16 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   'Создать ключ приёма? Заявки из почты будут назначаться водителю ':
     'Create an intake key? Requests from email will be assigned to driver ',
   'Почта партнёра': 'Partner email',
+  'Почта': 'Email',
+  'Письмо в очереди': 'Email queued',
+  'Письмо отправлено': 'Email sent',
+  'Телефон, почта или адрес': 'Phone, email or address',
+  'Клиент с сайта': 'Website customer',
+  'Почта · клиент с сайта': 'Email · website customer',
+  'Клиент ответил на наше письмо. Ваш ответ уйдёт письмом с collections@subnex.co.uk в ту же цепочку. Дату и отмену клиент меняет сам по ссылке из писем; заявка — в разделе «Адреса».':
+    'The customer replied to our email. Your reply goes by email from collections@subnex.co.uk in the same thread. The customer changes or cancels the date from the link in our emails; the request itself is in Addresses.',
+  'Написать письмо…': 'Write an email…',
+  'Ctrl+Enter — отправить · письмо уйдёт с collections@subnex.co.uk': 'Ctrl+Enter to send · the email goes from collections@subnex.co.uk',
   'Ключ скопирован': 'Key copied',
   'Удалить ключ? Скрипт почты перестанет добавлять заявки, пока вы не вставите новый ключ.':
     'Delete the key? The email script will stop adding requests until you paste a new key.',

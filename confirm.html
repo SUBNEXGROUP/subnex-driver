@@ -240,7 +240,11 @@
       (function () {
         'use strict';
         const card = document.getElementById('card');
-        const token = new URLSearchParams(location.search).get('t') || '';
+        const qs = new URLSearchParams(location.search);
+        /* ?t= — предложение или подтверждённый сбор; ?r= — новая запись по ссылке из письма
+           «не смогли забрать» / «отменено». После записи страница сама переходит на ?t= нового сбора. */
+        let token = qs.get('t') || '';
+        let rebook = token ? '' : qs.get('r') || '';
         const esc = (s) =>
           String(s == null ? '' : s).replace(
             /[&<>"']/g,
@@ -249,15 +253,28 @@
 
         async function rpc(action, day) {
           const cfg = window.SUBNEX_CONFIG || {};
-          const body = { p_token: token, p_action: action };
+          const body = { p_token: rebook || token, p_action: action };
           if (day) body.p_day = day;
-          const res = await fetch(cfg.url.replace(/\/+$/, '') + '/rest/v1/rpc/subnex_email_choose', {
+          const fn = rebook ? 'subnex_rebook' : 'subnex_email_choose';
+          const res = await fetch(cfg.url.replace(/\/+$/, '') + '/rest/v1/rpc/' + fn, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', apikey: cfg.key, Authorization: 'Bearer ' + cfg.key },
             body: JSON.stringify(body),
           });
           if (!res.ok) throw new Error('HTTP ' + res.status);
           return res.json();
+        }
+
+        /* С новой записи — на страницу управления этим сбором (перенос, отмена). */
+        async function toManage(mt, fresh) {
+          rebook = '';
+          token = mt;
+          try {
+            history.replaceState(null, '', location.pathname + '?t=' + mt);
+          } catch (e) {}
+          const d = await rpc('peek');
+          if (fresh) d.rebooked = true;
+          show(d);
         }
 
         const brand = (d) => (d.site ? '' : `<div class="eyebrow">${esc(d.brand || 'SUBNEX')}</div>`);
@@ -274,6 +291,37 @@
             document.body.classList.add('site');
             document.getElementById('foot').innerHTML =
               'SUBNEX Group · Free home clothing collection across South Wales<br><a href="https://subnex.co.uk">subnex.co.uk</a>';
+          }
+          if (rebook && /^[0-9a-f]{64}$/.test(d.manage_token || '') && (d.state === 'confirmed' || d.state === 'rebooked')) {
+            toManage(d.manage_token, d.state === 'confirmed').catch(() => {
+              card.innerHTML =
+                '<h1 class="ok">Your new collection is booked</h1>' + info(d, true) + '<p>We have sent you a confirmation email.</p>';
+            });
+            return;
+          }
+          if (d.state === 'rebook') {
+            const opts = Array.isArray(d.options) ? d.options : [];
+            card.innerHTML =
+              '<div class="eyebrow">— Book a new date —</div>' +
+              '<h1>Choose a new collection date</h1>' +
+              info(d, true) +
+              (opts.length
+                ? '<p class="muted" style="font-size:14px">These are the days we collect in your area. Tap one to choose it.</p><div class="days">' +
+                  opts.map((o) => `<button data-book="${esc(o.day)}">${esc(o.day_text)}</button>`).join('') +
+                  '</div>'
+                : '<p>We have no free dates in your area right now. Please reply to our email and we will arrange a collection for you.</p>');
+            card.querySelectorAll('[data-book]').forEach((b) =>
+              b.addEventListener('click', () => pick(b, 'Book ' + b.textContent, () => act('book', b.dataset.book), false, 'Choose a different day')),
+            );
+            return;
+          }
+          if (d.state === 'active') {
+            card.innerHTML =
+              '<div class="eyebrow">— Already booked —</div>' +
+              '<h1>You already have a collection booked</h1>' +
+              info(d, false) +
+              '<p>There is already an upcoming collection at this address. Please use the link in our latest email to see or change it, or just reply to the email.</p>';
+            return;
           }
           if (d.state === 'sent' && d.ok) {
             const opts = Array.isArray(d.options) ? d.options : [];
@@ -298,7 +346,7 @@
             card.innerHTML =
               brand(d) +
               (d.site ? '<div class="eyebrow">— Booking confirmed —</div>' : '') +
-              `<h1 class="ok">${d.changed ? 'Your new date is confirmed' : d.already ? 'Your collection is booked' : 'Thank you — your collection is confirmed'}</h1>` +
+              `<h1 class="ok">${d.rebooked ? 'Your new collection is booked' : d.changed ? 'Your new date is confirmed' : d.already ? 'Your collection is booked' : 'Thank you — your collection is confirmed'}</h1>` +
               info(d, true) +
               '<p>On the morning of your collection we will send you a time window. Please leave your bags out that morning where we can see them from the street.</p>' +
               (manage && opts.length
@@ -350,7 +398,7 @@
 
         /* Выбор дня или отмена — сначала только выделение и кнопка подтверждения под ним.
            Ничего не отправляется, пока клиент не нажмёт её; «Keep my current choice» всё отменяет. */
-        function pick(btn, label, run, danger) {
+        function pick(btn, label, run, danger, noLabel) {
           card.querySelectorAll('.pick').forEach((x) => x.remove());
           card.querySelectorAll('.sel').forEach((x) => x.classList.remove('sel'));
           btn.classList.add('sel');
@@ -358,7 +406,7 @@
           box.className = 'pick';
           box.innerHTML =
             `<button class="${danger ? 'danger solid' : ''}" data-yes>${esc(label)}</button>` +
-            '<button class="ghost" data-no>Keep my current choice</button>';
+            `<button class="ghost" data-no>${esc(noLabel || 'Keep my current choice')}</button>`;
           (btn.closest('.days') || btn).insertAdjacentElement('afterend', box);
           box.querySelector('[data-yes]').addEventListener('click', run);
           box.querySelector('[data-no]').addEventListener('click', () => {
@@ -393,10 +441,11 @@
           }
         }
 
-        if (!/^[0-9a-f]{64}$/.test(token)) {
+        if (!/^[0-9a-f]{64}$/.test(rebook || token)) {
           show({ state: 'invalid' });
           return;
         }
+        if (rebook) document.body.classList.add('site');
         rpc('peek')
           .then(show)
           .catch((e) => {

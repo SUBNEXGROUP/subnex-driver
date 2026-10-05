@@ -5,7 +5,7 @@
   "scripts": {
     "check": "node --check i18n.js && node --check ops-dispatch-core.js && node --check ops-dispatch.js && node --check ops-chat.js",
     "test:core": "node _test/core.test.mjs",
-    "test:gs": "node _test/gs.test.mjs",
+    "test:gs": "node _test/gs.test.mjs && node _test/site-mail.test.mjs",
     "test:i18n": "node _test/i18n.test.mjs",
     "i18n:wrap": "node _tools/i18n-wrap.mjs ops-dispatch-core.js --write --keys _tools/keys.json && node _tools/i18n-wrap.mjs ops-dispatch.js --write --keys _tools/keys.json && node _tools/i18n-wrap.mjs ops-chat.js --write --keys _tools/keys.json && node _tools/i18n-wrap.mjs admin.html --write --keys _tools/keys.json && node _tools/html-keys.mjs admin.html _tools/keys.json",
     "test:smoke": "node _test/smoke.mjs",
