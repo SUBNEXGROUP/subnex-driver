@@ -1192,6 +1192,25 @@
           ? T('Это не британский мобильный — SMS не уйдёт, связывайтесь по email.')
           : T('Телефона нет — SMS не уйдёт, связывайтесь по email.'),
       );
+    /* Тот же дом (индекс и номер дома совпали), но адрес записан иначе: «3 Birch Court, 3 Cardiff CF144PZ»
+       и «3 Birch Court Latteys Close CF14 4PZ». Такая заявка после добавления уходит во вкладку «Повторы»,
+       и раньше это происходило молча — казалось, что заявка пропала из очереди. */
+    const pc = postcode(row.text),
+      n = pc ? houseNumber(row.text) : '';
+    if (pc && n) {
+      const house = (a) => a && postcode(a.text) && key(postcode(a.text)) === key(pc) && houseNumber(a.text) === n;
+      const same = (existing || []).find(
+        (a) => ['new', 'planned'].includes(a.status) && house(a) && !samePlace(a.text, row.text) && !a.duplicate_ignored,
+      );
+      if (same)
+        out.push(
+          T('Похоже, это тот же дом, что и «') +
+            same.text +
+            '»' +
+            (same.date ? T(' — он уже стоит на ') + same.date.slice(8, 10) + '.' + same.date.slice(5, 7) : T(' — он уже в очереди')) +
+            T('. Эта заявка уйдёт во вкладку «Повторы». Если это другая квартира — укажите её номер.'),
+        );
+    }
     if (!p) return out;
     const twin = (existing || []).find(
       (a) => ['new', 'planned'].includes(a.status) && phone(a.phone) === p && !samePlace(a.text, row.text),

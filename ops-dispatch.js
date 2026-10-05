@@ -2028,11 +2028,21 @@
             if (this.importSignature && this.importSignature !== signature) this.importId = crypto.randomUUID();
             this.importSignature = signature;
             const r = await this.call('import', { request_id: this.importId, rows });
-            this.selected = new Set(r.ids.slice(0, 40));
             await this.reload();
             this.mode = 'queue';
             this.render();
-            this.notice(`${T('Добавлено:')} ${r.imported}${T('. Теперь можно подобрать время.')}`);
+            /* Повторы (тот же дом уже есть в заявках) в выбор не попадают: иначе водитель
+               поехал бы дважды. О них говорим прямо, а не прячем молча во вкладку. */
+            const parked = (r.ids || []).filter((id) => this.dupExtras && this.dupExtras.has(id));
+            this.selected = new Set((r.ids || []).filter((id) => !parked.includes(id)).slice(0, 40));
+            this.render();
+            this.notice(
+              `${T('Добавлено:')} ${r.imported}${T('. Теперь можно подобрать время.')}` +
+                (parked.length
+                  ? ` ${T('Во вкладку «Повторы» ушло:')} ${parked.length} ${T('— этот дом уже есть в заявках. Откройте «Повторы», чтобы сравнить.')}`
+                  : ''),
+              !!parked.length,
+            );
             await this.o.onChanged?.();
           } else if (act === 'calculate') await this.calculate();
           else if (act === 'reserve') {
