@@ -543,7 +543,7 @@
     service_minutes: 2,
     estimated_kg: 10,
     same_slot_minutes: 6,
-    day_penalty_minutes: 2,
+    day_penalty_minutes: 10,
   };
   const planParam = (config, k) => (Number.isFinite(+config[k]) ? +config[k] : PLAN_DEFAULTS[k]);
   const slaDeadline = (request, config) => {
