@@ -540,7 +540,7 @@
     sla_penalty: 90,
     max_wait: 15,
     cluster_penalty: 0,
-    service_minutes: 1,
+    service_minutes: 2,
     estimated_kg: 10,
     same_slot_minutes: 6,
     day_penalty_minutes: 2,
