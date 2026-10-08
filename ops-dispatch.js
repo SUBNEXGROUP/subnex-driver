@@ -127,6 +127,9 @@
     DAY_OUT_OF_RANGE: T('Этот день вне рассчитанного плана.'),
     START_CANCELLED: T('Старт отменён.'),
     PLAN_CHANGED: T('План изменился. Обновите расчёт.'),
+    EMAIL_OFFER_MISSING: T('Письмо с датой не найдено — обновите очередь.'),
+    EMAIL_OFFER_EXPIRED: T('Эта дата уже недоступна (день прошёл, начат или снят). Предложите новую.'),
+    EMAIL_OFFER_FAILED: T('Не удалось подтвердить — обновите очередь и попробуйте ещё раз.'),
   };
   /* Причина, по которой день не берёт адрес — словами, а не кодом. Заменяет
    бесполезное «места нет»: видно, какой перегон и почему не сходится. */
@@ -1006,6 +1009,10 @@
       };
       const acts = (a) => {
         const b = [];
+        /* Клиент ответил на письмо словами («да, пятница подходит») вместо кнопки — подтверждаем за него. */
+        const eo = a.email_offer && typeof a.email_offer === 'object' ? a.email_offer : null;
+        if (a.held_start && eo && eo.state === 'sent')
+          b.push(`<button class="od-primary" data-action="emailok" data-id="${a.id}">${T('Клиент подтвердил')}</button>`);
         if (a.hold_id && ['partner_whatsapp', 'missing'].includes(C.sourceOf(a)))
           b.push(`<button data-action="partner" data-id="${a.id}">${T('Согласовать')}</button>`);
         else if (a.hold_id || a.offer_state || a.date) b.push(`<button data-action="sms" data-id="${a.id}">SMS</button>`);
@@ -1900,6 +1907,23 @@
       }
       if (act === 'partner') {
         this.partner(a);
+        return;
+      }
+      if (act === 'emailok') {
+        this.dialog(
+          T('Подтвердить дату вручную'),
+          `<p><b>${esc(a.text)}</b><br>${esc(this.slotText(a))}</p><p class="od-muted">${T('Адрес встанет в маршрут на этот день, клиенту уйдёт письмо-подтверждение — как если бы он нажал кнопку в письме.')}</p><label><input id="od-email-agreed" type="checkbox"> ${T('Клиент согласился на эту дату (ответом на письмо, по телефону и т. п.).')}</label>`,
+          async (w) => {
+            if (!w.querySelector('#od-email-agreed').checked) throw new Error('AGREEMENT_REQUIRED');
+            const { error: err } = await this.sb.rpc('subnex_email_offer_confirm', { p_address_id: a.id });
+            if (err) throw err;
+            await this.reload();
+            this.render();
+            this.notice(T('Подтверждено. Клиенту уходит письмо-подтверждение.'));
+            await this.o.onChanged?.();
+          },
+          T('Подтвердить'),
+        );
         return;
       }
       if (act === 'edit') {
