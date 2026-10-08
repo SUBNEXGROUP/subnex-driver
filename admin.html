@@ -2168,7 +2168,7 @@
       <td class="num" style="white-space:nowrap">${esc(bagsLabel(a)) || '—'}</td>
       <td style="font-size:12.5px">${a.charity ? esc(a.charity) : '<span class="muted">—</span>'}</td>
       <td style="white-space:nowrap">${a.driver_id ? '<span class="dot" style="background:' + drvColor(a.driver_id) + '"></span>' + esc(drvName(a.driver_id)) : `<span style="color:var(--crit)">${T('не назначен')}</span>`}</td>
-      <td><span class="chip st-${a.status}">${ST(a.status)}</span>${a.kind === 'bank' && a.fill_level != null ? ' <span class="chip ghost">' + a.fill_level + ` ${T('кг')}</span>` : ''}</td>
+      <td><span class="chip st-${a.status}">${ST(a.status)}</span>${a.kind === 'bank' && a.fill_level != null ? ' <span class="chip ghost">' + a.fill_level + ` ${T('кг')}</span>` : ''}${a.kind !== 'bank' && a.bags_collected != null ? ' <span class="chip ghost">' + a.bags_collected + ` ${T('мешков')}</span>` : ''}</td>
     </tr>`,
             )
             .join('') || `<tr><td colspan="6" class="empty">${T('Ничего не найдено')}</td></tr>`;
@@ -4329,6 +4329,7 @@
         [E('Источник'), (r) => C.sourceNames[r.source] || r.source],
         ['Charity', (r) => r.charity],
         [E('Мешки'), (r) => r.bags],
+        [E('Забрали мешков'), (r) => r.bags_collected],
         [E('Телефон'), (r) => r.phone],
         [E('Контакт'), (r) => r.contact_name],
         ['Email', (r) => r.contact_email],
@@ -4580,6 +4581,7 @@
             T('Адрес'),
             'Charity',
             T('Мешки'),
+            T('Забрали мешков'),
             T('Клиент'),
             T('Заявка получена'),
             T('Согласование с клиентом'),
@@ -4601,6 +4603,7 @@
                     `<td style="min-width:200px"><b>${esc(r.text)}</b>${r.zone ? `<br><span class="muted" style="font-size:11.5px">${esc(r.zone)}</span>` : ''}</td>` +
                     `<td style="font-size:12.5px">${r.charity ? esc(r.charity) : dash}</td>` +
                     `<td style="font-size:12.5px;white-space:nowrap">${r.bags ? esc(r.bags) : dash}</td>` +
+                    `<td class="num" style="font-size:12.5px">${r.bags_collected != null ? esc(r.bags_collected) : dash}</td>` +
                     `<td style="font-size:12px">${[r.contact_name, r.phone, r.contact_email].filter(Boolean).map(esc).join('<br>') || dash}</td>` +
                     `<td class="mono" style="white-space:nowrap;font-size:12px">${r.received_at ? esc(tsShortL(r.received_at, L)) : dash}</td>` +
                     `<td style="font-size:12px">${esc(moConfirm(r, L)) || dash}</td>` +
@@ -4740,12 +4743,13 @@
         });
         body.push({
           table: {
-            widths: ['*', '*', '*'],
+            widths: ['*', '*', '*', '*'],
             body: [
               [
                 box('ADDRESSES COLLECTED', c.done.length, BRAND.dgreen),
                 box('NOT COMPLETED', c.notDone.length, c.notDone.length ? '#B3261E' : null),
                 box('TOTAL ADDRESSES', c.done.length + c.notDone.length),
+                box('BAGS COLLECTED', c.done.some((r) => r.bags_collected != null) ? c.done.reduce((n, r) => n + (Number(r.bags_collected) || 0), 0) : '—'),
               ],
             ],
           },
@@ -4760,7 +4764,8 @@
               th('DATE'),
               th('ADDRESS'),
               th('CHARITY'),
-              th('BAGS'),
+              th('BAGS BOOKED'),
+              th('BAGS COLLECTED'),
               th('CUSTOMER'),
               th('REQUEST RECEIVED'),
               th('CONFIRMATION'),
@@ -4776,6 +4781,7 @@
               { text: r.text + (r.zone ? '\n' + r.zone : ''), bold: true },
               r.charity || 'No charity specified',
               r.bags || '—',
+              r.bags_collected != null ? String(r.bags_collected) : '—',
               moContact(r, '\n') || '—',
               r.received_at ? tsShortL(r.received_at, 'en') : '—',
               moConfirm(r, 'en') || '—',
@@ -4789,7 +4795,7 @@
             table: {
               headerRows: 1,
               dontBreakRows: true,
-              widths: [14, 'auto', '*', 'auto', 'auto', 'auto', 'auto', 70, 'auto', '*', 100],
+              widths: [14, 'auto', '*', 'auto', 'auto', 'auto', 'auto', 'auto', 70, 'auto', '*', 100],
               body: rows,
             },
             layout: tableL(rows.length),
@@ -4847,8 +4853,8 @@
         return new Promise((res) => pdfMake.createPdf(doc).download(fname, res));
       }
       /* ---------- Excel партнёру за месяц (как их «Round - Collections») ----------
-         Отдельный файл на категорию. Колонки: Name · Collection Date · Address · Phone · N/bags · Status · Notes · Charity.
-         N/bags — как в заявке; Status — что отметил водитель (Collected / Not home / Problem), Notes — его описание.
+         Отдельный файл на категорию. Колонки: Name · Collection Date · Address · Phone · N/bags · Status · Notes · Charity · Bags collected.
+         N/bags — как в заявке; Bags collected — сколько мешков водитель реально забрал (миграция 81); Status — что отметил водитель (Collected / Not home / Problem), Notes — его описание.
          Без килограммов. Вверху — сводка по charity формулами COUNTIFS, чтобы итог пересчитывался при правке. */
       async function loadExcelJs() {
         if (window.ExcelJS) return window.ExcelJS;
@@ -4934,7 +4940,7 @@
         ws.getCell('G' + tr).value = { formula: `SUM(G3:G${tr - 1})`, result: rows.filter((x) => x.status !== 'done').length };
         ws.getCell('F' + tr).font = bold;
         ws.getCell('G' + tr).font = bold;
-        const head = ['Name', 'Collection Date', 'Address', 'Phone', 'N/bags', 'Status', 'Notes', 'Charity'];
+        const head = ['Name', 'Collection Date', 'Address', 'Phone', 'N/bags', 'Status', 'Notes', 'Charity', 'Bags collected'];
         head.forEach((h, i) => {
           const cell = ws.getCell(hr, i + 2);
           cell.value = h;
@@ -4953,6 +4959,7 @@
             XLSX_STATUS[r.status],
             (r.result_note || '').trim(),
             charityOf(r),
+            r.bags_collected != null ? Number(r.bags_collected) : null,
           ];
           vals.forEach((v, i) => (ws.getCell(n, i + 2).value = v));
           ws.getCell(n, 3).numFmt = 'dd/mm/yyyy';
@@ -4963,7 +4970,7 @@
           };
           ws.getCell(n, 8).alignment = { wrapText: true, vertical: 'top' };
         });
-        ws.autoFilter = { from: { row: hr, column: 2 }, to: { row: last, column: 9 } };
+        ws.autoFilter = { from: { row: hr, column: 2 }, to: { row: last, column: 10 } };
         ws.views = [{ state: 'frozen', ySplit: hr }];
         ws.pageSetup = { orientation: 'landscape', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
         const buf = await wb.xlsx.writeBuffer();

@@ -322,6 +322,9 @@
           </button>
         </div>
         <div id="d2d-photo-sec" class="stack" style="gap: 8px">
+          <div class="ph-sec"><label for="bags-got" data-i18n="bagsGot">Мешков забрали</label></div>
+          <input class="field mono" type="number" id="bags-got" min="0" max="500" step="1" inputmode="numeric" placeholder="—"
+            onchange="setBagsGot(this.value)" onkeydown="if(event.key==='Enter')this.blur()" />
           <div class="ph-sec" data-i18n="photos">Фото</div>
           <div class="photostrip" id="ai-photos"></div>
           <button class="btn btn-lg" onclick="takePhoto('photo')">
@@ -567,6 +570,9 @@
           photoQueued: 'Фото сохранено, отправится при появлении сети',
           offlineMsg: 'Offline — изменения отправятся при появлении сети',
           fillLbl: 'Вес собранного',
+          bagsGot: 'Мешков забрали',
+          bagsGotWord: 'мешков',
+          bagsGotBad: 'Мешки: целое число от 0 до 500',
           phOpen: 'Фото: открытый бин + содержимое',
           phEmpty: 'Фото: пустой бин перед закрытием',
           phRubbish: 'Мусор рядом (по желанию)',
@@ -739,6 +745,9 @@
           photoDelQ: 'Delete this photo?',
           offlineMsg: 'Offline — changes will sync when back online',
           fillLbl: 'Collected weight',
+          bagsGot: 'Bags collected',
+          bagsGotWord: 'bags',
+          bagsGotBad: 'Bags: a whole number from 0 to 500',
           phOpen: 'Photo: open bin + contents',
           phEmpty: 'Photo: empty bin before closing',
           phRubbish: 'Rubbish nearby (optional)',
@@ -934,6 +943,7 @@
           kind: r.kind || 'd2d',
           bankId: r.bank_id || null,
           fill: r.fill_level == null ? null : r.fill_level,
+          bagsGot: r.bags_collected == null ? null : r.bags_collected,
           estimated_kg: r.estimated_kg,
           service_minutes: r.service_minutes,
           arrival_mode: r.arrival_mode,
@@ -964,6 +974,7 @@
           kind: a.kind || 'd2d',
           bank_id: a.bankId || null,
           fill_level: a.fill == null ? null : a.fill,
+          bags_collected: a.bagsGot == null ? null : a.bagsGot,
           result_note: a.resultNote || '',
           done_at: a.doneAt ? new Date(a.doneAt).toISOString() : null,
         };
@@ -2199,6 +2210,28 @@
         saveLocal();
         dbUpdate(a.id, { fill_level: v });
       }
+      /* Сколько мешков реально забрали с адреса. По желанию: «Выполнено» нажимается и без цифры. */
+      async function setBagsGot(raw) {
+        const a = ADDR.find((x) => x.id === currentAddrId);
+        if (!a || a.kind === 'bank') return;
+        const s = String(raw ?? '').trim();
+        const v = s === '' ? null : Number(s);
+        if (v !== null && !(Number.isInteger(v) && v >= 0 && v <= 500)) {
+          toast('⚠ ' + t('bagsGotBad'));
+          document.getElementById('bags-got').value = a.bagsGot == null ? '' : a.bagsGot;
+          return;
+        }
+        if (v === a.bagsGot) return;
+        a.bagsGot = v;
+        LOCAL.cache = ADDR;
+        saveLocal();
+        try {
+          await dbUpdate(a.id, { bags_collected: v });
+          toast(t('saved'));
+        } catch (e) {
+          toast(Ops.error(e));
+        }
+      }
       function renderAddr() {
         const a = ADDR.find((x) => x.id === currentAddrId);
         if (!a) return goBack();
@@ -2236,6 +2269,7 @@
               : '<span class="pill-geo ok">✓ ' + t('coordsOk') + '</span>'
             : '<span class="pill-geo fail">⚠ ' + t('noCoords') + '</span>';
         FILL = a.fill == null ? null : a.fill;
+        document.getElementById('bags-got').value = a.bagsGot == null ? '' : a.bagsGot;
         document.getElementById('bank-sec').style.display = isBank ? '' : 'none';
         document.getElementById('d2d-photo-sec').style.display = isBank ? 'none' : '';
         document.getElementById('btn-noanswer').style.display = isBank ? 'none' : '';
@@ -2417,7 +2451,7 @@
           .slice(0, 300)
           .map(
             (a) =>
-              `<button class="ph-stop arc-card ${a.status}" onclick="openAddr('${a.id}')"><div class="body"><b>${a.kind === 'bank' ? BANKPLATE + ' ' : ''}${esc(a.text)}</b><small><span class="chip st-${a.status}">${badge[a.status]}</span> ${a.date || a.cancelledDate ? '<span class="mono">' + esc(a.date || a.cancelledDate) + '</span>' : ''}${a.kind === 'bank' && a.fill != null ? ' · ' + t('fillWord') + ' ' + a.fill + ' ' + t('kgUnit') : ''}</small>${a.resultNote ? '<small style="color:var(--crit)">' + esc(a.resultNote) + '</small>' : ''}</div></button>`,
+              `<button class="ph-stop arc-card ${a.status}" onclick="openAddr('${a.id}')"><div class="body"><b>${a.kind === 'bank' ? BANKPLATE + ' ' : ''}${esc(a.text)}</b><small><span class="chip st-${a.status}">${badge[a.status]}</span> ${a.date || a.cancelledDate ? '<span class="mono">' + esc(a.date || a.cancelledDate) + '</span>' : ''}${a.kind === 'bank' && a.fill != null ? ' · ' + t('fillWord') + ' ' + a.fill + ' ' + t('kgUnit') : ''}${a.kind !== 'bank' && a.bagsGot != null ? ' · ' + a.bagsGot + ' ' + t('bagsGotWord') : ''}</small>${a.resultNote ? '<small style="color:var(--crit)">' + esc(a.resultNote) + '</small>' : ''}</div></button>`,
           )
           .join('');
       }

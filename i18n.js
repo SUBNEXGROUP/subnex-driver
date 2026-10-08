@@ -100,6 +100,8 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   'Ожидаемый вес, кг': 'Expected weight, kg',
   Контакт: 'Contact',
   'Заявка получена': 'Request received',
+  'Забрали мешков': 'Bags collected',
+  'мешков': 'bags',
   Окно: 'Window',
   'Предложение отправлено': 'Offer sent',
   Автопредложение: 'Auto offer',

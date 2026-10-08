@@ -192,6 +192,13 @@ const calls = (page, kind) => page.evaluate((k) => window.__calls.filter((c) => 
   ok('телефон: карточка остановки', /Joyce Close|Station Road|Glyncoch/.test(await page.textContent('#ai-text')));
   const isBank = await page.evaluate(() => document.getElementById('bank-sec').style.display !== 'none');
   if (!isBank) {
+    ok('телефон: строка «мешков забрали»', await page.isVisible('#bags-got'));
+    await page.fill('#bags-got', '7');
+    await page.press('#bags-got', 'Enter');
+    await wait(400);
+    const bg = await page.evaluate(() => window.__calls.filter((c) => c.name === 'addresses.update').pop());
+    ok('телефон: мешки записаны', bg && bg.data.bags_collected === 7, JSON.stringify(bg?.data));
+    if (process.env.SHOT) await page.locator('#d2d-photo-sec').screenshot({ path: process.env.SHOT });
     await page.click('#result-btns button.ok');
     await wait(500);
     const upd = await page.evaluate(() => window.__calls.filter((c) => c.name === 'addresses.update').pop());
