@@ -105,6 +105,7 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   'Эта дата уже недоступна (день прошёл, начат или снят). Предложите новую.': 'This date is no longer available (the day has passed, started or was released). Offer a new one.',
   'Не удалось подтвердить — обновите очередь и попробуйте ещё раз.': 'Could not confirm — refresh the queue and try again.',
   'Клиент подтвердил': 'Customer confirmed',
+  'Ещё действия': 'More actions',
   'Подтвердить дату вручную': 'Confirm the date manually',
   'Адрес встанет в маршрут на этот день, клиенту уйдёт письмо-подтверждение — как если бы он нажал кнопку в письме.': 'The address goes on the route for this day and the customer gets a confirmation email — just as if they had pressed the button in the email.',
   'Клиент согласился на эту дату (ответом на письмо, по телефону и т. п.).': 'The customer agreed to this date (by replying to the email, by phone, etc.).',

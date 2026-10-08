@@ -83,3 +83,18 @@ table.t td.od-actions button{width:100%;justify-content:center}
   .od-notice{padding:11px 14px}
   .od-dialog{padding:10px}.od-dialog>section{padding:18px}
 }
+
+/* Заявки: главная кнопка + меню «⋯». Строки одной высоты, меню поверх таблицы. */
+table.t td.od-actions{display:table-cell;vertical-align:top;width:1%;white-space:nowrap;padding-top:7px}
+table.t td.od-actions .od-rowacts button{width:auto}
+.od-rowacts{display:flex;align-items:center;justify-content:flex-end;gap:6px}
+.od-root .od-rowacts .od-main{min-height:34px;padding:6px 14px;font-size:12.8px;border-radius:8px;min-width:150px}
+.od-more{position:relative}
+.od-more>summary{list-style:none;display:grid;place-items:center;width:34px;height:34px;border:1px solid var(--line-2);border-radius:8px;background:var(--surface-2);color:var(--ink-2);cursor:pointer;font-size:18px;line-height:1;font-weight:700;user-select:none}
+.od-more>summary::-webkit-details-marker{display:none}
+.od-more>summary:hover,.od-more[open]>summary{background:var(--hover);color:var(--ink)}
+.od-menu{position:fixed;z-index:22000;min-width:200px;padding:6px;background:var(--surface);border:1px solid var(--line-2);border-radius:10px;box-shadow:var(--shadow-2);display:flex;flex-direction:column;gap:2px}
+.od-root .od-menu button{width:100%;justify-content:flex-start;text-align:left;background:transparent;border:0;border-radius:7px;min-height:34px;padding:7px 10px;font-size:13px;font-weight:500}
+.od-root .od-menu button:hover{background:var(--hover)}
+.od-root .od-menu button.od-danger{color:var(--crit)}
+.od-menu hr{border:0;border-top:1px solid var(--line);margin:4px 2px}

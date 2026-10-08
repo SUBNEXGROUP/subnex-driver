@@ -484,8 +484,42 @@
       }
       this.root.addEventListener('click', (e) => {
         const b = e.target.closest('[data-action]');
+        /* Пункт меню «⋯» выбран — меню закрываем, действие выполняем. */
+        if (b) b.closest('details.od-more')?.removeAttribute('open');
         if (b && !b.disabled) this.action(b.dataset.action, b);
       });
+      /* Меню «⋯»: открыто только одно; рисуется поверх таблицы (fixed), чтобы его не обрезала прокрутка. */
+      this.root.addEventListener(
+        'toggle',
+        (e) => {
+          const d = e.target;
+          if (!(d instanceof HTMLDetailsElement) || !d.classList.contains('od-more') || !d.open) return;
+          this.root.querySelectorAll('details.od-more[open]').forEach((x) => x !== d && x.removeAttribute('open'));
+          const m = d.querySelector('.od-menu'),
+            r = d.querySelector('summary').getBoundingClientRect();
+          m.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
+          m.style.top = r.bottom + 6 + 'px';
+          const h = m.offsetHeight;
+          if (r.bottom + 6 + h > window.innerHeight - 8) m.style.top = Math.max(8, r.top - 6 - h) + 'px';
+        },
+        true,
+      );
+      const closeMenus = (e) => {
+        if (e && e.target instanceof Element && e.target.closest('details.od-more')) return;
+        this.root.querySelectorAll('details.od-more[open]').forEach((x) => x.removeAttribute('open'));
+      };
+      document.addEventListener('pointerdown', closeMenus, true);
+      window.addEventListener('scroll', () => closeMenus(), true);
+      window.addEventListener('resize', () => closeMenus());
+      this.root.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && this.root.querySelector('details.od-more[open]')) {
+          e.preventDefault();
+          e.stopPropagation();
+          const d = this.root.querySelector('details.od-more[open]');
+          d.removeAttribute('open');
+          d.querySelector('summary').focus();
+        }
+      }, true);
       this.root.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
           e.preventDefault();
@@ -967,7 +1001,7 @@
         const c = closesAt(a);
         if (!c) return '';
         const left = Math.round((c - Date.now()) / 3600e3);
-        return left > 0 ? ` ${T('· закроется через')} ${left} ${T('ч')}` : T(' · закрывается');
+        return left > 0 ? ` ${T('· закроется через')} ${left}\u00a0${T('ч')}` : T(' · закрывается');
       };
       const state = (a) => {
         if (a.offered_start) {
@@ -1007,30 +1041,39 @@
         const days = z.mode === 'weekly' ? ` <span class="od-chip">${esc(z.name)} · ${esc(C.weekdaysText(z.weekdays))}</span>` : '';
         return `<span class="od-muted">${T('Ждёт распределения')}</span>${days}${a.auto_skip ? `<br><span class="od-muted" style="font-size:11.5px">${esc(skipText(a.auto_skip))}</span>` : ''}`;
       };
+      /* Действия по заявке: одна главная кнопка по ситуации + меню «⋯» с остальным.
+         Строки получаются одной высоты, а нужное действие всегда на виду. */
       const acts = (a) => {
-        const b = [];
-        /* Клиент ответил на письмо словами («да, пятница подходит») вместо кнопки — подтверждаем за него. */
+        const list = [];
+        const add = (act, label, prio, extra = {}) => list.push({ act, label, prio, ...extra });
         const eo = a.email_offer && typeof a.email_offer === 'object' ? a.email_offer : null;
-        if (a.held_start && eo && eo.state === 'sent')
-          b.push(`<button class="od-primary" data-action="emailok" data-id="${a.id}">${T('Клиент подтвердил')}</button>`);
-        if (a.hold_id && ['partner_whatsapp', 'missing'].includes(C.sourceOf(a)))
-          b.push(`<button data-action="partner" data-id="${a.id}">${T('Согласовать')}</button>`);
-        else if (a.hold_id || a.offer_state || a.date) b.push(`<button data-action="sms" data-id="${a.id}">SMS</button>`);
-        if (a.hold_id && !['preparing', 'awaiting', 'manual'].includes(a.offer_state))
-          b.push(`<button data-action="release" data-id="${a.id}">${T('Снять')}</button>`);
-        if (C.offerExpired(a)) b.push(`<button data-action="renew" data-id="${a.id}">${T('Предложить новое время')}</button>`);
+        /* Клиент ответил на письмо словами («да, пятница подходит») вместо кнопки — подтверждаем за него. */
+        if (a.held_start && eo && eo.state === 'sent') add('emailok', T('Клиент подтвердил'), 1, { accent: true });
+        if (a.hold_id && ['partner_whatsapp', 'missing'].includes(C.sourceOf(a))) add('partner', T('Согласовать'), 2, { accent: true });
+        else if (a.hold_id || a.offer_state || a.date) add('sms', 'SMS', 6);
+        if (C.offerExpired(a)) add('renew', T('Предложить новое время'), 3);
         else if (a.offer_state === 'awaiting' && a.offered_start && !(a.offer_auto && !a.reminded_at && ap.enabled))
-          b.push(`<button data-action="remind" data-id="${a.id}">${T('Напомнить')}</button>`);
-        else if (C.offerLive(a) && a.offered_start)
-          b.push(`<button data-action="renew" data-id="${a.id}">${T('Предложить новое время')}</button>`);
+          add('remind', T('Напомнить'), 4);
+        else if (C.offerLive(a) && a.offered_start) add('renew', T('Предложить новое время'), 7);
         /* Карточка адреса: там правятся адрес, телефон, мешки, charity и заметка.
            Доступна всегда — эти поля маршрут не двигают, ждать «Снять» незачем. */
-        b.push(`<button data-action="card" data-id="${a.id}">${T('Изменить данные')}</button>`);
-        if (this.available(a)) b.push(`<button data-action="edit" data-id="${a.id}">${T('Срок и сбор')}</button>`);
-        if (!['preparing', 'awaiting', 'manual'].includes(a.offer_state))
-          b.push(`<button data-action="move" data-id="${a.id}">${T('Перенести')}</button>`);
-        b.push(`<button data-action="drop" data-id="${a.id}">${T('Убрать')}</button>`);
-        return b.join('');
+        add('card', T('Изменить данные'), 8);
+        if (this.available(a)) add('edit', T('Срок и сбор'), 9);
+        if (!['preparing', 'awaiting', 'manual'].includes(a.offer_state)) add('move', T('Перенести'), 10);
+        if (a.hold_id && !['preparing', 'awaiting', 'manual'].includes(a.offer_state)) add('release', T('Снять'), 11);
+        add('drop', T('Убрать'), 99, { danger: true });
+        const main = list.filter((x) => !x.danger).sort((x, y) => x.prio - y.prio)[0];
+        const rest = list.filter((x) => x !== main).sort((x, y) => x.prio - y.prio);
+        const item = (x) =>
+          `<button role="menuitem" data-action="${x.act}" data-id="${a.id}"${x.danger ? ' class="od-danger"' : ''}>${esc(x.label)}</button>`;
+        return (
+          `<div class="od-rowacts">` +
+          (main ? `<button class="od-main${main.accent ? ' od-primary' : ''}" data-action="${main.act}" data-id="${a.id}">${esc(main.label)}</button>` : '') +
+          `<details class="od-more"><summary aria-label="${T('Ещё действия')}" title="${T('Ещё действия')}">⋯</summary><div class="od-menu" role="menu">` +
+          rest.filter((x) => !x.danger).map(item).join('') +
+          (rest.some((x) => x.danger) ? '<hr>' + rest.filter((x) => x.danger).map(item).join('') : '') +
+          `</div></details></div>`
+        );
       };
       const autoLine = ap.enabled
         ? `<p class="od-slot" style="margin-top:8px">${T('Автоподбор включён: новые заявки с мобильным сами получают дату (не раньше чем через 2 дня, до')} ${esc(String(ap.day_capacity || 40))} ${T('адресов в день); YES подтверждает, утром при старте уходит окно прибытия.')}${ap.last_run_at ? ` ${T('Последний проход')} ${esc(C.hm(C.ukMinute(ap.last_run_at)))}${ap.last_run_note ? ' — ' + esc(ap.last_run_note) : ''}.` : ''} ${T('Без мобильного, повторы и WhatsApp — решаете вручную ниже.')}</p>`
