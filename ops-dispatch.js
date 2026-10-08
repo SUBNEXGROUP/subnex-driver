@@ -437,17 +437,36 @@
     call(action, data = {}) {
       return rpc(this.sb, action, { driver_id: this.driver.id, ...data });
     }
-    notice(text, bad = false) {
+    /* Сообщение над содержимым. Успех сам уходит через 7 с, предупреждение и ошибка остаются,
+       пока их не сменит следующее. progress — строка «идёт загрузка» со спиннером. */
+    notice(text, bad = false, progress = false) {
       const n = this.$('.od-notice');
+      clearTimeout(this.noticeTimer);
+      n.classList.remove('od-out');
       n.textContent = text || '';
-      n.classList.toggle('bad', bad);
+      n.classList.toggle('bad', !!bad);
+      n.classList.toggle('od-progress', !!progress);
       n.hidden = !text;
+      if (text) {
+        n.classList.remove('od-in');
+        void n.offsetWidth;
+        n.classList.add('od-in');
+      }
+      if (text && !bad && !progress)
+        this.noticeTimer = setTimeout(() => {
+          n.classList.add('od-out');
+          this.noticeTimer = setTimeout(() => {
+            n.hidden = true;
+            n.classList.remove('od-out');
+          }, 260);
+        }, 7000);
     }
     async run(fn, progress = T('Загрузка…')) {
       if (this.busy) return;
       this.busy = true;
-      this.notice(progress);
+      this.notice(progress, false, true);
       this.root.setAttribute('aria-busy', 'true');
+      this.root.classList.add('od-busy');
       this.root.querySelectorAll('button,input,select,textarea').forEach((b) => (b.disabled = true));
       try {
         await fn();
@@ -456,6 +475,12 @@
       } finally {
         this.busy = false;
         if (this.closed) return;
+        this.root.classList.remove('od-busy');
+        const n = this.$('.od-notice');
+        if (n && n.classList.contains('od-progress')) {
+          n.hidden = true;
+          n.classList.remove('od-progress');
+        }
         this.root.setAttribute('aria-busy', 'false');
         this.root.querySelectorAll('button,input,select,textarea').forEach((b) => (b.disabled = b.dataset.locked === 'true'));
       }
@@ -543,10 +568,11 @@
           }
         }
       });
+      this.skeleton();
       await this.run(async () => {
         await this.reload();
         this.render();
-        this.notice(this.enabled ? '' : T('Подготовка новой версии. Планирование включится после активации.'));
+        if (!this.enabled) this.notice(T('Подготовка новой версии. Планирование включится после активации.'), true);
       });
       if (!this.inline) this.$('[data-action=close]')?.focus();
     }
@@ -559,6 +585,17 @@
         this.oldFocus?.focus();
       }
       if (instance === this) instance = null;
+    }
+    /* Заготовка очереди, пока данные грузятся: те же колонки, по строкам пробегает блик.
+       После загрузки строки появляются по очереди (см. queue → od-reveal). */
+    skeleton() {
+      const c = this.$('.od-content');
+      if (!c) return;
+      this.revealNext = true;
+      const bar = (w, h = 12) => `<i class="od-sk" style="width:${w};height:${h}px"></i>`;
+      const row = (k) =>
+        `<div class="od-sk-row" style="--i:${k}">${bar('18px', 18)}<span>${bar(['62%', '48%', '70%', '55%', '66%', '44%'][k % 6])}${bar('34%', 10)}</span>${bar('92px', 22)}${bar('44px')}${bar('110px')}${bar('190px', 26)}<span class="od-sk-acts">${bar('150px', 34)}${bar('34px', 34)}</span></div>`;
+      c.innerHTML = `<div class="od-skeleton" aria-hidden="true"><div class="od-sk-head"><span>${bar('260px', 24)}${bar('420px')}</span><span class="od-sk-acts">${bar('120px', 34)}${bar('150px', 34)}${bar('90px', 34)}</span></div><div class="od-sk-card">${bar('140px', 14)}${bar('80%')}${bar('56%')}</div>${[0, 1, 2, 3, 4, 5].map(row).join('')}</div>`;
     }
     async reload() {
       try {
@@ -598,6 +635,19 @@
         .forEach((b) => b.setAttribute('aria-current', b.dataset.action === this.mode ? 'page' : 'false'));
       this.bind();
       if (beforeMode !== this.mode) this.$('.od-content').scrollTop = 0;
+      /* Счётчик заявок досчитывает до числа при первой загрузке — один короткий момент движения. */
+      const cnt = this.$('.od-count[data-count]');
+      if (cnt && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        const to = +cnt.dataset.count,
+          t0 = performance.now(),
+          dur = Math.min(700, 250 + to * 20);
+        const step = (t) => {
+          const k = Math.min(1, (t - t0) / dur);
+          cnt.textContent = Math.round(to * (1 - Math.pow(1 - k, 3)));
+          if (k < 1) requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      }
     }
     intake() {
       const one = this.mode === 'one';
@@ -976,7 +1026,7 @@
       const groupHead = (g) =>
         groups.length < 2
           ? ''
-          : `<tr><td colspan="7" style="background:var(--surface-3);padding:9px 10px;border-top:1px solid var(--line)"><b>${esc(g.title)} · ${g.rows.length}</b> <span class="od-muted" style="font-weight:400">— ${esc(g.hint)}</span></td></tr>`;
+          : `<tr class="od-group od-group-${g.key}"><td colspan="7"><span class="od-gtitle">${esc(g.title)}</span><span class="od-badge">${g.rows.length}</span><span class="od-ghint">${esc(g.hint)}</span></td></tr>`;
 
       const zcfg = { zones: this.zones || [] };
       /* Отправленное проверяем ПЕРВЫМ. Раньше первым шло удержанное время, и у заявки,
@@ -1075,21 +1125,57 @@
           `</div></details></div>`
         );
       };
+      /* Итог последнего прохода приходит строкой «offered 0, held 0, … · email {"sent":0,…}».
+         Разбираем в пары «слово — число»; если формат другой, показываем строку как есть. */
+      const statName = {
+        offered: T('предложено'),
+        held: T('занято'),
+        skipped: T('пропущено'),
+        expired: T('истекло'),
+        reminded: T('напомнено'),
+        closed: T('закрыто'),
+        geocoded: T('координаты'),
+        sent: T('отправлено'),
+      };
+      const runStats = (note) => {
+        let main = String(note || ''),
+          mail = null;
+        const at = main.search(/email\s*\{/);
+        if (at >= 0) {
+          try {
+            mail = JSON.parse(main.slice(main.indexOf('{', at)));
+            main = main.slice(0, at).replace(/[\s·,;—-]+$/, '');
+          } catch {
+            mail = null;
+          }
+        }
+        const pairs = [...main.matchAll(/([A-Za-zА-Яа-яЁё_]+)\s+(\d+)/g)].map((m) => [m[1], +m[2]]);
+        const mailPairs = mail ? Object.entries(mail).filter(([, v]) => typeof v === 'number') : [];
+        if (!pairs.length && !mailPairs.length) return note ? `<span class="od-auto-raw">${esc(note)}</span>` : '';
+        const pill = ([k, v]) => `<span class="od-stat${v ? ' hot' : ''}"><b>${v}</b>${esc(statName[k] || k)}</span>`;
+        return (
+          `<span class="od-stats">${pairs.map(pill).join('')}</span>` +
+          (mailPairs.length ? `<span class="od-stats od-stats-mail"><em>${T('Письма')}</em>${mailPairs.map(pill).join('')}</span>` : '')
+        );
+      };
       const autoLine = ap.enabled
-        ? `<p class="od-slot" style="margin-top:8px">${T('Автоподбор включён: новые заявки с мобильным сами получают дату (не раньше чем через 2 дня, до')} ${esc(String(ap.day_capacity || 40))} ${T('адресов в день); YES подтверждает, утром при старте уходит окно прибытия.')}${ap.last_run_at ? ` ${T('Последний проход')} ${esc(C.hm(C.ukMinute(ap.last_run_at)))}${ap.last_run_note ? ' — ' + esc(ap.last_run_note) : ''}.` : ''} ${T('Без мобильного, повторы и WhatsApp — решаете вручную ниже.')}</p>`
-        : `<p class="od-muted" style="margin-top:8px">${T('Автоподбор выключен — даты назначаются вручную (кнопка «Распределить по дням»). Включается в «Параметры».')}</p>`;
-      return `<div class="od-intro od-between"><div><h3>${T('Заявки без даты ·')} ${this.requests.length}</h3><p>${T('Отметьте адреса — приложение подберёт день и время, заполняя уже начатые дни вплотную к соседним адресам.')}</p>${autoLine}</div><div class="od-actions"><button data-action="sendall" ${ready.total ? '' : 'disabled data-locked="true"'}>${T('Отправить предложения')}${ready.total ? ' · ' + ready.total : ''}</button>${ready.direct.length ? `<button data-action="copypartner">${T('Текст для WhatsApp ·')} ${ready.direct.length}</button>` : ''}<button data-action="schedule">${T('Разбор по категориям')}</button>${ap.enabled ? `<button data-action="autorun">${T('Прогнать автоподбор сейчас')}</button>` : ''}<button data-action="refresh">${T('Обновить')}</button></div></div>
-  <details><summary>${T('Искать места с')} ${label(this.from)}${T(', на')} ${this.days} ${T('дней вперёд')}</summary><div class="od-grid"><label>${T('Начиная с')}<input id="od-from" type="date" min="${C.ukDay()}" value="${this.from}"></label><label>${T('Горизонт')}<select id="od-days">${[7, 14, 21, 30, 45, 60].map((n) => `<option value="${n}" ${this.days === n ? 'selected' : ''}>${n} ${T('дней')}</option>`).join('')}</select></label></div></details>
+        ? `<section class="od-auto on"><div class="od-auto-head"><span class="od-pulse" aria-hidden="true"></span><b>${T('Автоподбор')}</b><span class="od-auto-state">${T('включён')}</span>${ap.last_run_at ? `<span class="od-auto-last">${T('Последний проход')} <b>${esc(C.hm(C.ukMinute(ap.last_run_at)))}</b></span>` : ''}</div><p>${T('Автоподбор включён: новые заявки с мобильным сами получают дату (не раньше чем через 2 дня, до')} ${esc(String(ap.day_capacity || 40))} ${T('адресов в день); YES подтверждает, утром при старте уходит окно прибытия.')}</p>${ap.last_run_note ? `<div class="od-auto-run">${runStats(ap.last_run_note)}</div>` : ''}<p class="od-auto-foot">${T('Без мобильного, повторы и WhatsApp — решаете вручную ниже.')}</p></section>`
+        : `<section class="od-auto off"><div class="od-auto-head"><span class="od-pulse" aria-hidden="true"></span><b>${T('Автоподбор')}</b><span class="od-auto-state">${T('выключен')}</span></div><p>${T('Автоподбор выключен — даты назначаются вручную (кнопка «Распределить по дням»). Включается в «Параметры».')}</p></section>`;
+      const reveal = this.revealNext;
+      this.revealNext = false;
+      let rowNo = 0;
+      return `<div class="${reveal ? 'od-q od-reveal' : 'od-q'}"><header class="od-qhead"><div class="od-qtitle"><h3>${T('Заявки без даты')} <span class="od-count" ${reveal ? `data-count="${this.requests.length}"` : ''}>${this.requests.length}</span></h3><p>${T('Отметьте адреса — приложение подберёт день и время, заполняя уже начатые дни вплотную к соседним адресам.')}</p></div><div class="od-toolbar"><button data-action="sendall" class="${ready.total ? 'od-primary' : ''}" ${ready.total ? '' : 'disabled data-locked="true"'}>${T('Отправить предложения')}${ready.total ? ' · ' + ready.total : ''}</button>${ready.direct.length ? `<button data-action="copypartner">${T('Текст для WhatsApp ·')} ${ready.direct.length}</button>` : ''}<button data-action="schedule">${T('Разбор по категориям')}</button>${ap.enabled ? `<button data-action="autorun">${T('Прогнать автоподбор сейчас')}</button>` : ''}<button data-action="refresh" class="od-refresh">${T('Обновить')}</button></div></header>${autoLine}
+  <details class="od-range"><summary>${T('Искать места с')} ${label(this.from)}${T(', на')} ${this.days} ${T('дней вперёд')}</summary><div class="od-grid"><label>${T('Начиная с')}<input id="od-from" type="date" min="${C.ukDay()}" value="${this.from}"></label><label>${T('Горизонт')}<select id="od-days">${[7, 14, 21, 30, 45, 60].map((n) => `<option value="${n}" ${this.days === n ? 'selected' : ''}>${n} ${T('дней')}</option>`).join('')}</select></label></div></details>
   ${this.requests.length > 500 ? `<p class="od-warning">${T('Показаны первые 500 заявок. Распределите их, затем обновите очередь.')}</p>` : ''}
   ${dupCount ? `<p class="od-warning">${T('Похоже на повтор:')} ${dupCount}${T('. В очередь они не попали — откройте вкладку «Повторы» слева.')}</p>` : ''}
   ${
     shown.length
       ? `<div class="od-selection od-between"><label class="od-select"><input type="checkbox" id="od-all" ${free.length && free.slice(0, 40).every((a) => this.selected.has(a.id)) ? 'checked' : ''}> ${T('Выбрать первые 40 свободных')}</label><b id="od-count">${T('Выбрано:')} ${this.selected.size}</b></div>
-  <div class="tscroll"><table class="t"><thead><tr><th style="width:34px"></th><th>${T('Адрес')}</th><th>${T('Источник')}</th><th>${T('Мешки')}</th><th>${T('Телефон')}</th><th>${T('Состояние')}</th><th></th></tr></thead><tbody>${groups.map((g) => groupHead(g) + g.rows.map((a) => `<tr class="${this.selected.has(a.id) ? 'sel' : ''}" data-request="${esc(a.id)}"><td><input type="checkbox" data-select="${esc(a.id)}" ${this.selected.has(a.id) ? 'checked' : ''} ${this.available(a) ? '' : 'disabled data-locked="true"'} aria-label="${T('Выбрать заявку')}"></td><td class="addr"><b>${esc(a.text)}</b>${a.not_before ? `<small>${T('доступен с')} ${esc(label(a.not_before))}</small>` : ''}${C.validPoint(a) ? '' : `<span class="warnrow">${T('координаты определим перед расчётом')}</span>`}</td><td><span class="od-chip">${esc(C.sourceNames[C.sourceOf(a)])}</span>${a.charity ? `<br><span class="od-muted" style="font-size:11.5px">${esc(a.charity)}</span>` : ''}</td><td style="white-space:nowrap">${esc(a.bags_text || a.bags || '—')}</td><td class="mono" style="font-size:12.3px">${/^\+447\d{9}$/.test(C.phone(a.phone || '')) ? esc(a.phone) : `<span style="color:var(--crit)">${esc(a.phone || T('нет телефона'))}</span>${a.contact_email ? `<br><span class="od-muted" style="font-size:11.5px">${esc(a.contact_email)}</span>` : ''}<br><span class="od-muted" style="font-size:11.5px">${a.email_route ? T('SMS не уйдёт — дата уйдёт письмом') : T('SMS не уйдёт')}</span>`}</td><td class="od-state">${state(a)}</td><td class="od-actions">${acts(a)}</td></tr>`).join('')).join('')}</tbody></table></div>`
+  <div class="tscroll"><table class="t"><thead><tr><th style="width:34px"></th><th>${T('Адрес')}</th><th>${T('Источник')}</th><th>${T('Мешки')}</th><th>${T('Телефон')}</th><th>${T('Состояние')}</th><th></th></tr></thead><tbody>${groups.map((g) => groupHead(g) + g.rows.map((a) => `<tr class="${this.selected.has(a.id) ? 'sel' : ''}" style="--i:${Math.min(rowNo++, 14)}" data-request="${esc(a.id)}"><td><input type="checkbox" data-select="${esc(a.id)}" ${this.selected.has(a.id) ? 'checked' : ''} ${this.available(a) ? '' : 'disabled data-locked="true"'} aria-label="${T('Выбрать заявку')}"></td><td class="addr"><b>${esc(a.text)}</b>${a.not_before ? `<small>${T('доступен с')} ${esc(label(a.not_before))}</small>` : ''}${C.validPoint(a) ? '' : `<span class="warnrow">${T('координаты определим перед расчётом')}</span>`}</td><td><span class="od-chip">${esc(C.sourceNames[C.sourceOf(a)])}</span>${a.charity ? `<br><span class="od-muted" style="font-size:11.5px">${esc(a.charity)}</span>` : ''}</td><td style="white-space:nowrap">${esc(a.bags_text || a.bags || '—')}</td><td class="mono" style="font-size:12.3px">${/^\+447\d{9}$/.test(C.phone(a.phone || '')) ? esc(a.phone) : `<span style="color:var(--crit)">${esc(a.phone || T('нет телефона'))}</span>${a.contact_email ? `<br><span class="od-muted" style="font-size:11.5px">${esc(a.contact_email)}</span>` : ''}<br><span class="od-muted" style="font-size:11.5px">${a.email_route ? T('SMS не уйдёт — дата уйдёт письмом') : T('SMS не уйдёт')}</span>`}</td><td class="od-state">${state(a)}</td><td class="od-actions">${acts(a)}</td></tr>`).join('')).join('')}</tbody></table></div>`
       : `<div class="od-empty">${T('Очередь пуста. Добавьте один адрес или вставьте список из письма.')}</div>`
   }
   ${this.legacy.length ? `<h3 style="margin-top:20px">${T('Ранее переданные партнёрам')}</h3>${this.legacy.map((p) => `<article class="od-card od-between"><div><strong>${esc(p.address)}</strong><p class="od-muted">${label(C.ukDay(p.starts_at))} · ${C.hm(C.ukMinute(p.starts_at))}</p></div><button data-action="legacy" data-id="${p.id}">${T('Партнёр подтвердил')}</button></article>`).join('')}` : ''}
-  <div class="od-footer"><label class="od-select" style="flex:1"><input type="checkbox" id="od-exact" ${this.dayMode === false ? 'checked' : ''}> ${T('Обещать точное время (интервал 30 минут)')}<br><span class="od-muted">${this.dayMode === false ? T('Клиенту уйдёт получасовое окно. В день помещается меньше адресов.') : T('Клиенту уйдёт только дата. Окно прибытия он получит утром, когда водитель начнёт маршрут.')}</span></label><button class="od-primary" data-action="calculate">${T('Распределить по дням')}</button></div>`;
+  <div class="od-footer"><label class="od-select" style="flex:1"><input type="checkbox" id="od-exact" ${this.dayMode === false ? 'checked' : ''}> ${T('Обещать точное время (интервал 30 минут)')}<br><span class="od-muted">${this.dayMode === false ? T('Клиенту уйдёт получасовое окно. В день помещается меньше адресов.') : T('Клиенту уйдёт только дата. Окно прибытия он получит утром, когда водитель начнёт маршрут.')}</span></label><button class="od-primary" data-action="calculate">${T('Распределить по дням')}</button></div></div>`;
     }
     planView() {
       const m = this.plan.metrics,
@@ -2076,6 +2162,7 @@
       this.run(
         async () => {
           if (act === 'refresh') {
+            if (this.mode === 'queue') this.skeleton();
             await this.reload();
             this.render();
             this.notice(T('Список обновлён.'));
