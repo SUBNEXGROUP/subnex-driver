@@ -220,3 +220,5 @@ table.t tr.od-group td{background:var(--surface-3);padding:10px 14px;border-top:
   .od-dialog{animation:od-scrim .18s ease-out}
   .od-dialog>section{animation:od-pop .22s cubic-bezier(.2,.8,.3,1)}
 }
+.od-root .od-select.od-off{cursor:default;color:var(--muted)}
+.od-root .od-select .od-badge{margin:0 0 0 6px}

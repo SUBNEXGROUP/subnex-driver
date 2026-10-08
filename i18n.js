@@ -107,6 +107,7 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   'Клиент подтвердил': 'Customer confirmed',
   'Ещё действия': 'More actions',
   'Заявки без даты': 'Requests without a date',
+  'Свободных заявок нет: у всех уже есть время или ждём ответ клиента.': 'No free requests: every one already has a time or is waiting for the customer to reply.',
   'Автоподбор': 'Auto-planning',
   'Письма': 'Emails',
   'занято': 'held',

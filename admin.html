@@ -19,11 +19,11 @@
     />
     <link rel="stylesheet" href="subnex-ui.css?v=20260929-chat" />
     <link rel="stylesheet" href="ops-chat.css?v=20260929-chat" />
-    <link rel="stylesheet" href="ops-dispatch.css?v=20261008-look" />
-    <script src="i18n.js?v=20261008-look"></script>
+    <link rel="stylesheet" href="ops-dispatch.css?v=20261008-free" />
+    <script src="i18n.js?v=20261008-free"></script>
     <script src="ops-chat.js?v=20261005-mail"></script>
     <script src="ops-dispatch-core.js?v=20261006-fri"></script>
-    <script src="ops-dispatch.js?v=20261008-count"></script>
+    <script src="ops-dispatch.js?v=20261008-free"></script>
     <style>
       .leaflet-container {
         font-family: var(--body);
@@ -1690,8 +1690,18 @@
           }
         }
       }
+      window.addEventListener('subnex:queue-count', () => renderBadges());
       function renderBadges() {
-        const q = ADDR.filter((a) => a.status === 'new' && !a.date && a.kind !== 'bank' && !dupExtras().has(a.id)).length;
+        /* Если очередь уже открывалась — берём её число (то же, что в заголовке очереди):
+           там повтор, которому уже предложено время, остаётся в списке. */
+        const base = ADDR.filter((a) => a.status === 'new' && !a.date && a.kind !== 'bank' && !dupExtras().has(a.id)).length;
+        /* Разница между очередью и этим подсчётом — повторы, которым уже предложено время.
+           Запоминаем её в момент открытия очереди и прибавляем, чтобы новые заявки тоже учитывались. */
+        if (Number.isFinite(window.__subnexQueueCount) && window.__subnexQueueCount !== window.__subnexQueueSeen) {
+          window.__subnexQueueSeen = window.__subnexQueueCount;
+          window.__subnexQueueDelta = Math.max(0, window.__subnexQueueCount - base);
+        }
+        const q = base + (window.__subnexQueueDelta || 0);
         const b = document.getElementById('nb-requests');
         b.textContent = q;
         b.hidden = !q;
