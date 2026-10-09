@@ -513,38 +513,72 @@
         if (b) b.closest('details.od-more')?.removeAttribute('open');
         if (b && !b.disabled) this.action(b.dataset.action, b);
       });
-      /* Меню «⋯»: открыто только одно; рисуется поверх таблицы (fixed), чтобы его не обрезала прокрутка. */
+      /* Меню «⋯»: открыто только одно. На время показа список переносится в <body> и ставится
+         fixed по кнопке — иначе его перекрывают следующие строки таблицы (у строк свой слой)
+         и обрезает прокрутка. При закрытии список возвращается на место. */
+      const menuHome = (d) => {
+        const m = d._menu;
+        if (m && m.parentNode !== d) d.append(m);
+        if (m) m.classList.remove('od-menu-float');
+      };
       this.root.addEventListener(
         'toggle',
         (e) => {
           const d = e.target;
-          if (!(d instanceof HTMLDetailsElement) || !d.classList.contains('od-more') || !d.open) return;
+          if (!(d instanceof HTMLDetailsElement) || !d.classList.contains('od-more')) return;
+          if (!d.open) {
+            menuHome(d);
+            return;
+          }
           this.root.querySelectorAll('details.od-more[open]').forEach((x) => x !== d && x.removeAttribute('open'));
-          const m = d.querySelector('.od-menu'),
-            r = d.querySelector('summary').getBoundingClientRect();
-          m.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
-          m.style.top = r.bottom + 6 + 'px';
-          const h = m.offsetHeight;
-          if (r.bottom + 6 + h > window.innerHeight - 8) m.style.top = Math.max(8, r.top - 6 - h) + 'px';
+          const m = d._menu || d.querySelector('.od-menu');
+          d._menu = m;
+          m._owner = d;
+          m.classList.add('od-menu-float');
+          document.body.append(m);
+          const r = d.querySelector('summary').getBoundingClientRect(),
+            w = m.offsetWidth,
+            h = m.offsetHeight;
+          const left = Math.min(Math.max(8, r.right - w), window.innerWidth - w - 8);
+          let top = r.bottom + 6;
+          if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - 6 - h);
+          m.style.left = left + 'px';
+          m.style.top = top + 'px';
+          m.style.right = 'auto';
+          m.querySelector('button')?.focus({ preventScroll: true });
         },
         true,
       );
+      /* Клик по пункту перенесённого списка — он уже вне this.root, ловим здесь. */
+      this.onMenuClick = (e) => {
+        const m = e.target.closest('.od-menu-float');
+        if (!m || !m._owner || !this.root.contains(m._owner)) return;
+        const b = e.target.closest('[data-action]');
+        if (!b || b.disabled) return;
+        m._owner.removeAttribute('open');
+        this.action(b.dataset.action, b);
+      };
+      document.addEventListener('click', this.onMenuClick);
       const closeMenus = (e) => {
-        if (e && e.target instanceof Element && e.target.closest('details.od-more')) return;
+        if (e && e.target instanceof Element && (e.target.closest('details.od-more') || e.target.closest('.od-menu-float'))) return;
         this.root.querySelectorAll('details.od-more[open]').forEach((x) => x.removeAttribute('open'));
       };
       document.addEventListener('pointerdown', closeMenus, true);
-      window.addEventListener('scroll', () => closeMenus(), true);
+      window.addEventListener('scroll', (e) => (e.target instanceof Element && e.target.closest('.od-menu-float') ? null : closeMenus()), true);
       window.addEventListener('resize', () => closeMenus());
-      this.root.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && this.root.querySelector('details.od-more[open]')) {
+      document.addEventListener(
+        'keydown',
+        (e) => {
+          if (e.key !== 'Escape') return;
+          const d = this.root.querySelector('details.od-more[open]');
+          if (!d) return;
           e.preventDefault();
           e.stopPropagation();
-          const d = this.root.querySelector('details.od-more[open]');
           d.removeAttribute('open');
           d.querySelector('summary').focus();
-        }
-      }, true);
+        },
+        true,
+      );
       this.root.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
           e.preventDefault();
@@ -618,6 +652,8 @@
       this.selected = new Set([...this.selected].filter((id) => this.requests.some((a) => a.id === id)));
     }
     render() {
+      /* Открытое меню «⋯» лежит в <body> — при перерисовке убираем его, строка уже другая. */
+      document.querySelectorAll('.od-menu-float').forEach((m) => m.remove());
       const beforeMode = this.renderedMode;
       this.renderedMode = this.mode;
       this.$('.od-content').innerHTML =

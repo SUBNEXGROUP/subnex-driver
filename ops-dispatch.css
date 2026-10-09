@@ -93,10 +93,11 @@ table.t td.od-actions .od-rowacts button{width:auto}
 .od-more>summary{list-style:none;display:grid;place-items:center;width:34px;height:34px;border:1px solid var(--line-2);border-radius:8px;background:var(--surface-2);color:var(--ink-2);cursor:pointer;font-size:18px;line-height:1;font-weight:700;user-select:none}
 .od-more>summary::-webkit-details-marker{display:none}
 .od-more>summary:hover,.od-more[open]>summary{background:var(--hover);color:var(--ink)}
-.od-menu{position:fixed;z-index:22000;min-width:200px;padding:6px;background:var(--surface);border:1px solid var(--line-2);border-radius:10px;box-shadow:var(--shadow-2);display:flex;flex-direction:column;gap:2px}
-.od-root .od-menu button{width:100%;justify-content:flex-start;text-align:left;background:transparent;border:0;border-radius:7px;min-height:34px;padding:7px 10px;font-size:13px;font-weight:500}
-.od-root .od-menu button:hover{background:var(--hover)}
-.od-root .od-menu button.od-danger{color:var(--crit)}
+.od-menu{display:none}
+.od-menu.od-menu-float{position:fixed;z-index:22000;min-width:210px;padding:6px;background:var(--surface);border:1px solid var(--line-2);border-radius:10px;box-shadow:var(--shadow-2);display:flex;flex-direction:column;gap:2px;font:14px/1.4 var(--body);color:var(--ink)}
+.od-menu-float button{display:block;color:var(--ink);cursor:pointer;font:inherit;width:100%;justify-content:flex-start;text-align:left;background:transparent;border:0;border-radius:7px;min-height:34px;padding:7px 10px;font-size:13px;font-weight:500}
+.od-menu-float button:hover,.od-menu-float button:focus-visible{background:var(--hover)}
+.od-menu-float button.od-danger{color:var(--crit)}
 .od-menu hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
 
 /* ============ Заявки: шапка, статус автоподбора, сообщения, загрузка (08.10) ============ */
@@ -199,10 +200,10 @@ table.t tr.od-group td{background:var(--surface-3);padding:10px 14px;border-top:
   .od-auto.on .od-pulse::after{animation:od-ping 2.2s cubic-bezier(.2,.6,.3,1) infinite}
   .od-notice.od-in{animation:od-drop .22s ease-out}
   .od-notice.od-out{animation:od-fade-out .26s ease-in forwards}
-  .od-reveal .od-qhead,.od-reveal .od-auto{animation:od-rise .32s ease-out both}
+  .od-reveal .od-qhead,.od-reveal .od-auto{animation:od-rise .32s ease-out backwards}
   .od-reveal .od-auto{animation-delay:60ms}
-  .od-reveal table.t tbody tr{animation:od-rise .3s ease-out both;animation-delay:calc(120ms + var(--i,0) * 28ms)}
-  .od-more .od-menu{animation:od-drop .14s ease-out}
+  .od-reveal table.t tbody tr{animation:od-rise .3s ease-out backwards;animation-delay:calc(120ms + var(--i,0) * 28ms)}
+  .od-menu-float{animation:od-drop .14s ease-out}
 }
 @media (prefers-reduced-motion:reduce){
   .od-sk{animation:none}
