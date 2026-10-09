@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="subnex-ui.css?v=20260929-chat" />
     <link rel="stylesheet" href="ops-chat.css?v=20260929-chat" />
     <link rel="stylesheet" href="ops-dispatch.css?v=20261008-free" />
-    <script src="i18n.js?v=20261008-free"></script>
+    <script src="i18n.js?v=20261010-del"></script>
     <script src="ops-chat.js?v=20261005-mail"></script>
     <script src="ops-dispatch-core.js?v=20261006-fri"></script>
     <script src="ops-dispatch.js?v=20261008-free"></script>
@@ -3114,7 +3114,9 @@
         document.getElementById('ma-driver').value = a.driver_id || '';
         document.getElementById('ma-status').value = a.status;
         document.getElementById('ma-resnote').value = a.result_note || '';
-        document.getElementById('ma-del').style.display = !cancelled ? '' : 'none';
+        /* «Убрать» — только для заявок, которые ещё впереди. Прошедший выезд (выполнено, не ответил,
+           проблема) — это история визита: она остаётся в отчётах, сервер её не закрывает. */
+        document.getElementById('ma-del').style.display = !cancelled && ['new', 'planned'].includes(a.status) ? '' : 'none';
         document.getElementById('ma-chat').style.display = a.phone && a.kind !== 'bank' ? '' : 'none';
         document.getElementById('ma-move').style.display =
           !cancelled && a.kind !== 'bank' && ['new', 'planned'].includes(a.status) ? '' : 'none';
@@ -3285,7 +3287,18 @@
         try {
           const { data, error } = await sb.rpc('subnex_dispatch', { p_action: 'close_request', p_data: { address_id: a.id } });
           if (error) throw error;
-          if (!data || data.closed !== true) throw new Error(data?.reason || 'CLOSE_FAILED');
+          if (!data || data.closed !== true) {
+            const why = {
+              STATE: T('Этот выезд уже состоялся — он остаётся в истории и отчётах. Чтобы забрать снова, заведите новую заявку или нажмите «Это не повтор — в очередь» во вкладке «Повторы».'),
+              BANK: T('Контейнер так не убирается — выключите его во вкладке «Контейнеры».'),
+              NOT_FOUND: T('Заявка не найдена — обновите данные.'),
+            }[data?.reason];
+            if (why) {
+              toast(why);
+              return;
+            }
+            throw new Error(data?.reason || 'CLOSE_FAILED');
+          }
           closeModal('m-addr-bg');
           toast(data.confirmed ? T('Заявка убрана, клиенту отправлено SMS об отмене.') : T('Заявка убрана.'));
           await refreshAll(true);
