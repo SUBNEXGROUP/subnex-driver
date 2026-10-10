@@ -848,8 +848,26 @@
           location.reload();
         }
       }
+      /* Маршруты прошлых дней (с линией на карте) копились в памяти телефона без конца.
+         У Safari на сайт ~5 МБ: когда место кончалось, сохранение падало, и загрузка адресов
+         считала это ошибкой и показывала пустой день. Теперь держим только вчера и дальше,
+         а если места всё равно не хватит — работаем без сохранения, не теряя список на экране. */
+      function pruneLocal(keepFrom) {
+        const from = keepFrom || addDays(todayStr(), -1);
+        for (const d of Object.keys(LOCAL.routes || {})) if (d < from) delete LOCAL.routes[d];
+      }
       function saveLocal() {
-        localStorage.setItem(LKEY, JSON.stringify(LOCAL));
+        try {
+          localStorage.setItem(LKEY, JSON.stringify(LOCAL));
+        } catch (e) {
+          try {
+            pruneLocal(todayStr());
+            for (const r of Object.values(LOCAL.routes || {})) if (r && r.geometry && !r.started_at) delete r.geometry;
+            localStorage.setItem(LKEY, JSON.stringify(LOCAL));
+          } catch (e2) {
+            console.warn('local save skipped', e2);
+          }
+        }
       }
       function getCreds() {
         return { url: CFG_URL || localStorage.getItem('sb_url') || '', key: CFG_KEY || localStorage.getItem('sb_key') || '' };
@@ -872,6 +890,13 @@
         return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
       }
       const addDays = (d, n) => new Date(Date.parse(d + 'T12:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+      /* При каждом открытии сразу освобождаем место от старых маршрутов (см. pruneLocal). */
+      try {
+        pruneLocal();
+        saveLocal();
+      } catch (e) {
+        console.warn('prune skipped', e);
+      }
       const dayLabel = (d) =>
         new Intl.DateTimeFormat(LOCAL.lang === 'en' ? 'en-GB' : 'ru-RU', {
           weekday: 'long',
