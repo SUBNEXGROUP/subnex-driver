@@ -1266,7 +1266,7 @@
           .map(([v, n]) => `<option value="${v}">${n}</option>`)
           .join(
             '',
-          )}</select></label><label>${T('Примечание')}<input id="oc-cancel-note" maxlength="2000"></label><p class="oc-help">${T('Если клиент просит другую дату, оставьте заявку открытой и используйте подбор времени.')}</p><label><input id="oc-cancel-agreed" type="checkbox">${replaceResult ? T('Заменить прежний результат на «Отменено»') : T('Закрыть именно эту заявку')}</label>${t.opted_out ? `<p class="oc-help">${T('SMS отключены клиентом. Закрытие заявки не отменяет этот запрет.')}</p>` : `<label><input id="oc-cancel-sms" type="checkbox" checked>${T('Отправить SMS об отмене')}</label><p class="oc-help">${T('После закрытия сообщение отправится автоматически. Снимите галочку, если уже ответили клиенту.')}</p><div class="oc-preview" style="white-space:pre-wrap">${esc(text)}</div>`}`,
+          )}</select></label><label>${T('Примечание')}<input id="oc-cancel-note" maxlength="2000"></label><p class="oc-help">${T('Если клиент просит другую дату, оставьте заявку открытой и используйте подбор времени.')}</p><label><input id="oc-cancel-agreed" type="checkbox">${replaceResult ? T('Заменить прежний результат на «Отменено»') : T('Закрыть именно эту заявку')}</label>${t.opted_out ? `<p class="oc-help">${T('SMS отключены клиентом. Закрытие заявки не отменяет этот запрет.')}</p><label><input id="oc-cancel-sms" type="checkbox" checked>${T('Отправить письмо об отмене на email клиента')}</label><p class="oc-help">${T('Письмо уйдёт, только если у адреса есть email. Снимите галочку, если уже ответили клиенту.')}</p>` :`<label><input id="oc-cancel-sms" type="checkbox" checked>${T('Отправить SMS об отмене')}</label><p class="oc-help">${T('После закрытия сообщение отправится автоматически. Снимите галочку, если уже ответили клиенту.')}</p><div class="oc-preview" style="white-space:pre-wrap">${esc(text)}</div>`}`,
         async (w) => {
           if (this.sendBusy) throw new Error(T('Дождитесь завершения отправки SMS.'));
           if (!w.querySelector('#oc-cancel-agreed').checked) throw new Error(codes.CANCELLATION_REQUIRED);
@@ -1314,7 +1314,13 @@
               if (n?.state === 'pending') notice = T('Заявка закрыта. SMS об отмене в очереди на отправку.');
               else if (n?.state === 'accepted') notice = T('Заявка закрыта. Статус SMS показан в истории.');
               else if (n?.state === 'disabled' && sendSms) notice = T('Заявка закрыта. Автоматические SMS ещё не включены.');
-              else if (n?.state === 'skipped' && n.reason === 'OPTED_OUT') notice = T('Заявка закрыта. Клиент отключил SMS.');
+              else if (n?.state === 'email' && n.reason === 'OPTED_OUT')
+                notice = T('Заявка закрыта. Клиент отключил SMS — подтверждение отмены отправится на email.');
+              else if (n?.state === 'email') notice = T('Заявка закрыта. Подтверждение отмены отправится на email.');
+              else if (n?.state === 'skipped' && n.reason === 'OPTED_OUT')
+                notice = sendSms
+                  ? T('Заявка закрыта. Клиент отключил SMS, а email у адреса нет — подтверждение не отправлено.')
+                  : T('Заявка закрыта. Клиент отключил SMS.');
               else if (n?.state === 'skipped' && sendSms)
                 notice = T('Заявка закрыта. SMS не отправлена — проверьте номер клиента и текущую заявку.');
               else if (['failed', 'unknown'].includes(n?.state))

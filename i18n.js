@@ -1119,6 +1119,14 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   'Заявка закрыта. Статус SMS показан в истории.': 'Request closed. The SMS status is shown in the history.',
   'Заявка закрыта. Автоматические SMS ещё не включены.': 'Request closed. Automatic SMS is not enabled yet.',
   'Заявка закрыта. Клиент отключил SMS.': 'Request closed. The customer switched off SMS.',
+  'Отправить письмо об отмене на email клиента': "Send a cancellation email to the customer's email",
+  'Письмо уйдёт, только если у адреса есть email. Снимите галочку, если уже ответили клиенту.':
+    'The email is sent only if the address has an email. Untick if you have already replied to the customer.',
+  'Заявка закрыта. Клиент отключил SMS — подтверждение отмены отправится на email.':
+    'Request closed. The customer switched off SMS — the cancellation confirmation will go by email.',
+  'Заявка закрыта. Подтверждение отмены отправится на email.': 'Request closed. The cancellation confirmation will go by email.',
+  'Заявка закрыта. Клиент отключил SMS, а email у адреса нет — подтверждение не отправлено.':
+    'Request closed. The customer switched off SMS and the address has no email — no confirmation was sent.',
   'Заявка закрыта. SMS не отправлена — проверьте номер клиента и текущую заявку.':
     "Request closed. The SMS was not sent — check the customer's number and the current request.",
   'Заявка закрыта. Проверьте статус SMS в истории перед повторной отправкой.':
