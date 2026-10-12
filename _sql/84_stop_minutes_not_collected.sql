@@ -1,7 +1,17 @@
 -- 84: время на адрес 4 минуты; сообщение «не забрали» клиентам партнёров; фото водителя в письме сайта (12.10.2026).
 -- Костя: «давай сделаем 4 минуты на стоп»; клиентам партнёров — SMS, если есть мобильный, иначе письмо;
--- от имени We Recycle Clothes (сайт — SUBNEX); клиентам сайта в письме «не забрали» — маленькое фото с адреса.
+-- от имени We Recycle Clothes (сайт — SUBNEX); клиентам сайта в письмах «не забрали» и «забрали» — маленькое фото с адреса.
+-- (12.10, 22:05) Клиентам партнёров — только при No answer; Problem — без сообщения.
 -- Сообщение уходит через 15 минут после отметки водителя: если отметка исправлена, оно не уходит.
+
+-- 0. Резервные копии функций, которые меняются ниже.
+insert into subnex_private.dispatch_backups(name,definition)
+select '84:'||x.f, pg_get_functiondef(x.f::regprocedure) from (values
+ ('subnex_private.auto_sms_body(text,jsonb)'),('subnex_private.auto_sms_invalid(subnex_private.auto_sms_queue)'),
+ ('public.subnex_auto_sms_worker(text,text,jsonb)'),('subnex_private.enqueue_auto_sms(uuid,text,text,uuid,uuid,jsonb)'),
+ ('subnex_private.site_mail(text,uuid,jsonb)'),('subnex_private.site_email_enqueue(uuid,text,text,jsonb)'),
+ ('public.subnex_email_worker(text,text,jsonb)')) x(f)
+where not exists(select 1 from subnex_private.dispatch_backups b where b.name='84:'||x.f);
 
 -- 1. Время на адрес: 4 минуты (было 2).
 update subnex_private.auto_plan_config set service_minutes=4 where singleton;
@@ -73,7 +83,7 @@ begin
  if position('not_collected' in src)=0 then
   src:=replace(src, $o$ elsif q.event='collected' and a.status<>'done' then return 'RESULT_CHANGED';$o$,
 $n$ elsif q.event='collected' and a.status<>'done' then return 'RESULT_CHANGED';
- elsif q.event='not_collected' and (a.status not in ('noanswer','problem') or a.date is distinct from (q.snapshot->>'day')::date
+ elsif q.event='not_collected' and (a.status<>'noanswer' or a.date is distinct from (q.snapshot->>'day')::date
    ) then return 'RESULT_CHANGED';$n$);
   if position('not_collected' in src)=0 then raise exception 'PATCH_AUTO_SMS_INVALID'; end if;
   execute src;
@@ -150,9 +160,9 @@ begin
  src:=replace(src,E'\r','');
  if position('mail_photo_src' in src)=0 then
   src:=replace(src, $o$ v_review text;$o$, $n$ v_review text; photo text;$n$);
-  src:=replace(src, $o$  if note is not null then rows:=rows||jsonb_build_array(jsonb_build_array('Driver''s note',note)); end if;$o$,
-$n$  if note is not null then rows:=rows||jsonb_build_array(jsonb_build_array('Driver''s note',note)); end if;
-  photo:=subnex_private.mail_photo_src(a.id);$n$);
+  src:=replace(src, $o$ if nullif(p_extra->>'rebook','') is not null and p_kind in ('not_collected','cancelled','closed') then$o$,
+$n$ if p_kind in ('not_collected','collected') then photo:=subnex_private.mail_photo_src(a.id); end if;
+ if nullif(p_extra->>'rebook','') is not null and p_kind in ('not_collected','cancelled','closed') then$n$);
   src:=replace(src, $o$ h:=h||'</table>';
  if btn_url is not null then$o$,
 $n$ h:=h||'</table>';
@@ -191,8 +201,16 @@ begin
  if position('partner_not_collected_mail' in src)=0 then
   src:=replace(src, $o$declare tok subnex_private.intake_tokens;$o$, $n$declare tok subnex_private.intake_tokens; m jsonb; ad public.addresses;$n$);
   src:=replace(src, $o$   update subnex_private.email_outbox set state='sending',claimed_at=now(),attempts=attempts+1 where id=q.id;$o$,
-$n$   if q.kind='not_collected' then
+$n$   if q.kind='collected' and q.from_email is not null then
+    m:=subnex_private.site_mail('collected',q.address_id,coalesce(q.extra,'{}'::jsonb));
+    update subnex_private.email_outbox set subject=m->>'subject',body_text=m->>'text',body_html=m->>'html' where id=q.id
+     returning * into q;
+   end if;
+   if q.kind='not_collected' then
     select * into ad from public.addresses where id=q.address_id;
+    if q.from_email is null and ad.status is distinct from 'noanswer' then
+     update subnex_private.email_outbox set state='skipped',error='STATUS_CHANGED' where id=q.id; continue;
+    end if;
     m:=case when q.from_email is not null
      then subnex_private.site_mail('not_collected',q.address_id,coalesce(q.extra,'{}'::jsonb)||jsonb_build_object('reason',ad.status,'note',ad.result_note,'day',ad.date))
      else subnex_private.partner_not_collected_mail(q.address_id,jsonb_build_object('reason',ad.status)) end;
@@ -205,13 +223,13 @@ $n$   if q.kind='not_collected' then
  end if;
 end $m$;
 
--- 7. Триггер: клиенту партнёра «не забрали» — SMS (мобильный) или письмо (нет мобильного, есть email).
+-- 7. Триггер: клиенту партнёра «не забрали» (только No answer) — SMS (мобильный) или письмо (нет мобильного, есть email).
 create or replace function subnex_private.partner_status_notify()
 returns trigger language plpgsql security definer set search_path to '' as $$
 declare em text; m jsonb; k text;
 begin
  if new.kind is distinct from 'd2d' or new.intake_channel='subnex_website' then return new; end if;
- if not (new.status in ('noanswer','problem') and old.status is distinct from new.status and old.status not in ('noanswer','problem')) then return new; end if;
+ if not (new.status='noanswer' and old.status not in ('noanswer','problem')) then return new; end if;
  k:='not_collected:'||coalesce(new.date,current_date);
  if coalesce(subnex_private.phone(new.phone),'') ~ '^\+447[0-9]{9}$' then
   perform subnex_private.enqueue_auto_sms(new.id,'not_collected',k,null,null,
