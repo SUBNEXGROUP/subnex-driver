@@ -34,7 +34,7 @@ const ok = (name, cond, extra = '') => {
 };
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const browser = await chromium.launch();
+const browser = await chromium.launch(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {});
 async function open(file, role) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const errors = [];
@@ -52,6 +52,8 @@ async function open(file, role) {
     return route.fulfill({ status: 204, body: '' }); // leaflet, fonts, pdfmake, tiles — не нужны для проверки
   });
   page.on('dialog', (d) => d.accept());
+  // Проверки написаны по русским надписям; интерфейс по умолчанию английский.
+  await page.addInitScript(() => { try { localStorage.setItem('subnex_lang', 'ru'); } catch {} });
   await page.goto(base + file);
   return { page, errors };
 }

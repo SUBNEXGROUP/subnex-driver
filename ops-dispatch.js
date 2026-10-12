@@ -857,6 +857,8 @@
       for (const a of this.requests) {
         if (!a.hold_id || !a.held_start || a.date) continue;
         if (['preparing', 'awaiting', 'manual'].includes(a.offer_state)) continue;
+        /* Клиенты сайта и партнёрские без мобильного получают дату письмом автоматически — SMS им не шлём. */
+        if (a.email_route) continue;
         const src = C.sourceOf(a);
         if (['partner_whatsapp', 'missing'].includes(src)) direct.push(a);
         else if (/^\+447\d{9}$/.test(C.phone(a.phone || ''))) sms.push(a);
