@@ -243,7 +243,10 @@
     return null;
   }
 
+  /* Банки объезжаются в любой день, даже выходной (как на сервере, SQL 89): часы — самые широкие из рабочих. */
+  const BANK_DAY_HOURS = { opens: '08:00', closes: '20:30', closed: false };
   function evaluate(nodes, order, config, hours, roads, startMinute) {
+    if ((!hours || hours.closed) && nodes.length && nodes.every((n) => n.kind === 'bank')) hours = config.bank_day_hours || BANK_DAY_HOURS;
     if (!hours || hours.closed) return { ok: false, code: 'DAY_CLOSED' };
     if (!validPoint(config.home) || !validPoint(config.depot)) return { ok: false, code: 'SETTINGS_REQUIRED' };
     const byId = new Map(nodes.map((n) => [n.key, n]));
