@@ -52,7 +52,7 @@
       `Hello, this is ${name ? name + ' from ' + brand : brand}.\n\n` +
       (start
         ? `Your clothing collection at ${address.text} has been moved to ${when}, between ${start} and ${end} (UK time).\n\n`
-        : `Your clothing collection at ${address.text} has been moved to ${when}. We will text you a 1-hour arrival window on the day.\n\n`) +
+        : `Your clothing collection at ${address.text} has been moved to ${when}. We will text you a 2-hour arrival window on the day.\n\n`) +
       `Thank you for letting us know. If this no longer suits you, just reply to this message and we will find another day.\n\n` +
       `Kind regards,\n${name ? name + '\n' : ''}${brand}`
     );

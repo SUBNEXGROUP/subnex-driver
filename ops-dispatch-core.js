@@ -376,7 +376,7 @@
       brand +
       '. We can collect your clothing donation on ' +
       enShortDate(day) +
-      '. Reply YES to confirm - we will text you a 1-hour arrival window on the day. If that day does not suit, just reply and tell us.'
+      '. Reply YES to confirm - we will text you a 2-hour arrival window on the day. If that day does not suit, just reply and tell us.'
     );
   };
   /* Порядок остановок дня: локальный поиск по матрице дорог. Сервер расставляет

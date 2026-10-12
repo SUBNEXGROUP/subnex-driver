@@ -99,7 +99,7 @@ eq('nthWeekday последний четверг сентября 2026', C.nthWe
   eq(
     'dayOfferText = day_offer_v1',
     C.dayOfferText('partner', '2026-09-23', 'Kostia'),
-    'Hi, this is Kostia from We Recycle Clothes. We can collect your clothing donation on Wed 23 Sep. Reply YES to confirm - we will text you a 1-hour arrival window on the day. If that day does not suit, just reply and tell us.',
+    'Hi, this is Kostia from We Recycle Clothes. We can collect your clothing donation on Wed 23 Sep. Reply YES to confirm - we will text you a 2-hour arrival window on the day. If that day does not suit, just reply and tell us.',
   );
   eq('dayOfferText subnex без имени', C.dayOfferText('subnex', '2026-10-01', '').slice(0, 60), 'Hi, this is SUBNEX. We can collect your clothing donation on');
   eq('isDaySpan день', C.isDaySpan('2026-09-23T07:00:00+00:00', '2026-09-23T17:00:00+00:00'), true);

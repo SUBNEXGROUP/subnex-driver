@@ -729,7 +729,7 @@
               a.text +
               ' - ' +
               (C.isDaySpan(a.held_start, a.held_end)
-                ? 'during the day (we text a 1-hour window on the morning)'
+                ? 'during the day (we text a 2-hour window on the morning)'
                 : clock(C.ukMinute(a.held_start)) + ' to ' + clock(C.ukMinute(a.held_end))),
           );
         out.push('');
@@ -1703,7 +1703,7 @@
         `Hello, this is ${name ? name + ' from ' + brand : brand}.\n\n` +
         (start
           ? `Your clothing collection at ${node.text} has been moved to ${when}, between ${start} and ${end} (UK time).\n\n`
-          : `Your clothing collection at ${node.text} has been moved to ${when}. We will text you a 1-hour arrival window on the day.\n\n`) +
+          : `Your clothing collection at ${node.text} has been moved to ${when}. We will text you a 2-hour arrival window on the day.\n\n`) +
         `Sorry for the change, and thank you for your patience. If this no longer suits you, just reply to this message and we will arrange another day.\n\n` +
         `Kind regards,\n${name ? name + '\n' : ''}${brand}`
       );
@@ -2009,7 +2009,7 @@
         timeZone: 'UTC',
       }).format(new Date(C.ukDay(a.held_start) + 'T12:00:00Z'));
       const text = C.isDaySpan(a.held_start, a.held_end)
-        ? `We can collect from ${a.text} on ${dayName}, during the day — we text the customer a 1-hour arrival window on the morning. Please confirm with the customer and let us know if this is suitable. Thank you.`
+        ? `We can collect from ${a.text} on ${dayName}, during the day — we text the customer a 2-hour arrival window on the morning. Please confirm with the customer and let us know if this is suitable. Thank you.`
         : `We can collect from ${a.text} on ${dayName}, between ${C.hm(C.ukMinute(a.held_start))} and ${C.hm(C.ukMinute(a.held_end))} (UK time). Please confirm with the customer and let us know if this is suitable. Thank you.`;
       const w = this.dialog(
         T('Согласование с партнёром'),
