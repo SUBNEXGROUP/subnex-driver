@@ -860,6 +860,11 @@
         /* Клиенты сайта и партнёрские без мобильного получают дату письмом автоматически — SMS им не шлём. */
         if (a.email_route) continue;
         const src = C.sourceOf(a);
+        /* SMS уже не дошла (номер недоступен) — повторять бессмысленно: дозвониться или найти другой контакт. */
+        if (a.offer_state === 'failed' && !['partner_whatsapp', 'missing'].includes(src)) {
+          blocked.push(a);
+          continue;
+        }
         if (['partner_whatsapp', 'missing'].includes(src)) direct.push(a);
         else if (/^\+447\d{9}$/.test(C.phone(a.phone || ''))) sms.push(a);
         else blocked.push(a);
@@ -901,7 +906,7 @@
             ? `<p><b>${direct.length}</b> ${T('— от партнёра: сразу в маршрут, клиенту ничего не отправляется.')}</p><ul>${direct.map(li).join('')}</ul>`
             : '') +
           (blocked.length
-            ? `<p class="od-muted">${T('Пропустим')} ${blocked.length}${T(': нет британского мобильного —')} ${blocked.map((a) => esc(a.text)).join('; ')}</p>`
+            ? `<p class="od-muted">${T('Пропустим')} ${blocked.length}${T(': нет британского мобильного или SMS на номер не доходит —')} ${blocked.map((a) => esc(a.text)).join('; ')}</p>`
             : '') +
           `<p class="od-muted">${T('Пачка идёт до конца: сбойный адрес не остановит остальные. Если сломается что-то общее — доступ, сервис дорог, лимит — отправка остановится и покажет причину.')}</p>` +
           (sms.length
@@ -1109,6 +1114,8 @@
         const eo = a.email_offer && typeof a.email_offer === 'object' ? a.email_offer : null;
         if (a.held_start && eo && eo.state === 'sent')
           return `<span class="od-chip" style="background:var(--far-soft);color:var(--far)">${T('Дата отправлена письмом ·')} ${esc(this.slotText(a))} ${T('· ждём подтверждения')}</span>`;
+        if (a.held_start && a.offer_state === 'failed' && !a.email_route)
+          return `<span class="od-chip" style="background:var(--crit-soft);color:var(--crit)">${T('SMS не дошла — номер недоступен ·')} ${esc(this.slotText(a))}</span>`;
         if (a.held_start && a.email_route)
           return `<span class="od-slot">${T('День занят')} · ${esc(this.slotText(a))} ${T('· письмо уйдёт автоматически')}</span>`;
         if (a.held_start)

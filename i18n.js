@@ -548,6 +548,8 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
     '— from the partner: straight into the route, nothing is sent to the customer.',
   Пропустим: 'Skipping',
   ': нет британского мобильного —': ': no UK mobile —',
+  ': нет британского мобильного или SMS на номер не доходит —': ': no UK mobile, or texts to the number do not arrive —',
+  'SMS не дошла — номер недоступен ·': 'Text not delivered — number unreachable ·',
   'Пачка идёт до конца: сбойный адрес не остановит остальные. Если сломается что-то общее — доступ, сервис дорог, лимит — отправка остановится и покажет причину.':
     'The batch runs to the end: a failing address does not stop the others. If something shared breaks — access, the routing service, a limit — sending stops and shows the reason.',
   'Да, отправить': 'Yes, send',
