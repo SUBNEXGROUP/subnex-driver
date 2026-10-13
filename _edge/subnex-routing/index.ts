@@ -5,10 +5,23 @@ type Point = {lat:number;lng:number};
 const key=(p:Point)=>p.lat.toFixed(5)+','+p.lng.toFixed(5);
 const valid=(p:any):p is Point=>p&&Number.isFinite(p.lat)&&Number.isFinite(p.lng)&&p.lat>=49&&p.lat<=61&&p.lng>=-9&&p.lng<=3;
 const json=(body:unknown,status:number,origin:string)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json','Access-Control-Allow-Origin':origin,'Vary':'Origin','Access-Control-Allow-Headers':'authorization, apikey, content-type, x-client-info','Access-Control-Allow-Methods':'POST, OPTIONS','Cache-Control':'no-store'}});
+// 13.10.2026: один повтор при сбое сети/таймауте/5xx у сервиса дорог — короткие сбои не должны ронять план.
 async function fetchJson(url:string,init:RequestInit={}):Promise<any>{
- const response=await fetch(url,{...init,signal:AbortSignal.timeout(20000)});
- if(!response.ok)throw new Error('ROUTING_HTTP_'+response.status);
- return await response.json();
+ for(let attempt=0;;attempt++){
+  try{
+   const response=await fetch(url,{...init,signal:AbortSignal.timeout(20000)});
+   if(response.ok)return await response.json();
+   const detail=(await response.text().catch(()=>'')).slice(0,300);
+   console.error('routing provider',response.status,detail);
+   if(attempt===0&&response.status>=500){await new Promise(r=>setTimeout(r,1500));continue;}
+   throw new Error('ROUTING_HTTP_'+response.status);
+  }catch(e){
+   if(e instanceof Error&&e.message.startsWith('ROUTING_HTTP_'))throw e;
+   console.error('routing provider fetch failed',String(e));
+   if(attempt===0){await new Promise(r=>setTimeout(r,1500));continue;}
+   throw new Error('ROUTING_HTTP_NETWORK');
+  }
+ }
 }
 export async function handler(request:Request):Promise<Response>{
  const allowed=Deno.env.get('SUBNEX_WEB_ORIGIN')||'https://subnexgroup.github.io';
@@ -77,6 +90,6 @@ export async function handler(request:Request):Promise<Response>{
    geometry=geometry.concat((start?coordinates.slice(1):coordinates).map(p=>[p[1],p[0]]));distance+=summary.distance;duration+=summary.duration;
   }
   return json({geometry,km:distance/1000,min:duration/60,order:order.filter(k=>k.startsWith('a:')).map(k=>k.slice(2)),token:day.token,provider:ors?'openrouteservice':'osrm'},200,allowed);
- }catch(e){const message=e instanceof Error?e.message:'ROUTING_ERROR';return json({error:message},400,allowed);}
+ }catch(e){const message=e instanceof Error?e.message:'ROUTING_ERROR';console.error('subnex-routing',message);return json({error:message},400,allowed);}
 }
 if(import.meta.main)Deno.serve(handler);
