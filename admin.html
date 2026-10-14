@@ -20,10 +20,10 @@
     <link rel="stylesheet" href="subnex-ui.css?v=20260929-chat" />
     <link rel="stylesheet" href="ops-chat.css?v=20260929-chat" />
     <link rel="stylesheet" href="ops-dispatch.css?v=20261014-noreply" />
-    <script src="i18n.js?v=20261014-noreply"></script>
+    <script src="i18n.js?v=20261014-dayonly"></script>
     <script src="ops-chat.js?v=20261012-2h"></script>
     <script src="ops-dispatch-core.js?v=20261012-banks"></script>
-    <script src="ops-dispatch.js?v=20261014-noreply"></script>
+    <script src="ops-dispatch.js?v=20261014-dayonly"></script>
     <style>
       .leaflet-container {
         font-family: var(--body);
@@ -1028,8 +1028,9 @@
           </div>
           <div class="row" id="mv-slot">
             <div class="f-group"><label class="f">Дата</label><input class="field" type="date" id="mv-date" /></div>
-            <div class="f-group"><label class="f">Время прибытия</label><input class="field" type="time" step="300" id="mv-start" /></div>
+            <div class="f-group" id="mv-timewrap"><label class="f">Время прибытия</label><input class="field" type="time" step="300" id="mv-start" /></div>
           </div>
+          <label id="mv-wholewrap"><input type="checkbox" id="mv-whole" onchange="moveModeChange()" /> В течение дня — окно прибытия уйдёт клиенту утром</label>
           <div class="f-group" id="mv-nbwrap" hidden><label class="f">Не раньше</label><input class="field" type="date" id="mv-nb" /></div>
           <p class="muted" id="mv-help"></p>
           <label id="mv-agreewrap" hidden><input type="checkbox" id="mv-agreed" /> Клиент согласовал перенос.</label>
@@ -3205,11 +3206,16 @@
       /* ---------- ПЕРЕНОС ЗАЯВКИ ---------- */
       function moveModeChange() {
         const q = document.getElementById('mv-mode').value === 'queue';
+        const whole = document.getElementById('mv-whole').checked;
         document.getElementById('mv-slot').hidden = q;
+        document.getElementById('mv-wholewrap').hidden = q;
+        document.getElementById('mv-timewrap').hidden = q || whole;
         document.getElementById('mv-nbwrap').hidden = !q;
         document.getElementById('mv-help').textContent = q
           ? T('Дата снимется, заявка вернётся в очередь на распределение. Планировщик подберёт день заново.')
-          : T('Клиенту обещается интервал 30 минут. Новое место проверяется по дороге, рабочим часам и дню выезда зоны.');
+          : whole
+            ? T('Сбор встанет на этот день без времени. Окно прибытия уйдёт клиенту утром, когда водитель начнёт маршрут.')
+            : T('Клиенту обещается интервал 30 минут. Новое место проверяется по дороге, рабочим часам и дню выезда зоны.');
       }
       function openMoveModal() {
         const a = ADDR.find((x) => x.id === editAddrId);
@@ -3229,7 +3235,11 @@
         document.getElementById('mv-mode').value = 'day';
         document.getElementById('mv-date').min = todayStr();
         document.getElementById('mv-date').value = a.date || '';
-        document.getElementById('mv-start').value = a.collection_start ? Ops.ukTime(a.collection_start) : '09:00';
+        document.getElementById('mv-start').value =
+          a.collection_start && !C.isDaySpan(a.collection_start, a.collection_end) ? Ops.ukTime(a.collection_start) : '09:00';
+        /* По умолчанию — «в течение дня»; точное время остаётся только у тех, кому его уже обещали. */
+        document.getElementById('mv-whole').checked =
+          !a.collection_start || a.arrival_mode === 'day' || C.isDaySpan(a.collection_start, a.collection_end);
         document.getElementById('mv-nb').min = todayStr();
         document.getElementById('mv-nb').value = '';
         document.getElementById('mv-agreewrap').hidden = !confirmed;
@@ -3256,11 +3266,17 @@
             data.not_before = document.getElementById('mv-nb').value || null;
           } else {
             const d = document.getElementById('mv-date').value,
-              st = document.getElementById('mv-start').value;
-            if (!d || !st) throw new Error(T('Укажите дату и время.'));
-            const m = C.minute(st);
-            if (!Number.isFinite(m) || m + 30 > 1440) throw new Error(T('Укажите время так, чтобы интервал в 30 минут уместился в сутки.'));
-            Object.assign(data, { day: d, start: st, end: C.hm(m + 30) });
+              st = document.getElementById('mv-start').value,
+              whole = document.getElementById('mv-whole').checked;
+            if (whole) {
+              if (!d) throw new Error(T('Укажите дату и время.'));
+              Object.assign(data, { day: d, mode: 'day' });
+            } else {
+              if (!d || !st) throw new Error(T('Укажите дату и время.'));
+              const m = C.minute(st);
+              if (!Number.isFinite(m) || m + 30 > 1440) throw new Error(T('Укажите время так, чтобы интервал в 30 минут уместился в сутки.'));
+              Object.assign(data, { day: d, start: st, end: C.hm(m + 30) });
+            }
             try {
               await window.OpsDispatch?.warm({ sb, driver: { id: a.driver_id }, hasOutbox: () => false }, d, [a.id]);
             } catch (e) {}

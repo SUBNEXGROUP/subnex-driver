@@ -549,6 +549,8 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   Пропустим: 'Skipping',
   ': нет британского мобильного —': ': no UK mobile —',
   'Нет ответа': 'No reply',
+  'В течение дня — без точного времени': 'During the day — no exact time',
+  ', в течение дня': ', during the day',
   'Дату предлагали, клиент не ответил, день прошёл. Заявка закроется автоматически, клиенту уйдёт сообщение «не получили ответа».':
     'A date was offered, the customer did not reply and the day has passed. The request closes automatically and the customer gets a "we did not hear back" message.',
   ': нет британского мобильного или SMS на номер не доходит —': ': no UK mobile, or texts to the number do not arrive —',

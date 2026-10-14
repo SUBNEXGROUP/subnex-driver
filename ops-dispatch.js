@@ -1761,7 +1761,10 @@
         async (wrap) => {
           const day = wrap.querySelector('#od-rp-day').value;
           let start = wrap.querySelector('#od-rp-time').value;
-          if (!start) {
+          /* «В течение дня»: без точного времени, окно прибытия уйдёт клиенту утром при старте. */
+          const wholeDay = !fresh && start === 'day';
+          if (wholeDay) start = '';
+          if (!start && !wholeDay) {
             const list = slots(day);
             if (!list.length) throw new Error(T('В этот день нет свободного места.'));
             start = list[0].start;
@@ -1787,7 +1790,9 @@
             await warm(this.o, day, [addressId]);
           } catch (e) {}
           const r = await this.sb.rpc('subnex_move_request', {
-            p_data: { address_id: addressId, version: full.collection_version, day, start, end, agreed: true },
+            p_data: wholeDay
+              ? { address_id: addressId, version: full.collection_version, day, mode: 'day', agreed: true }
+              : { address_id: addressId, version: full.collection_version, day, start, end, agreed: true },
           });
           if (r.error) throw r.error;
           let tail = '';
@@ -1812,7 +1817,7 @@
             this.mode = 'queue';
             this.render();
           }
-          this.notice(`${T('Сбор перенесён на')} ${label(day)}, ${start}.` + tail, !!tail);
+          this.notice(`${T('Сбор перенесён на')} ${label(day)}${wholeDay ? T(', в течение дня') : ', ' + start}.` + tail, !!tail);
           await this.o.onChanged?.();
         },
         T('Перенести'),
@@ -1822,6 +1827,7 @@
           list = slots(day);
         const same = list.find((o) => o.start === (node.starts_at ? C.hm(C.ukMinute(node.starts_at)) : null));
         w.querySelector('#od-rp-time').innerHTML =
+          (fresh ? '' : `<option value="day" ${node.kind === 'confirmed' && full.arrival_mode === 'day' ? 'selected' : ''}>${T('В течение дня — без точного времени')}</option>`) +
           `<option value="">${T('Подобрать автоматически')}</option>` +
           list
             .map(
@@ -1835,8 +1841,12 @@
             T('Свободного времени в этот день не осталось — выберите другой день.');
         const text = w.querySelector('#od-rp-text');
         if (text) {
-          const start = w.querySelector('#od-rp-time').value || (list[0] && list[0].start) || '';
-          text.value = start ? this.moveText(node, source, day, start, C.hm(C.minute(start) + 30)) : '';
+          const picked = w.querySelector('#od-rp-time').value;
+          if (picked === 'day') text.value = this.moveText(node, source, day, '', '');
+          else {
+            const start = picked || (list[0] && list[0].start) || '';
+            text.value = start ? this.moveText(node, source, day, start, C.hm(C.minute(start) + 30)) : '';
+          }
         }
         void same;
       };
