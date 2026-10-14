@@ -159,6 +159,7 @@ table.t tr.od-group td{background:var(--surface-3);padding:10px 14px;border-top:
 .od-gtitle{font-weight:700;color:var(--ink)}
 .od-badge{display:inline-grid;place-items:center;min-width:22px;height:20px;padding:0 7px;margin:0 10px 0 8px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line-2);font:600 11.5px/1 var(--mono);color:var(--ink-2);vertical-align:1px}
 .od-group-dead .od-badge{background:var(--crit-soft);border-color:color-mix(in srgb,var(--crit) 35%,transparent);color:var(--crit)}
+.od-group-noreply .od-badge{background:var(--warn-soft);border-color:color-mix(in srgb,var(--warn) 35%,transparent);color:var(--warn)}
 .od-group-wait .od-badge{background:var(--far-soft);border-color:color-mix(in srgb,var(--far) 35%,transparent);color:var(--far)}
 .od-group-held .od-badge{background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 35%,transparent);color:var(--accent)}
 .od-ghint{color:var(--muted);font-size:12.5px}

@@ -1038,6 +1038,9 @@
       const free = this.requests.filter((a) => this.available(a) && !this.parked(a));
       /* Три блока, чтобы новые заявки не путались с теми, где время уже занято
      или клиенту уже написали. Порядок — по убыванию обязательств перед клиентом. */
+      /* Дату уже предлагали (SMS или письмом), ответа нет, а день прошёл — это не новая заявка (SQL 90 её закроет). */
+      const noReply = (a) =>
+        a.offer_attempts > 0 || (a.email_offer && typeof a.email_offer === 'object' && a.email_offer.state === 'expired');
       const groups = [
         {
           key: 'dead',
@@ -1060,10 +1063,16 @@
           rows: shown.filter((a) => !a.offered_start && a.held_start),
         },
         {
+          key: 'noreply',
+          title: T('Нет ответа'),
+          hint: T('Дату предлагали, клиент не ответил, день прошёл. Заявка закроется автоматически, клиенту уйдёт сообщение «не получили ответа».'),
+          rows: shown.filter((a) => !a.offered_start && !a.held_start && noReply(a)),
+        },
+        {
           key: 'new',
           title: T('Новые заявки'),
           hint: T('Без времени. Отметьте и посчитайте план.'),
-          rows: shown.filter((a) => !a.offered_start && !a.held_start),
+          rows: shown.filter((a) => !a.offered_start && !a.held_start && !noReply(a)),
         },
       ].filter((g) => g.rows.length);
       const groupHead = (g) =>

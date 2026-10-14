@@ -548,6 +548,9 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
     '— from the partner: straight into the route, nothing is sent to the customer.',
   Пропустим: 'Skipping',
   ': нет британского мобильного —': ': no UK mobile —',
+  'Нет ответа': 'No reply',
+  'Дату предлагали, клиент не ответил, день прошёл. Заявка закроется автоматически, клиенту уйдёт сообщение «не получили ответа».':
+    'A date was offered, the customer did not reply and the day has passed. The request closes automatically and the customer gets a "we did not hear back" message.',
   ': нет британского мобильного или SMS на номер не доходит —': ': no UK mobile, or texts to the number do not arrive —',
   'SMS не дошла — номер недоступен ·': 'Text not delivered — number unreachable ·',
   'Пачка идёт до конца: сбойный адрес не остановит остальные. Если сломается что-то общее — доступ, сервис дорог, лимит — отправка остановится и покажет причину.':
