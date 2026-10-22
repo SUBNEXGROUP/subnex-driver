@@ -131,6 +131,12 @@
    четверг. Поэтому зоны считаются «своими» друг другу не только по коду, но и когда
    у них совпадает день выезда — тогда день поездки открыт для всех троих.
    Зоны с разными днями (Суонси по средам, запад по вторникам) не смешиваются. */
+  /* Недели месяца, в которые зона выезжает: [2, 4] — вторая и четвёртая; 5 — последняя.
+   Старые зоны хранят одну неделю в week_of_month. */
+  const monthWeeks = (r) => {
+    const w = Array.isArray(r?.weeks_of_month) && r.weeks_of_month.length ? r.weeks_of_month : [r?.week_of_month || 5];
+    return [...new Set(w.map(Number).filter((x) => x >= 1 && x <= 5))].sort((a, b) => a - b);
+  };
   const sameZone = (x, y) => {
     if (!x || !y) return false;
     if (zoneKey(x) === zoneKey(y)) return true;
@@ -138,7 +144,7 @@
       x.mode === 'monthly' &&
       y.mode === 'monthly' &&
       Number(x.weekday) === Number(y.weekday) &&
-      Number(x.week_of_month || 5) === Number(y.week_of_month || 5)
+      monthWeeks(x).join() === monthWeeks(y).join()
     );
   };
   /* Зона адреса: совпали буквы и номер попал в диапазон. Выигрывает самый узкий диапазон. */
@@ -175,8 +181,15 @@
       .join(', ');
   const weeklyOk = (rule, day) =>
     !rule || rule.mode !== 'weekly' || (Array.isArray(rule.weekdays) && rule.weekdays.map(Number).includes(weekdayOf(day)));
-  const zoneTripDay = (rule, day) =>
-    rule && rule.mode === 'monthly' && Number.isFinite(rule.weekday) ? nthWeekday(day, rule.weekday, rule.week_of_month || 5) : null;
+  /* Дата выезда зоны в месяце этого дня: сам день, если он — один из выездов, иначе первый выезд месяца. */
+  const zoneTripDay = (rule, day) => {
+    if (!(rule && rule.mode === 'monthly' && Number.isFinite(Number(rule.weekday)) && rule.weekday !== null)) return null;
+    const ds = monthWeeks(rule)
+      .map((w) => nthWeekday(day, Number(rule.weekday), w))
+      .filter(Boolean)
+      .sort();
+    return ds.includes(day) ? day : ds[0] || null;
+  };
   /* Зона, чей выезд назначен на этот день: такой день занимают только её адреса.
    Но день держится за зоной ТОЛЬКО пока в ней есть заявки. Иначе каждый месяц
    один рабочий день пропадал бы впустую ради зоны, из которой ничего не пришло.
@@ -217,8 +230,12 @@
     const out = [];
     let [y, m] = from.split('-').map(Number);
     for (let i = 0; i < 14 && out.length < count; i++) {
-      const d = nthWeekday(`${y}-${String(m).padStart(2, '0')}-01`, rule.weekday, rule.week_of_month || 5);
-      if (d && d >= from) out.push(d);
+      const month = `${y}-${String(m).padStart(2, '0')}-01`;
+      const ds = monthWeeks(rule)
+        .map((w) => nthWeekday(month, Number(rule.weekday), w))
+        .filter((d) => d && d >= from)
+        .sort();
+      for (const d of ds) if (out.length < count && !out.includes(d)) out.push(d);
       m++;
       if (m > 12) {
         m = 1;
@@ -1305,6 +1322,7 @@
     activeZones,
     postcodeNumber,
     sameZone,
+    monthWeeks,
     movePlanned,
     slotsFor,
     nextTripDays,

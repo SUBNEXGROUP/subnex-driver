@@ -14,6 +14,21 @@ const eq = (name, got, want) => {
   console.log((ok ? 'ok   ' : 'FAIL ') + name + (ok ? '' : `\n     got  ${JSON.stringify(got)}\n     want ${JSON.stringify(want)}`));
 };
 
+/* ---------- зоны: несколько выездов в месяц ---------- */
+{
+  const sa = { code: 'SA1-13', prefix: 'SA', mode: 'monthly', weekday: 2, week_of_month: 2, weeks_of_month: [2, 4] };
+  const old = { code: 'BS', prefix: 'BS', mode: 'monthly', weekday: 4, week_of_month: 5 };
+  eq('monthWeeks 2,4', C.monthWeeks(sa), [2, 4]);
+  eq('monthWeeks legacy', C.monthWeeks(old), [5]);
+  eq('nextTripDays 2nd+4th Tue', C.nextTripDays(sa, '2026-10-22', 4), ['2026-10-27', '2026-11-10', '2026-11-24', '2026-12-08']);
+  eq('nextTripDays legacy last Thu', C.nextTripDays(old, '2026-10-22', 2), ['2026-10-29', '2026-11-26']);
+  eq('zoneTripDay 4th Tue', C.zoneTripDay(sa, '2026-10-27'), '2026-10-27');
+  eq('zoneTripDay 2nd Tue', C.zoneTripDay(sa, '2026-11-10'), '2026-11-10');
+  eq('zoneTripDay other Tue', C.zoneTripDay(sa, '2026-11-17') === '2026-11-17', false);
+  eq('sameZone SA pair', C.sameZone(sa, { ...sa, code: 'SA14-99' }), true);
+  eq('sameZone SA vs single 2nd Tue', C.sameZone(sa, { ...sa, code: 'X', weeks_of_month: null }), false);
+}
+
 /* ---------- телефон ---------- */
 eq('phone 07446 932887', C.phone('07446 932887'), '+447446932887');
 eq('phone +44 (0)7446932887', C.phone('+44 (0)7446932887'), '+447446932887');

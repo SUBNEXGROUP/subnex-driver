@@ -20,9 +20,9 @@
     <link rel="stylesheet" href="subnex-ui.css?v=20260929-chat" />
     <link rel="stylesheet" href="ops-chat.css?v=20260929-chat" />
     <link rel="stylesheet" href="ops-dispatch.css?v=20261014-noreply" />
-    <script src="i18n.js?v=20261014-dayonly"></script>
+    <script src="i18n.js?v=20261022-saweeks"></script>
     <script src="ops-chat.js?v=20261012-2h"></script>
-    <script src="ops-dispatch-core.js?v=20261012-banks"></script>
+    <script src="ops-dispatch-core.js?v=20261022-saweeks"></script>
     <script src="ops-dispatch.js?v=20261014-dayonly"></script>
     <style>
       .leaflet-container {
@@ -1205,14 +1205,12 @@
               </select>
             </div>
             <div class="f-group">
-              <label class="f">Какая неделя месяца</label
-              ><select class="field" id="mz-week">
-                <option value="5">Последняя</option>
-                <option value="1">Первая</option>
-                <option value="2">Вторая</option>
-                <option value="3">Третья</option>
-                <option value="4">Четвёртая</option>
-              </select>
+              <label class="f">Какие недели месяца</label>
+              <div class="mz-days" id="mz-weeks">
+                <label><input type="checkbox" value="1" /> Первая</label><label><input type="checkbox" value="2" /> Вторая</label
+                ><label><input type="checkbox" value="3" /> Третья</label><label><input type="checkbox" value="4" /> Четвёртая</label
+                ><label><input type="checkbox" value="5" /> Последняя</label>
+              </div>
             </div>
           </div>
           <p class="muted small" id="mz-preview"></p>
@@ -1557,8 +1555,13 @@
       };
       const WEEKGENDER = ['n', 'm', 'm', 'f', 'm', 'f', 'f'];
       const weekName = (wk, wd) => ORDINALS[WEEKGENDER[wd] || 'm'][wk] || ORDINALS[WEEKGENDER[wd] || 'm'][5];
+      /* «второй и четвёртый вторник месяца» */
+      const weeksName = (weeks, wd) => {
+        const n = weeks.map((w) => weekName(w, wd));
+        return n.length < 2 ? n.join('') : n.slice(0, -1).join(', ') + ' ' + T('и') + ' ' + n[n.length - 1];
+      };
       const zoneWhen = (z) =>
-        z.mode === 'monthly' ? `${weekName(z.week_of_month, z.weekday)} ${WEEKDAYS[z.weekday].toLowerCase()} ${T('месяца')}` : '';
+        z.mode === 'monthly' ? `${weeksName(C.monthWeeks(z), z.weekday)} ${WEEKDAYS[z.weekday].toLowerCase()} ${T('месяца')}` : '';
       async function driverPoints(driverId) {
         if (POINTS[driverId]) return POINTS[driverId];
         try {
@@ -2879,7 +2882,8 @@
         const zd = new Set((z && z.weekdays) || [1, 3, 6]);
         document.querySelectorAll('#mz-days input').forEach((b) => (b.checked = zd.has(+b.value)));
         document.getElementById('mz-weekday').value = z && z.weekday != null ? z.weekday : 4;
-        document.getElementById('mz-week').value = z && z.week_of_month != null ? z.week_of_month : 5;
+        const zw = new Set(z && z.mode === 'monthly' ? C.monthWeeks(z) : [5]);
+        document.querySelectorAll('#mz-weeks input').forEach((b) => (b.checked = zw.has(+b.value)));
         document.getElementById('mz-del').style.display = z ? '' : 'none';
         document.getElementById('mz-err').textContent = '';
         zoneModeChange();
@@ -2906,19 +2910,24 @@
           return;
         }
         const wd = +document.getElementById('mz-weekday').value,
-          wk = +document.getElementById('mz-week').value;
-        const next = C.nextTripDays({ mode: 'monthly', weekday: wd, week_of_month: wk }, todayStr(), 3);
+          wks = zoneWeeks();
+        if (!wks.length) {
+          p.textContent = T('Отметьте хотя бы одну неделю.');
+          return;
+        }
+        const next = C.nextTripDays({ mode: 'monthly', weekday: wd, week_of_month: wks[0], weeks_of_month: wks }, todayStr(), 3);
         p.textContent =
           T('Выезд: ') +
-          weekName(wk, wd) +
+          weeksName(wks, wd) +
           ' ' +
           WEEKDAYS[wd].toLowerCase() +
           T(' месяца. Ближайшие: ') +
           next.map((d) => dayShort(d)).join(', ') +
           '.';
       }
-      for (const id of ['mz-weekday', 'mz-week', 'mz-days']) document.getElementById(id).addEventListener('change', zoneModeChange);
+      for (const id of ['mz-weekday', 'mz-weeks', 'mz-days']) document.getElementById(id).addEventListener('change', zoneModeChange);
       const zoneDays = () => [...document.querySelectorAll('#mz-days input:checked')].map((b) => +b.value);
+      const zoneWeeks = () => [...document.querySelectorAll('#mz-weeks input:checked')].map((b) => +b.value).sort((a, b) => a - b);
       async function zoneSave() {
         const btn = document.getElementById('mz-save');
         btn.disabled = true;
@@ -2929,6 +2938,7 @@
           if (parsed[3] && +parsed[3] < +parsed[2]) throw new Error(T('Второй номер диапазона должен быть больше первого.'));
           const mode = document.getElementById('mz-mode').value;
           if (mode === 'weekly' && !zoneDays().length) throw new Error(T('Отметьте хотя бы один день.'));
+          if (mode === 'monthly' && !zoneWeeks().length) throw new Error(T('Отметьте хотя бы одну неделю.'));
           const { error } = await sb.rpc('subnex_zones', {
             p_action: 'save',
             p_data: {
@@ -2937,7 +2947,8 @@
               name: document.getElementById('mz-name').value.trim() || code,
               mode,
               weekday: +document.getElementById('mz-weekday').value,
-              week_of_month: +document.getElementById('mz-week').value,
+              week_of_month: zoneWeeks()[0] || 5,
+              weeks_of_month: zoneWeeks(),
               weekdays: zoneDays(),
             },
           });
