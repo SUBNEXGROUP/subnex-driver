@@ -1,0 +1,18 @@
+-- 98: choose the collection day right in the /collect/ form (Kostia, 24 Oct 2026).
+-- APPLIED 24 Oct 2026. Backup of the form function: dispatch_backups '98:subnex_web_booking'.
+-- Site: SUBNEXGROUP/SUBNEX commit b112dde (collect/index.html).
+--
+-- * subnex_private.plan_days_for_point(text, lat, lng, driver): auto_plan_days for a request that is not in the
+--   database yet (generated from auto_plan_days' source: the address row is built in memory).
+-- * subnex_private.website_driver(): the driver website requests go to (same rule as subnex_web_booking).
+-- * public.subnex_booking_days(postcode, lat, lng) — anon: up to 4 days, the planner's best 4 by route cost,
+--   returned in date order with labels ("Wednesday 28 October").
+-- * subnex_private.site_book_day(address, day): hold + email_offers row + planned + 'confirmed' email
+--   (same steps as subnex_email_confirm, without the date-offer email). The manage link works as usual.
+-- * subnex_web_booking (marker SITE_DATE_PICK_V1): p_data.day — if it is still among auto_plan_days for the new
+--   request, book it straight away; otherwise (taken, closed, skip rule) the old flow: email offer of the best day.
+--   Returns booked / day / day_label / picked.
+--
+-- Dry runs (rolled back): pick 28 Oct -> planned 28 Oct + "Collection confirmed: Wednesday 28 October";
+-- pick closed 29 Oct -> date offer email for 26 Oct; no pick -> date offer email as before.
+-- Live check in the browser: CF14 4HJ shows Mon 26, Wed 28, Fri 30 Oct, Wed 4 Nov.
