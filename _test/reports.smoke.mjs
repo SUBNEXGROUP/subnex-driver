@@ -33,6 +33,9 @@ const ok = (name, cond, extra = '') => {
   cond ? pass++ : fail++;
   console.log((cond ? 'ok   ' : 'FAIL ') + name + (cond ? '' : ' ' + extra));
 };
+/* ExcelJS — из локального node_modules (EXCELJS=путь к exceljs.min.js), иначе проверка Excel пропускается. */
+const excelJsPath = process.env.EXCELJS || path.join(root, 'node_modules', 'exceljs', 'dist', 'exceljs.min.js');
+const haveExcel = fs.existsSync(excelJsPath);
 const browser = await chromium.launch(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {});
 async function open(lang) {
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, acceptDownloads: true });
@@ -49,6 +52,7 @@ async function open(lang) {
     if (/supabase-js|supabase\.min\.js/.test(u))
       return route.fulfill({ contentType: 'text/javascript', body: `window.__role='admin';` + mock });
     if (/pdfmake/.test(u) && !/vfs/.test(u)) return route.fulfill({ contentType: 'text/javascript', body: pdfStub });
+    if (/exceljs/.test(u) && haveExcel) return route.fulfill({ contentType: 'text/javascript', body: fs.readFileSync(excelJsPath, 'utf8') });
     if (/bank-holidays/.test(u)) return route.fulfill({ contentType: 'application/json', body: '{"england-and-wales":{"events":[]}}' });
     return route.fulfill({ status: 204, body: '' });
   });
@@ -125,6 +129,35 @@ async function open(lang) {
     lines[0],
   );
   ok('csv: без кириллицы', !/[А-Яа-яЁё]/.test(csv));
+  if (haveExcel) {
+    const ExcelJS = createRequire(excelJsPath)(excelJsPath);
+    const readX = async (src) => {
+      const [d] = await Promise.all([page.waitForEvent('download'), page.click(`[data-mo-xlsx="${src}"]`)]);
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(fs.readFileSync(await d.path()));
+      const ws = wb.getWorksheet('Collections');
+      const grid = [];
+      ws.eachRow((row, n) => (grid[n] = row.values.map((v) => (v && typeof v === 'object' && 'result' in v ? v.result : v))));
+      return { name: d.suggestedFilename(), grid };
+    };
+    const em = await readX('partner_email');
+    const hr = em.grid.findIndex((r) => r && r.includes('Name'));
+    const head = em.grid[hr];
+    ok('xlsx: колонки без «Bags collected»', head.join('|') === '||Name|Collection Date|Address|Phone|N/bags|Status|Notes|Charity', head.join('|'));
+    const rowOf = (g, t) => g.find((r) => r && r.some((v) => typeof v === 'string' && v.includes(t)));
+    ok('xlsx: N/bags = отметка водителя (6, не «4 to 10»)', rowOf(em.grid, '1 Email Street')?.[6] === 6, JSON.stringify(rowOf(em.grid, '1 Email Street')));
+    ok('xlsx: у несделанного мешков нет', rowOf(em.grid, '2 Email Street')?.[6] == null);
+    ok('xlsx: в сводке сумма мешков по charity', em.grid[2]?.[8] === 'Bags' && rowOf(em.grid.slice(0, hr), 'Shelter Cymru')?.[8] === 6, JSON.stringify(em.grid.slice(1, hr)));
+    const wa = await readX('partner_whatsapp');
+    ok('xlsx: без отметки — число из заявки (8)', rowOf(wa.grid, '3 Whatsapp Road')?.[6] === 8, JSON.stringify(rowOf(wa.grid, '3 Whatsapp Road')));
+    const mi = await readX('missing');
+    ok('xlsx: нет ни отметки, ни заявки — пусто', rowOf(mi.grid, '4 Missing Lane')?.[6] == null, JSON.stringify(rowOf(mi.grid, '4 Missing Lane')));
+    const files = [];
+    page.on('download', (d) => files.push(d.suggestedFilename()));
+    await page.click('button[onclick="monthAllXlsx()"]');
+    await page.waitForTimeout(5000);
+    ok('xlsx: «по всем категориям» — 4 файла, включая SUBNEX', files.length === 4 && files.some((f) => /SUBNEX/i.test(f)), files.join(','));
+  } else console.log('skip Excel: нет exceljs (EXCELJS=путь)');
   ok('ru: ошибок в консоли нет', errors.length === 0, errors.join(' | '));
   await page.close();
 }

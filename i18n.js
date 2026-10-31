@@ -1664,6 +1664,7 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   Действия: 'Actions',
   /* Отчёты → Excel партнёрам */
   'Excel партнёрам (по категориям)': 'Excel for partners (by category)',
+  'Excel по всем категориям': 'Excel — all categories',
   'Готовлю Excel…': 'Preparing Excel…',
   'Не удалось загрузить Excel — проверьте интернет': 'Could not load Excel — check the internet connection',
   /* Маршрут дня: «от меня сейчас» */

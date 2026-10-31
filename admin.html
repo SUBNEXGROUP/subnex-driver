@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="subnex-ui.css?v=20260929-chat" />
     <link rel="stylesheet" href="ops-chat.css?v=20260929-chat" />
     <link rel="stylesheet" href="ops-dispatch.css?v=20261014-noreply" />
-    <script src="i18n.js?v=20261014-dayonly"></script>
+    <script src="i18n.js?v=20261031-bags"></script>
     <script src="ops-chat.js?v=20261012-2h"></script>
     <script src="ops-dispatch-core.js?v=20261012-banks"></script>
     <script src="ops-dispatch.js?v=20261014-dayonly"></script>
@@ -610,7 +610,7 @@
                 <svg class="ic"><use href="#i-dl" /></svg> PDF по всем категориям
               </button>
               <button class="btn" onclick="monthAllXlsx()">
-                <svg class="ic"><use href="#i-dl" /></svg> Excel партнёрам (по категориям)
+                <svg class="ic"><use href="#i-dl" /></svg> Excel по всем категориям
               </button>
               <button class="btn" onclick="monthCsv('')">
                 <svg class="ic"><use href="#i-dl" /></svg> Таблица за месяц (CSV для Excel)
@@ -4892,9 +4892,10 @@
         return new Promise((res) => pdfMake.createPdf(doc).download(fname, res));
       }
       /* ---------- Excel партнёру за месяц (как их «Round - Collections») ----------
-         Отдельный файл на категорию. Колонки: Name · Collection Date · Address · Phone · N/bags · Status · Notes · Charity · Bags collected.
-         N/bags — как в заявке; Bags collected — сколько мешков водитель реально забрал (миграция 81); Status — что отметил водитель (Collected / Not home / Problem), Notes — его описание.
-         Без килограммов. Вверху — сводка по charity формулами COUNTIFS, чтобы итог пересчитывался при правке. */
+         Отдельный файл на категорию. Колонки: Name · Collection Date · Address · Phone · N/bags · Status · Notes · Charity.
+         N/bags — сколько мешков водитель реально забрал (bags_collected, миграция 81); если не отмечено на выполненном —
+         число из заявки; у несделанных пусто. Status — что отметил водитель (Collected / Not home / Problem), Notes — его описание.
+         Без килограммов. Вверху — сводка по charity формулами COUNTIFS/SUMIFS (адреса и мешки), чтобы итог пересчитывался при правке. */
       async function loadExcelJs() {
         if (window.ExcelJS) return window.ExcelJS;
         await new Promise((res, rej) => {
@@ -4907,6 +4908,14 @@
         return window.ExcelJS;
       }
       const XLSX_STATUS = { done: 'Collected', noanswer: 'Not home', problem: 'Problem' };
+      /* мешки для Excel: отметка водителя → число из заявки (только у выполненных) → пусто */
+      const xlsxBags = (r) => {
+        if (r.status !== 'done') return null;
+        if (r.bags_collected != null && r.bags_collected !== '') return Number(r.bags_collected);
+        const m = String(r.bags ?? '').match(/\d+/);
+        const n = m ? Number(m[0]) : 0;
+        return n > 0 ? n : null;
+      };
       const shortAddr = (t) =>
         String(t || '')
           .replace(/,?\s*[A-Z]{1,2}[0-9][A-Z0-9]?\s*[0-9][A-Z]{2}\s*$/i, '')
@@ -4947,10 +4956,13 @@
         const first = hr + 1,
           last = hr + rows.length;
         const G = `$G$${first}:$G$${last}`,
-          I = `$I$${first}:$I$${last}`;
+          I = `$I$${first}:$I$${last}`,
+          F = `$F$${first}:$F$${last}`;
+        const bagsOf = (list) => list.reduce((n, x) => n + (xlsxBags(x) || 0), 0);
         [
           ['F2', 'Collected'],
           ['G2', 'Not collected'],
+          ['H2', 'Bags'],
           ['I2', 'Charity'],
         ].forEach(([ref, v]) => {
           ws.getCell(ref).value = v;
@@ -4971,15 +4983,18 @@
             formula: `COUNTIFS(${G},"<>Collected",${I},I${r})`,
             result: col.filter((x) => x.status !== 'done').length,
           };
+          ws.getCell('H' + r).value = { formula: `SUMIFS(${F},${I},I${r})`, result: bagsOf(col) };
         });
         const tr = 3 + charities.length;
         ws.getCell('E' + tr).value = 'Total';
         ws.getCell('E' + tr).font = bold;
         ws.getCell('F' + tr).value = { formula: `SUM(F3:F${tr - 1})`, result: rows.filter((x) => x.status === 'done').length };
         ws.getCell('G' + tr).value = { formula: `SUM(G3:G${tr - 1})`, result: rows.filter((x) => x.status !== 'done').length };
+        ws.getCell('H' + tr).value = { formula: `SUM(H3:H${tr - 1})`, result: bagsOf(rows) };
         ws.getCell('F' + tr).font = bold;
         ws.getCell('G' + tr).font = bold;
-        const head = ['Name', 'Collection Date', 'Address', 'Phone', 'N/bags', 'Status', 'Notes', 'Charity', 'Bags collected'];
+        ws.getCell('H' + tr).font = bold;
+        const head = ['Name', 'Collection Date', 'Address', 'Phone', 'N/bags', 'Status', 'Notes', 'Charity'];
         head.forEach((h, i) => {
           const cell = ws.getCell(hr, i + 2);
           cell.value = h;
@@ -4994,11 +5009,10 @@
             d,
             r.text || '',
             r.phone || '',
-            (r.bags || '').toString().trim(),
+            xlsxBags(r),
             XLSX_STATUS[r.status],
             (r.result_note || '').trim(),
             charityOf(r),
-            r.bags_collected != null ? Number(r.bags_collected) : null,
           ];
           vals.forEach((v, i) => (ws.getCell(n, i + 2).value = v));
           ws.getCell(n, 3).numFmt = 'dd/mm/yyyy';
@@ -5009,7 +5023,7 @@
           };
           ws.getCell(n, 8).alignment = { wrapText: true, vertical: 'top' };
         });
-        ws.autoFilter = { from: { row: hr, column: 2 }, to: { row: last, column: 10 } };
+        ws.autoFilter = { from: { row: hr, column: 2 }, to: { row: last, column: 9 } };
         ws.views = [{ state: 'frozen', ySplit: hr }];
         ws.pageSetup = { orientation: 'landscape', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
         const buf = await wb.xlsx.writeBuffer();
@@ -5026,7 +5040,7 @@
       }
       async function monthAllXlsx() {
         await ensureMonth();
-        const cats = monthCats('en').filter((c) => c.src !== 'subnex_website' && (c.done.length || c.notDone.length));
+        const cats = monthCats('en').filter((c) => c.done.length || c.notDone.length);
         if (!cats.length) {
           toast(T('Нет данных за этот месяц'));
           return;

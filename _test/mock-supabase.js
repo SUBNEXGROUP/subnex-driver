@@ -84,10 +84,10 @@
     if (window.__reportFixture) {
       addresses.splice(0);
       addresses.push(
-        A('r1', { text: '1 Email Street, Cardiff CF14 1AA', phone: '07700900101', contact_name: 'Ann Email', contact_email: 'ann@example.com', date: T, status: 'done', done_at: T + 'T09:15:00Z', charity: 'Shelter Cymru', note: 'Knock loudly' }),
+        A('r1', { text: '1 Email Street, Cardiff CF14 1AA', phone: '07700900101', contact_name: 'Ann Email', contact_email: 'ann@example.com', date: T, status: 'done', done_at: T + 'T09:15:00Z', charity: 'Shelter Cymru', note: 'Knock loudly', bags_text: '4 to 10', bags_collected: 6 }),
         A('r2', { text: '2 Email Street, Cardiff CF14 1AB', phone: '07700900102', date: T, status: 'noanswer', done_at: T + 'T09:40:00Z', result_note: 'No one home' }),
-        A('r3', { text: '3 Whatsapp Road, Newport NP19 1AA', phone: '07700900103', date: T, status: 'done', done_at: T + 'T10:05:00Z', intake_channel: 'partner_whatsapp', charity: 'Kidney Wales' }),
-        A('r4', { text: '4 Missing Lane, Barry CF62 1AA', phone: '07700900104', date: T, status: 'done', done_at: T + 'T11:00:00Z', intake_channel: 'missing', collection_source: 'missing' }),
+        A('r3', { text: '3 Whatsapp Road, Newport NP19 1AA', phone: '07700900103', date: T, status: 'done', done_at: T + 'T10:05:00Z', intake_channel: 'partner_whatsapp', charity: 'Kidney Wales', bags_text: '8 bags' }),
+        A('r4', { text: '4 Missing Lane, Barry CF62 1AA', phone: '07700900104', date: T, status: 'done', done_at: T + 'T11:00:00Z', intake_channel: 'missing', collection_source: 'missing', bags_text: '' }),
         A('r5', { text: '5 Site Avenue, Penarth CF64 1AA', phone: '07700900105', date: T, status: 'done', done_at: T + 'T12:00:00Z', intake_channel: 'subnex_website', collection_source: 'subnex', charity: null }),
         A('r6', { text: '6 Site Avenue, Penarth CF64 1AB', phone: '07700900106', date: T, cancelled_date: T, status: 'cancelled', cancellation_reason: 'customer_cancelled', intake_channel: 'subnex_website', collection_source: 'subnex' }),
         A('r7', { text: '7 Removed Road, Cardiff CF10 9ZZ', phone: '07700900107', date: T, cancelled_date: T, status: 'cancelled', cancellation_reason: 'operator_removed' }),
