@@ -4895,7 +4895,7 @@
          Отдельный файл на категорию. Колонки: Name · Collection Date · Address · Phone · N/bags · Status · Notes · Charity.
          N/bags — сколько мешков водитель реально забрал (bags_collected, миграция 81); если не отмечено на выполненном —
          число из заявки; у несделанных пусто. Status — что отметил водитель (Collected / Not home / Problem), Notes — его описание.
-         Без килограммов. Вверху — сводка по charity формулами COUNTIFS/SUMIFS (адреса и мешки), чтобы итог пересчитывался при правке. */
+         Без килограммов. Вверху — сводка по charity формулами COUNTIFS (только адреса), чтобы итог пересчитывался при правке. */
       async function loadExcelJs() {
         if (window.ExcelJS) return window.ExcelJS;
         await new Promise((res, rej) => {
@@ -4956,13 +4956,10 @@
         const first = hr + 1,
           last = hr + rows.length;
         const G = `$G$${first}:$G$${last}`,
-          I = `$I$${first}:$I$${last}`,
-          F = `$F$${first}:$F$${last}`;
-        const bagsOf = (list) => list.reduce((n, x) => n + (xlsxBags(x) || 0), 0);
+          I = `$I$${first}:$I$${last}`;
         [
           ['F2', 'Collected'],
           ['G2', 'Not collected'],
-          ['H2', 'Bags'],
           ['I2', 'Charity'],
         ].forEach(([ref, v]) => {
           ws.getCell(ref).value = v;
@@ -4983,17 +4980,14 @@
             formula: `COUNTIFS(${G},"<>Collected",${I},I${r})`,
             result: col.filter((x) => x.status !== 'done').length,
           };
-          ws.getCell('H' + r).value = { formula: `SUMIFS(${F},${I},I${r})`, result: bagsOf(col) };
         });
         const tr = 3 + charities.length;
         ws.getCell('E' + tr).value = 'Total';
         ws.getCell('E' + tr).font = bold;
         ws.getCell('F' + tr).value = { formula: `SUM(F3:F${tr - 1})`, result: rows.filter((x) => x.status === 'done').length };
         ws.getCell('G' + tr).value = { formula: `SUM(G3:G${tr - 1})`, result: rows.filter((x) => x.status !== 'done').length };
-        ws.getCell('H' + tr).value = { formula: `SUM(H3:H${tr - 1})`, result: bagsOf(rows) };
         ws.getCell('F' + tr).font = bold;
         ws.getCell('G' + tr).font = bold;
-        ws.getCell('H' + tr).font = bold;
         const head = ['Name', 'Collection Date', 'Address', 'Phone', 'N/bags', 'Status', 'Notes', 'Charity'];
         head.forEach((h, i) => {
           const cell = ws.getCell(hr, i + 2);

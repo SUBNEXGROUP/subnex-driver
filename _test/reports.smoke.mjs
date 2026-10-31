@@ -147,7 +147,7 @@ async function open(lang) {
     const rowOf = (g, t) => g.find((r) => r && r.some((v) => typeof v === 'string' && v.includes(t)));
     ok('xlsx: N/bags = отметка водителя (6, не «4 to 10»)', rowOf(em.grid, '1 Email Street')?.[6] === 6, JSON.stringify(rowOf(em.grid, '1 Email Street')));
     ok('xlsx: у несделанного мешков нет', rowOf(em.grid, '2 Email Street')?.[6] == null);
-    ok('xlsx: в сводке сумма мешков по charity', em.grid[2]?.[8] === 'Bags' && rowOf(em.grid.slice(0, hr), 'Shelter Cymru')?.[8] === 6, JSON.stringify(em.grid.slice(1, hr)));
+    ok('xlsx: в сводке нет колонки мешков', !em.grid[2]?.includes('Bags') && rowOf(em.grid.slice(0, hr), 'Shelter Cymru')?.[8] == null, JSON.stringify(em.grid.slice(1, hr)));
     const wa = await readX('partner_whatsapp');
     ok('xlsx: без отметки — число из заявки (8)', rowOf(wa.grid, '3 Whatsapp Road')?.[6] === 8, JSON.stringify(rowOf(wa.grid, '3 Whatsapp Road')));
     const mi = await readX('missing');
