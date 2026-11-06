@@ -461,77 +461,124 @@
   function optimizeOrder(nodes, order, config, hours, roads, startMinute, limitMs = 1500) {
     const fit = evaluate(nodes, order, config, hours, roads, startMinute);
     if (order.length < 3) return { order: [...order], fit, improved: false };
-    /* Без времён в пути сравнивать нечего — только тогда и выходим. Раньше здесь стоял
-       выход и на «день не сходится», и получалось наоборот: сломанный день, который
-       выпрямить нужнее всего, оставался как был. Теперь несходящиеся порядки тоже
-       сравниваются — сначала по тому, сколько адресов удалось поставить, потом по
-       опозданию. Любой сходящийся порядок всегда лучше любого несходящегося. */
-    if (!fit.ok && fit.code === 'ROADS_REQUIRED') return { order: [...order], fit, improved: false };
+    /* Переставлять имеет смысл, только когда день считается: сходится, опаздывает (TIME_CONFLICT)
+       или уходит за полночь. Нет дорог, координат, часов — порядок тут ни при чём. */
+    if (!fit.ok && !['TIME_CONFLICT', 'DAY_BOUNDARY'].includes(fit.code)) return { order: [...order], fit, improved: false };
+    if ((!hours || hours.closed) && nodes.length && nodes.every((n) => n.kind === 'bank')) hours = config.bank_day_hours || BANK_DAY_HOURS;
+    /* 06.11.2026. Раньше: не больше 12 улучшений за запуск, каждое — полный evaluate, лимит 1,5 с.
+       На дне из 36 точек телефон останавливался на полпути (утром 651 мин дороги вместо ~550),
+       а перегруженный день сравнивался по «сколько адресов до первого опоздания», а не по дороге.
+       Теперь: матрица минут считается один раз, стоимость порядка — простая арифметика,
+       поиск идёт до упора (перенос отрезка из 1–3 точек, разворот отрезка), потом встряски. */
+    const n = nodes.length,
+      keyIndex = new Map(nodes.map((x, i) => [x.key, i]));
+    const start0 = order.map((k) => keyIndex.get(k));
+    if (start0.some((i) => i === undefined)) return { order: [...order], fit, improved: false };
+    const H = n,
+      D = n + 1,
+      pts = [...nodes, config.home, config.depot];
+    const M = pts.map((a) => pts.map((b) => legMinutes(a, b, config, roads)));
+    const opens = minute(hours.opens),
+      closes = minute(hours.closes),
+      depart = Math.max(0, startMinute ?? 0);
+    const earliest = nodes.map((x) => x.earliest),
+      latest = nodes.map((x) => x.latest),
+      service = nodes.map((x) => Number(x.service) || 0),
+      /* Опоздание к точному окну клиента почти недопустимо; хвост после закрытия у адресов
+         «в течение дня» — терпимо (водитель доработает), но дорогу при этом надо сокращать. */
+      lateWeight = nodes.map((x) => (isDayWindow(x, hours) ? 5 : 1000));
     const BROKEN = 1e9;
-    const cost = (f) =>
-      f.ok
-        ? f.drive * 10 + f.wait
-        : BROKEN + (nodes.length - (Number.isFinite(f.placed) ? f.placed : 0)) * 1e5 + (Number.isFinite(f.late) ? f.late : 1e4);
-    let best = [...order],
-      bestFit = fit,
-      bestCost = cost(fit),
-      improved = false;
-    const started = Date.now();
-    /* Локальный поиск сильно зависит от старта. Берём лучший из двух: тот, что пришёл,
-       и построенный по ближайшему соседу. Порядок «как есть» не теряем — если он лучше
-       (например, в дне есть жёсткие окна, под которые он уже подогнан), останется он. */
-    const seeded = nearestOrder(nodes, order, config, roads);
-    if (seeded) {
-      const seedFit = evaluate(nodes, seeded, config, hours, roads, startMinute);
-      if (!(!seedFit.ok && seedFit.code === 'ROADS_REQUIRED') && cost(seedFit) < bestCost) {
-        best = seeded;
-        bestFit = seedFit;
-        bestCost = cost(seedFit);
-        improved = true;
+    const cost = (ord) => {
+      let cursor = depart,
+        prev = H,
+        drive = 0,
+        wait = 0,
+        late = 0;
+      for (let p = 0; p < ord.length; p++) {
+        const i = ord[p],
+          leg = M[prev][i];
+        if (leg === Infinity) return Infinity;
+        const reach = cursor + leg,
+          arrival = Math.max(reach, earliest[i], opens);
+        if (p > 0) wait += arrival - reach;
+        if (arrival > latest[i]) late += (arrival - latest[i]) * lateWeight[i];
+        drive += leg;
+        cursor = arrival + service[i];
+        prev = i;
       }
-    }
-    const tryOrder = (candidate) => {
-      const f = evaluate(nodes, candidate, config, hours, roads, startMinute);
-      if (!f.ok && f.code === 'ROADS_REQUIRED') return false;
-      if (cost(f) < bestCost - 0.5) {
-        best = candidate;
-        bestFit = f;
-        bestCost = cost(f);
-        improved = true;
-        return true;
-      }
-      return false;
+      const back = M[prev][D];
+      if (back === Infinity) return Infinity;
+      drive += back;
+      if (cursor + back >= 1440) return BROKEN * 2 + drive;
+      return (late > 0 ? BROKEN + late : 0) + drive * 10 + wait;
     };
-    for (let pass = 0; pass < 12; pass++) {
-      let moved = false;
-      // or-opt: одну остановку — в любое другое место
-      for (let i = 0; i < best.length && !moved; i++) {
-        for (let j = 0; j <= best.length - 1; j++) {
-          if (j === i || j === i - 1) continue;
-          const cand = [...best];
-          const [k] = cand.splice(i, 1);
-          cand.splice(j > i ? j - 1 : j, 0, k);
-          if (tryOrder(cand)) {
-            moved = true;
-            break;
+    const timeUp = (() => {
+      const started = Date.now();
+      return () => Date.now() - started > limitMs;
+    })();
+    /* Локальный поиск до упора: первое найденное улучшение принимаем и ищем дальше с него. */
+    const descend = (ord, c) => {
+      let moved = true;
+      while (moved && !timeUp()) {
+        moved = false;
+        for (let len = 1; len <= 3; len++)
+          for (let i = 0; i + len <= ord.length; i++) {
+            const seg = ord.slice(i, i + len),
+              rest = ord.slice(0, i).concat(ord.slice(i + len));
+            for (const s of len > 1 ? [seg, [...seg].reverse()] : [seg])
+              for (let j = 0; j <= rest.length; j++) {
+                if (j === i && s === seg) continue;
+                const cand = rest.slice(0, j).concat(s, rest.slice(j)),
+                  v = cost(cand);
+                if (v < c - 0.5) {
+                  ord = cand;
+                  c = v;
+                  moved = true;
+                  break;
+                }
+              }
           }
-        }
-        if (Date.now() - started > limitMs) return { order: best, fit: bestFit, improved };
-      }
-      // 2-opt: разворот отрезка
-      for (let i = 0; i < best.length - 1 && !moved; i++) {
-        for (let j = i + 1; j < best.length; j++) {
-          const cand = best.slice(0, i).concat(best.slice(i, j + 1).reverse(), best.slice(j + 1));
-          if (tryOrder(cand)) {
-            moved = true;
-            break;
+        for (let i = 0; i < ord.length - 1; i++)
+          for (let j = i + 1; j < ord.length; j++) {
+            const cand = ord.slice(0, i).concat(ord.slice(i, j + 1).reverse(), ord.slice(j + 1)),
+              v = cost(cand);
+            if (v < c - 0.5) {
+              ord = cand;
+              c = v;
+              moved = true;
+            }
           }
-        }
-        if (Date.now() - started > limitMs) return { order: best, fit: bestFit, improved };
       }
-      if (!moved) break;
+      return [ord, c];
+    };
+    const initial = cost(start0);
+    let [best, bestCost] = descend(start0, initial);
+    /* Второй старт — ближайший сосед: из случайного порядка поиск часто застревает. */
+    const seeded = nearestOrder(nodes, order, config, roads);
+    if (seeded && !timeUp()) {
+      const [o, c] = descend(
+        seeded.map((k) => keyIndex.get(k)),
+        cost(seeded.map((k) => keyIndex.get(k))),
+      );
+      if (c < bestCost) [best, bestCost] = [o, c];
     }
-    return { order: best, fit: bestFit, improved };
+    /* Встряски (double-bridge) с детерминированным генератором: один и тот же день — один и тот же ответ. */
+    let seed = 20261106;
+    const rnd = (m) => ((seed = (seed * 1103515245 + 12345) % 2147483648) % m);
+    for (let kick = 0, idle = 0; kick < 300 && idle < 60 && n >= 8 && !timeUp(); kick++) {
+      const cut = [1 + rnd(n - 3), 0, 0];
+      cut[1] = cut[0] + 1 + rnd(n - cut[0] - 2);
+      cut[2] = cut[1] + 1 + rnd(n - cut[1] - 1);
+      const kicked = best.slice(0, cut[0]).concat(best.slice(cut[2]), best.slice(cut[1], cut[2]), best.slice(cut[0], cut[1]));
+      const [o, c] = descend(kicked, cost(kicked));
+      if (c < bestCost - 0.5) {
+        [best, bestCost] = [o, c];
+        idle = 0;
+      } else idle++;
+    }
+    if (!(bestCost < initial - 0.5)) return { order: [...order], fit, improved: false };
+    const out = best.map((i) => nodes[i].key);
+    return { order: out, fit: evaluate(nodes, out, config, hours, roads, startMinute), improved: true };
   }
   /* Мягкие приоритеты планировщика (минуты «стоимости»). Не требования бизнеса, а выбранные коэффициенты — см. описание этапа 2.
    wait_weight — каждая минута простоя, которую создаёт вставка; empty_day_penalty — открытие пустого дня, когда есть начатые;

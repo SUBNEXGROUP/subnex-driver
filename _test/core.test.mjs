@@ -91,6 +91,22 @@ eq('nthWeekday последний четверг сентября 2026', C.nthWe
   const fixed = pts.map((p) => (p.key === 'a3' ? { ...p, earliest: 537, latest: 550 } : p));
   const r2 = C.optimizeOrder(fixed, ['a3', 'a0', 'a1', 'a2'], cfg, hours, roads, 470);
   eq('optimizeOrder: окно соблюдено', [r2.fit.ok, r2.fit.stops.find((x) => x.key === 'a3').arrival <= 550, r2.fit.drive < 185], [true, true, true]);
+  /* 06.11.2026: 34 точки вразнобой (как обычный день). Старый оптимизатор делал не больше 12
+     перестановок с полным пересчётом и застревал: 198 мин дороги. Новый доходит до упора — 186.
+     Перегруженный день (к 10:00 всех не объехать) раньше сравнивался по «сколько адресов до первого
+     опоздания» — 209 мин; теперь по дороге и опозданию — 199. */
+  let seed = 7;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const scatter = Array.from({ length: 34 }, (_, i) => ({ key: 'c' + i, address_id: 'c' + i, text: 'C' + i, lat: 51.6 + rnd() * 0.2, lng: -3.3 + rnd() * 0.4, earliest: 480, latest: 1080, service: 4, kg: 10, kind: 'confirmed' }));
+  const scatterRoads = {};
+  for (const a of [cfg.home, cfg.depot, ...scatter]) for (const b of [cfg.home, cfg.depot, ...scatter])
+    scatterRoads[C.pointKey(a) + '>' + C.pointKey(b)] = (Math.hypot(a.lat - b.lat, (a.lng - b.lng) * 0.62) * 111000) / 12;
+  const asGiven = scatter.map((p) => p.key);
+  const r3 = C.optimizeOrder(scatter, asGiven, cfg, hours, scatterRoads, 470);
+  eq('optimizeOrder: 34 точки — до упора', [r3.fit.ok, r3.fit.drive <= 186], [true, true]);
+  const tight = { ...hours, closes: '10:00' };
+  const r4 = C.optimizeOrder(scatter.map((p) => ({ ...p, latest: 600 })), asGiven, cfg, tight, scatterRoads, 470);
+  eq('optimizeOrder: перегруженный день — по дороге', [r4.improved, C.evaluate(scatter, r4.order, cfg, hours, scatterRoads, 470).drive <= 199], [true, true]);
   eq('isDayWindow день', C.isDayWindow({ earliest: 480, latest: 1080 }, hours), true);
   eq('isDayWindow 30 мин', C.isDayWindow({ earliest: 600, latest: 630 }, hours), false);
 }
