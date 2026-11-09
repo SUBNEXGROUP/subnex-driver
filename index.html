@@ -637,6 +637,9 @@
           pointsMissing: 'Не заданы. Пульт → Настройки → Старт и склад.',
           useChatToMove: 'Для переноса согласованного времени используйте переписку.',
           confirmMove: 'Клиент согласовал перенос на {d}?',
+          custResched: 'Клиент просит перенести сбор?\n\nАдрес уберётся из маршрута, клиенту уйдёт новая дата с выбором другого дня.',
+          reschedEmail: 'Убрано из маршрута. Клиенту отправлено письмо с датой',
+          reschedQueue: 'Убрано из маршрута. Новую дату клиенту предложит система',
           bankWord: 'Контейнер',
           hourShort: 'ч',
           minShort: 'мин',
@@ -811,6 +814,9 @@
           pointsMissing: 'Not set. Console → Settings → Start and depot.',
           useChatToMove: 'Use the conversation to move an agreed time.',
           confirmMove: 'Has the customer agreed to move to {d}?',
+          custResched: 'Customer asked to reschedule?\n\nThe stop leaves the route and the customer gets a new date with an option to pick another day.',
+          reschedEmail: 'Removed from route. Date offer emailed for',
+          reschedQueue: 'Removed from route. The system will offer the customer a new date',
           bankWord: 'Bank',
           hourShort: 'h',
           minShort: 'min',
@@ -2434,6 +2440,23 @@
       async function rescheduleCurrent() {
         const a = ADDR.find((x) => x.id === currentAddrId);
         if (!a || a.status === 'cancelled') return;
+        if (a.collection_start && a.kind !== 'bank') {
+          /* Подтверждённый адрес: клиент просит перенести (даже если маршрут дня уже
+             запущен). Адрес уходит в заявки, клиенту сразу уходит новая дата. */
+          if (!confirm(t('custResched'))) return;
+          try {
+            const { data, error } = await sb.rpc('subnex_customer_reschedule', {
+              p_data: { address_id: a.id, version: a.collection_version },
+            });
+            if (error) throw error;
+            await loadAddresses();
+            toast(data && data.channel === 'email' ? t('reschedEmail') + ' ' + data.day : t('reschedQueue'));
+            goBack();
+          } catch (e) {
+            toast(Ops.error(e));
+          }
+          return;
+        }
         if (a.collection_start) {
           await openSMS(a.id);
           return;
