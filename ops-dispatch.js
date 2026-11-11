@@ -1995,22 +1995,32 @@
        совсем; если база не даёт (переписка, фото, подтверждённый сбор) — не показываем
        тупиковую ошибку, а закрываем заявку: статус «Отменено», история остаётся. */
     dropRequest(a) {
+      const zr = C.zoneRule({ zones: this.zones || [] }, a.text);
+      const offArea = !zr || zr.mode === 'off';
       this.dialog(
         T('Убрать заявку'),
         `<p><b>${esc(a.text)}</b></p>
    <p class="od-muted">${T('Заявка уйдёт из очереди, удержание дня снимется, отправленные предложения погаснут. Адрес, переписка и фотографии останутся в истории, в отчёты эта заявка не попадёт.')}</p>
    <p class="od-muted">${a.date || a.offer_state === 'confirmed' ? T('Сбор согласован с клиентом — ему уйдёт SMS об отмене.') : T('Клиенту ничего не отправляется: даты ему никто не подтверждал.')}</p>
+   <label><input id="od-drop-area" type="checkbox"${offArea ? ' checked' : ''}>${T('Район не обслуживаем — отправить клиенту письмо/SMS «пока не работаем в вашем районе, но расширяемся»')}</label>
    <label><input id="od-drop-sure" type="checkbox">${T('Убрать эту заявку.')}</label>`,
         async (wrap) => {
           if (!wrap.querySelector('#od-drop-sure').checked) throw new Error(T('Отметьте подтверждение.'));
+          const notServed = wrap.querySelector('#od-drop-area').checked;
           /* Закрываем на сервере. Напрямую из браузера нельзя: строку держит внешний ключ
              на переписку, а поля закрытия защищены сторожем (флаг subnex.close_change). */
-          const res = await rpc(this.sb, 'close_request', { address_id: a.id });
+          const res = await rpc(
+            this.sb,
+            'close_request',
+            notServed ? { address_id: a.id, reason: 'area_not_served_yet', notify: true } : { address_id: a.id },
+          );
           if (!res || res.closed !== true) throw new Error(T('Сервер не закрыл заявку: ') + (res?.reason || T('причина неизвестна')));
           await this.reload();
           this.render();
           this.notice(
-            res.confirmed
+            notServed
+              ? T('Заявка закрыта: клиенту уходит сообщение, что его район мы пока не обслуживаем.')
+              : res.confirmed
               ? T('Заявка убрана. Сбор был согласован — клиенту отправлено SMS об отмене.')
               : T('Заявка убрана из очереди. В отчёты она не попадёт.'),
           );

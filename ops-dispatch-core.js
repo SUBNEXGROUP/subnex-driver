@@ -131,6 +131,12 @@
    четверг. Поэтому зоны считаются «своими» друг другу не только по коду, но и когда
    у них совпадает день выезда — тогда день поездки открыт для всех троих.
    Зоны с разными днями (Суонси по средам, запад по вторникам) не смешиваются. */
+  /* Недели месяца, в которые зона выезжает: [2, 4] — второй и четвёртый вторник.
+     Старые зоны знают только одну неделю (week_of_month), 5 — последняя. */
+  const zoneWeeks = (z) => {
+    const list = Array.isArray(z && z.weeks_of_month) ? z.weeks_of_month.map(Number).filter((w) => w >= 1 && w <= 5) : [];
+    return list.length ? [...new Set(list)].sort((a, b) => a - b) : [Number((z && z.week_of_month) || 5)];
+  };
   const sameZone = (x, y) => {
     if (!x || !y) return false;
     if (zoneKey(x) === zoneKey(y)) return true;
@@ -138,9 +144,13 @@
       x.mode === 'monthly' &&
       y.mode === 'monthly' &&
       Number(x.weekday) === Number(y.weekday) &&
-      Number(x.week_of_month || 5) === Number(y.week_of_month || 5)
+      zoneWeeks(x).join(',') === zoneWeeks(y).join(',')
     );
   };
+  /* Попутные адреса в день дальней поездки: Кардифф и Ньюпорт добирают день по дороге в Суонси
+     (решение 10.11.2026, лимит дня общий). Остальные районы в этот день не ставятся. */
+  const FILLER_AREAS = ['CF', 'NP'];
+  const isFiller = (rule) => !!rule && rule.mode !== 'monthly' && rule.mode !== 'off' && FILLER_AREAS.includes(rule.prefix);
   /* Зона адреса: совпали буквы и номер попал в диапазон. Выигрывает самый узкий диапазон. */
   const zoneRule = (config, text) => {
     const a = postcodeArea(text);
@@ -175,8 +185,16 @@
       .join(', ');
   const weeklyOk = (rule, day) =>
     !rule || rule.mode !== 'weekly' || (Array.isArray(rule.weekdays) && rule.weekdays.map(Number).includes(weekdayOf(day)));
-  const zoneTripDay = (rule, day) =>
-    rule && rule.mode === 'monthly' && Number.isFinite(rule.weekday) ? nthWeekday(day, rule.weekday, rule.week_of_month || 5) : null;
+  /* Дата выезда зоны в месяце этого дня. Если зона выезжает несколько раз в месяц и день — один
+     из выездов, возвращается сам день; иначе — первый выезд месяца. */
+  const zoneTripDay = (rule, day) => {
+    if (!rule || rule.mode !== 'monthly' || !Number.isFinite(Number(rule.weekday)) || rule.weekday === null) return null;
+    const dates = zoneWeeks(rule)
+      .map((w) => nthWeekday(day, Number(rule.weekday), w))
+      .filter(Boolean)
+      .sort();
+    return dates.includes(day) ? day : dates[0] || null;
+  };
   /* Зона, чей выезд назначен на этот день: такой день занимают только её адреса.
    Но день держится за зоной ТОЛЬКО пока в ней есть заявки. Иначе каждый месяц
    один рабочий день пропадал бы впустую ради зоны, из которой ничего не пришло.
@@ -217,8 +235,9 @@
     const out = [];
     let [y, m] = from.split('-').map(Number);
     for (let i = 0; i < 14 && out.length < count; i++) {
-      const d = nthWeekday(`${y}-${String(m).padStart(2, '0')}-01`, rule.weekday, rule.week_of_month || 5);
-      if (d && d >= from) out.push(d);
+      const month = `${y}-${String(m).padStart(2, '0')}-01`;
+      const dates = [...new Set(zoneWeeks(rule).map((w) => nthWeekday(month, Number(rule.weekday), w)))].filter(Boolean).sort();
+      for (const d of dates) if (d >= from && out.length < count) out.push(d);
       m++;
       if (m > 12) {
         m = 1;
@@ -236,7 +255,7 @@
     if (rule.mode === 'off') return `${T('Зона «')}${rule.name}${T('» выключена в настройках.')}`;
     if (rule.mode === 'monthly') {
       const d = nextTripDays(rule, from, 1)[0];
-      return `${T('Зона «')}${rule.name}${T('» — выезд раз в месяц')}${d ? T(': ближайший ') + d : ''}${T('. Заявка ждёт этого дня.')}`;
+      return `${T('Зона «')}${rule.name}${zoneWeeks(rule).length > 1 ? T('» — выезд') + ' ' + zoneWeeks(rule).length + ' ' + T('раза в месяц') : T('» — выезд раз в месяц')}${d ? T(': ближайший ') + d : ''}${T('. Заявка ждёт этого дня.')}`;
     }
     if (rule.mode === 'weekly')
       return `${T('Зона «')}${rule.name}${T('» — выезд по дням:')} ${weekdaysText(rule.weekdays)}${T('. В горизонте нет открытого дня из этих.')}`;
@@ -614,10 +633,12 @@
     const trip = tripZoneOf(config, day.day) || occupiedZoneOf(config, day);
     // Адрес дальней зоны допускается только в день поездки в неё.
     if (rule.mode === 'monthly' && !sameZone(trip, rule)) return [];
+    // Попутный адрес (CF/NP) в день дальней поездки — можно, если в дне уже стоит адрес этой поездки.
+    const filler = trip && isFiller(rule) && !!occupiedZoneOf(config, day);
     // Район по дням недели — только в свои дни.
-    if (!weeklyOk(rule, day.day)) return [];
+    if (!filler && !weeklyOk(rule, day.day)) return [];
     // День поездки занимают только адреса этой зоны, иначе поездка расплывётся в зигзаг.
-    if (trip && !sameZone(trip, rule)) return [];
+    if (trip && !filler && !sameZone(trip, rule)) return [];
     const nodes = day.nodes.filter((n) => n.address_id !== request.id),
       order = ordered(nodes, day.order);
     const base = evaluate(nodes, order, config, day.hours, roads, day.start_minute);
@@ -996,8 +1017,9 @@
     if (!rule || rule.mode === 'off') return { ok: false, code: 'ZONE_OFF' };
     const trip = tripZoneOf(config, target.day) || occupiedZoneOf(config, target);
     if (rule.mode === 'monthly' && !sameZone(trip, rule)) return { ok: false, code: 'ZONE_TRIP_DAY', zone: rule };
-    if (!weeklyOk(rule, target.day)) return { ok: false, code: 'ZONE_WEEKDAY', zone: rule };
-    if (trip && !sameZone(trip, rule)) return { ok: false, code: 'ZONE_DAY_TAKEN', zone: trip };
+    const filler = trip && isFiller(rule) && !!occupiedZoneOf(config, target);
+    if (!filler && !weeklyOk(rule, target.day)) return { ok: false, code: 'ZONE_WEEKDAY', zone: rule };
+    if (trip && !filler && !sameZone(trip, rule)) return { ok: false, code: 'ZONE_DAY_TAKEN', zone: trip };
     const base = evaluate(target.nodes, target.order, config, target.hours, roads, target.start_minute);
     if (!base.ok) return base;
     return { ok: true, free_minutes: base.free_minutes, stops: base.stops ? base.stops.length : 0 };
@@ -1344,6 +1366,8 @@
     zoneRule,
     zoneKey,
     zoneTripDay,
+    zoneWeeks,
+    isFiller,
     weekdayOf,
     weeklyOk,
     weekdaysText,

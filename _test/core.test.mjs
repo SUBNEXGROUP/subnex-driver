@@ -72,6 +72,16 @@ const zones = [{ prefix: 'SA', code: 'SA1-13', num_from: 1, num_to: 13, mode: 'm
 eq('zoneRule SA43 → запад', C.zoneRule({ zones }, 'Cardigan SA43 1EJ').code, 'SA14-99');
 eq('zoneRule SA1 → Суонси', C.zoneRule({ zones }, 'Swansea SA1 3AB').code, 'SA1-13');
 eq('nthWeekday последний четверг сентября 2026', C.nthWeekday('2026-09-01', 4, 5), '2026-09-24');
+// Два выезда в месяц: второй и четвёртый вторник (SA, решение 22.10 / 10.11.2026).
+const sa2 = { prefix: 'SA', code: 'SA1-18', num_from: 1, num_to: 18, mode: 'monthly', weekday: 2, week_of_month: 2, weeks_of_month: [2, 4], name: 'Swansea' };
+eq('zoneWeeks: две недели', C.zoneWeeks(sa2).join(','), '2,4');
+eq('zoneWeeks: старая зона — одна неделя', C.zoneWeeks({ week_of_month: 3 }).join(','), '3');
+eq('nextTripDays: оба вторника ноября и декабря', C.nextTripDays(sa2, '2026-11-11', 3).join(','), '2026-11-24,2026-12-08,2026-12-22');
+eq('zoneTripDay: 4-й вторник — день выезда', C.zoneTripDay(sa2, '2026-11-24'), '2026-11-24');
+eq('tripZoneOf: 4-й вторник за SA', C.tripZoneOf({ zones: [sa2] }, '2026-11-24')?.code, 'SA1-18');
+eq('tripZoneOf: 3-й вторник свободен', C.tripZoneOf({ zones: [sa2] }, '2026-11-17'), null);
+eq('isFiller: Кардифф попутный', C.isFiller({ prefix: 'CF', mode: 'weekly' }), true);
+eq('isFiller: Бристоль — нет', C.isFiller({ prefix: 'BS', mode: 'weekly' }), false);
 
 
 /* ---------- порядок остановок ---------- */
@@ -159,6 +169,15 @@ const ok = (name, cond, extra = '') => eq(name + (cond ? '' : ' ' + extra), !!co
   eq('weekly: обычный район без ограничений', C.weeklyOk({ mode: 'regular' }, '2026-10-06'), true);
   const day = { day: '2026-10-06', hours: { opens: '08:00', closes: '18:00' }, nodes: [], order: [] };
   eq('weekly: placements во вт пусто', C.placements(day, { id: 'x', text: '1 X St, Cardiff CF11 6EB', lat: 51.47, lng: -3.19 }, cfg, {}), []);
+  // Попутные: во вторник выезда в Суонси Кардифф допускается, только когда в дне уже стоит адрес Суонси.
+  const far = { code: 'SA1-18', prefix: 'SA', num_from: 1, num_to: 18, name: 'Swansea', mode: 'monthly', weekday: 2, week_of_month: 2, weeks_of_month: [2, 4] };
+  const cfg2 = { zones: [...zones, far], active_zones: ['SA1-18'] };
+  const node = { key: 'a:cf', address_id: 'cf', text: '1 X St, Cardiff CF11 6EB' };
+  const mk = (d, nodes) => ({ days: [{ day: d, hours: { opens: '08:00', closes: '18:00' }, nodes, order: nodes.map((n) => n.key) }] });
+  const saNode = { key: 'a:sa', address_id: 'sa', text: '2 Y Rd, Swansea SA1 3AB', lat: 51.62, lng: -3.94, service_minutes: 4, kg: 10 };
+  eq('попутный: пустой вторник выезда — нет', C.dayIssue(mk('2026-11-24', []), node, '2026-11-24', cfg2, {}).code, 'ZONE_WEEKDAY');
+  eq('попутный: во вторник с адресом Суонси — зона пропускает', ['ZONE_WEEKDAY', 'ZONE_DAY_TAKEN'].includes(C.dayIssue(mk('2026-11-24', [saNode]), node, '2026-11-24', cfg2, {}).code), false);
+  eq('попутный: обычный вторник — нет', C.dayIssue(mk('2026-11-17', []), node, '2026-11-17', cfg2, {}).code, 'ZONE_WEEKDAY');
 }
 
 console.log(`\n${pass} ok, ${fail} fail`);
