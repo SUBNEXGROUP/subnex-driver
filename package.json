@@ -9,6 +9,7 @@
     "test:i18n": "node _test/i18n.test.mjs",
     "i18n:wrap": "node _tools/i18n-wrap.mjs ops-dispatch-core.js --write --keys _tools/keys.json && node _tools/i18n-wrap.mjs ops-dispatch.js --write --keys _tools/keys.json && node _tools/i18n-wrap.mjs ops-chat.js --write --keys _tools/keys.json && node _tools/i18n-wrap.mjs admin.html --write --keys _tools/keys.json && node _tools/html-keys.mjs admin.html _tools/keys.json",
     "test:smoke": "node _test/smoke.mjs",
+    "test:banks": "node _test/banks.smoke.mjs",
     "test": "npm run check && npm run test:core && npm run test:gs && npm run test:i18n && npm run test:smoke"
   },
   "devDependencies": {

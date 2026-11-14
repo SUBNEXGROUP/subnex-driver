@@ -366,6 +366,16 @@
       }
       case 'road_context':
         return { config, days: [{ nodes: nodesOf(d.from_day) }], requests: addresses.filter((a) => d.address_ids.includes(a.id)) };
+      /* Как на сервере: заявку клиента закрывает сервер, а визит к контейнеру так не закрывается. */
+      case 'close_request': {
+        const a = addresses.find((x) => x.id === d.address_id);
+        if (!a) return { closed: false, reason: 'NOT_FOUND' };
+        if (a.kind === 'bank') return { closed: false, reason: 'BANK' };
+        if (!['new', 'planned'].includes(a.status)) return { closed: false, reason: 'STATE' };
+        const confirmed = !!a.collection_start;
+        Object.assign(a, { status: 'cancelled', cancelled_date: a.date, cancellation_reason: d.reason || 'operator_removed', date: null, collection_start: null, collection_end: null });
+        return { closed: true, confirmed };
+      }
       case 'save_settings':
         Object.assign(config, d.config);
         return { config };

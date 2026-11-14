@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="subnex-ui.css?v=20260929-chat" />
     <link rel="stylesheet" href="ops-chat.css?v=20260929-chat" />
     <link rel="stylesheet" href="ops-dispatch.css?v=20261014-noreply" />
-    <script src="i18n.js?v=20261031-bags"></script>
+    <script src="i18n.js?v=20261114-banks"></script>
     <script src="ops-chat.js?v=20261012-2h"></script>
     <script src="ops-dispatch-core.js?v=20261106-optimizer"></script>
     <script src="ops-dispatch.js?v=20261014-dayonly"></script>
@@ -499,6 +499,7 @@
                 Пересчитать
               </button>
               <button class="btn btn-sm btn-pri" onclick="openDispatchAdmin('queue')">+ Заявки на этот день</button>
+              <button class="btn btn-sm" onclick="openAssignModal(DAY.date)">Контейнеры на этот день</button>
             </div>
           </div>
           <div class="daystats" id="day-stats"></div>
@@ -548,7 +549,7 @@
             <div class="row">
               <button class="btn btn-pri" onclick="openBankModal()">
                 <svg class="ic"><use href="#i-plus" /></svg> Добавить контейнер</button
-              ><button class="btn" onclick="openAssignModal()">Назначить визиты на день</button>
+              ><button class="btn" onclick="openAssignModal()">Визиты на день: добавить / убрать</button>
             </div>
             <div class="card">
               <div class="tscroll">
@@ -1115,24 +1116,35 @@
 
     <div class="modal-bg" id="m-assign-bg">
       <div class="modal">
-        <h2>Назначить визиты на день</h2>
+        <h2>Визиты на день: добавить / убрать</h2>
         <div class="stack">
           <div class="fgrid">
-            <div class="f-group"><label class="f">Дата</label><input class="field" type="date" id="as-date" /></div>
+            <div class="f-group">
+              <label class="f">Дата</label><input class="field" type="date" id="as-date" onchange="assignDateChange()" />
+            </div>
             <div class="f-group">
               <label class="f">Водитель</label
               ><select class="field" id="as-driver"></select>
             </div>
           </div>
+          <p class="small" id="as-day" style="margin: 0; font-weight: 600"></p>
           <div class="f-group">
-            <label class="f">Контейнеры</label>
+            <div class="row" style="justify-content: space-between; margin-bottom: 6px">
+              <label class="f" style="margin: 0">Контейнеры</label>
+              <span class="row" style="gap: 6px"
+                ><button class="btn btn-sm" type="button" onclick="assignAll(true)">Отметить все</button
+                ><button class="btn btn-sm" type="button" onclick="assignAll(false)">Снять все</button></span
+              >
+            </div>
             <div class="chklist" id="as-list"></div>
           </div>
-          <p class="muted small" id="as-progress"></p>
+          <p class="muted small" style="margin: 0">Галочка — контейнер стоит в этом дне. Снимите её, чтобы убрать визит.</p>
+          <p class="small" id="as-plan" style="margin: 0; font-weight: 600"></p>
+          <p class="muted small" id="as-progress" style="margin: 0"></p>
         </div>
         <div class="modal-actions">
           <button class="btn" onclick="closeModal('m-assign-bg')">Отмена</button
-          ><button class="btn btn-pri" id="as-save" onclick="saveAssign()">Назначить</button>
+          ><button class="btn btn-pri" id="as-save" onclick="saveAssign()">Сохранить</button>
         </div>
       </div>
     </div>
@@ -3309,6 +3321,20 @@
       async function deleteAddrModal() {
         const a = editAddrId ? ADDR.find((x) => x.id === editAddrId) : null;
         if (!a) return;
+        /* Визит к контейнеру — не заявка клиента: закрывать нечего, он просто снимается с дня. */
+        if (a.kind === 'bank') {
+          if (!confirm(T('Убрать этот визит к контейнеру? Сам контейнер останется в списке.'))) return;
+          try {
+            await removeBankVisit(a);
+            closeModal('m-addr-bg');
+            toast(T('Визит убран.'));
+            DAY.route = null;
+            await refreshAll(true);
+          } catch (e) {
+            toast(bankVisitError(e));
+          }
+          return;
+        }
         const warn = a.collection_start ? T('Сбор согласован — клиенту уйдёт SMS об отмене. ') : '';
         if (!confirm(warn + T('Убрать заявку по этому адресу? В отчёты она не попадёт, история сохранится.'))) return;
         try {
@@ -3459,41 +3485,152 @@
         lbl.textContent = v === 'fixed' ? T('Сумма в месяц, £') : T('Ставка, £ за кг');
         inp.placeholder = v === 'fixed' ? '50' : '0.20';
       }
-      function openAssignModal() {
-        document.getElementById('as-date').value = DAY.date || todayStr();
+      /* ---------- контейнеры на день: добавить и убрать визиты ---------- */
+      /* Визит к контейнеру — не заявка клиента: у него нет переписки и SMS, поэтому он не «закрывается»,
+         а просто снимается с дня. Снять можно только тот, что ещё впереди и без фото: выполненный визит
+         и визит с фотографиями — это история, она остаётся в отчётах. */
+      const bankVisitFree = (a) => a.kind === 'bank' && activeAddr(a) && !photoCount(a.id);
+      async function removeBankVisit(a) {
+        /* Фото проверяем на сервере, а не по кэшу пульта: водитель мог снять секунду назад,
+           а строки фото удаляются вместе с визитом. */
+        const ph = await sb.from('photos').select('id').eq('address_id', a.id).limit(1);
+        if (ph.error) throw ph.error;
+        if (ph.data?.length) throw new Error('BANK_VISIT_HAS_PHOTOS');
+        const { data, error } = await sb.from('addresses').delete().eq('id', a.id).eq('kind', 'bank').in('status', ['new', 'planned']).select('id');
+        if (error) throw error;
+        if (!data?.length) throw new Error('BANK_VISIT_CHANGED');
+      }
+      const bankVisitError = (e) =>
+        ({
+          BANK_VISIT_HAS_PHOTOS: T('У визита уже есть фото — он остаётся в истории. Отметьте его результат в карточке.'),
+          BANK_VISIT_CHANGED: T('Визит уже изменился — обновите данные.'),
+        })[e?.message] || OpsDispatch.error(e);
+      /* Что человек поменял в окне относительно того, что уже стоит в дне. */
+      const ASSIGN = { add: new Set(), drop: new Set() };
+      /* Визиты к контейнерам в этом дне: по одному на контейнер (второй сервер не пустит). */
+      function assignVisits(date) {
+        const m = new Map();
+        for (const a of ADDR) if (a.kind === 'bank' && a.bank_id && a.date === date && a.status !== 'cancelled') m.set(a.bank_id, a);
+        return m;
+      }
+      function openAssignModal(date) {
+        ASSIGN.add.clear();
+        ASSIGN.drop.clear();
+        document.getElementById('as-date').value = date || DAY.date || todayStr();
         document.getElementById('as-driver').value = currentDriver()?.id || '';
         document.getElementById('as-progress').textContent = '';
-        document.getElementById('as-list').innerHTML =
-          BANKS.filter((b) => b.active)
-            .map(
-              (b) =>
-                `<label><input type="checkbox" value="${b.id}"> ${esc(b.name)}<span class="muted" style="font-weight:400"> — ${esc(b.text)}</span></label>`,
-            )
-            .join('') || `<p class="empty">${T('Контейнеров пока нет')}</p>`;
+        renderAssign();
         document.getElementById('m-assign-bg').classList.add('show');
+      }
+      /* Другая дата: отмеченное к добавлению переезжает на неё, а «убрать» относилось к прежнему дню. */
+      function assignDateChange() {
+        ASSIGN.drop.clear();
+        document.getElementById('as-progress').textContent = '';
+        renderAssign();
+      }
+      function assignToggle(id, checked) {
+        const on = assignVisits(document.getElementById('as-date').value);
+        if (on.has(id)) checked ? ASSIGN.drop.delete(id) : ASSIGN.drop.add(id);
+        else checked ? ASSIGN.add.add(id) : ASSIGN.add.delete(id);
+        renderAssign();
+      }
+      function assignAll(checked) {
+        const on = assignVisits(document.getElementById('as-date').value);
+        for (const b of BANKS) {
+          const v = on.get(b.id);
+          if (v) {
+            if (bankVisitFree(v)) checked ? ASSIGN.drop.delete(b.id) : ASSIGN.drop.add(b.id);
+          } else if (b.active) checked ? ASSIGN.add.add(b.id) : ASSIGN.add.delete(b.id);
+        }
+        renderAssign();
+      }
+      function renderAssign() {
+        const date = document.getElementById('as-date').value;
+        const on = assignVisits(date);
+        for (const id of [...ASSIGN.add]) if (on.has(id)) ASSIGN.add.delete(id);
+        for (const id of [...ASSIGN.drop]) if (!on.has(id) || !bankVisitFree(on.get(id))) ASSIGN.drop.delete(id);
+        const list = document.getElementById('as-list'),
+          scroll = list.scrollTop;
+        list.innerHTML =
+          BANKS.filter((b) => b.active || on.has(b.id))
+            .map((b) => {
+              const v = on.get(b.id),
+                fixed = !!v && !bankVisitFree(v),
+                checked = v ? !ASSIGN.drop.has(b.id) : ASSIGN.add.has(b.id);
+              const chip = !v
+                ? checked
+                  ? `<span class="chip st-ok">${T('добавится')}</span>`
+                  : ''
+                : fixed
+                  ? `<span class="chip st-${v.status}">${activeAddr(v) ? T('есть фото') : ST(v.status)}</span>`
+                  : checked
+                    ? `<span class="chip ghost">${T('в этом дне')}</span>`
+                    : `<span class="chip st-bad">${T('уберётся')}</span>`;
+              return `<label><input type="checkbox" value="${b.id}"${checked ? ' checked' : ''}${fixed ? ' disabled' : ''} onchange="assignToggle('${b.id}',this.checked)"><span style="flex:1;min-width:0">${esc(b.name)}<span class="muted" style="font-weight:400"> — ${esc(b.text)}</span></span>${chip}</label>`;
+            })
+            .join('') || `<p class="empty">${T('Контейнеров пока нет')}</p>`;
+        list.scrollTop = scroll;
+        /* Какой это день и что в нём уже стоит — чтобы ошибка с датой была видна до сохранения. */
+        const trip = date ? tripZoneOn(date) : null,
+          stops = ADDR.filter((a) => a.date === date && a.kind !== 'bank' && a.status !== 'cancelled').length;
+        document.getElementById('as-day').textContent = date
+          ? cap(dayLabel(date)) +
+            (date === todayStr() ? T(' · сегодня') : date < todayStr() ? T(' · этот день уже прошёл') : '') +
+            (trip ? ' · ' + T('день выезда в «') + trip.name + '»' : '') +
+            ' · ' +
+            T('в дне сейчас: адресов') +
+            ' ' +
+            stops +
+            ', ' +
+            T('контейнеров') +
+            ' ' +
+            on.size
+          : '';
+        document.getElementById('as-plan').textContent = [
+          ASSIGN.add.size ? T('Добавится: ') + ASSIGN.add.size : '',
+          ASSIGN.drop.size ? T('Уберётся: ') + ASSIGN.drop.size : '',
+        ]
+          .filter(Boolean)
+          .join(' · ');
       }
       async function saveAssign() {
         const date = document.getElementById('as-date').value,
-          driver_id = document.getElementById('as-driver').value,
-          ids = [...document.querySelectorAll('#as-list input:checked')].map((i) => i.value);
-        if (!date || !driver_id || !ids.length) {
-          toast(T('Выберите дату, водителя и хотя бы один контейнер'));
+          driver_id = document.getElementById('as-driver').value;
+        if (!date) {
+          toast(T('Выберите дату'));
+          return;
+        }
+        const on = assignVisits(date);
+        const drop = [...ASSIGN.drop].map((id) => on.get(id)).filter((v) => v && bankVisitFree(v)),
+          add = [...ASSIGN.add].filter((id) => !on.has(id));
+        if (!add.length && !drop.length) {
+          toast(T('Изменений нет — отметьте контейнеры или снимите галочки.'));
+          return;
+        }
+        if (add.length && !driver_id) {
+          toast(T('Выберите водителя'));
           return;
         }
         const btn = document.getElementById('as-save');
         btn.disabled = true;
         const progress = document.getElementById('as-progress');
-        progress.textContent = T('Назначаю…');
+        progress.textContent = T('Сохраняю…');
         let added = 0,
-          skipped = 0;
+          removed = 0;
         const failed = [];
         try {
-          const setup = await OpsDispatch.rpc(sb, 'settings', { driver_id });
-          for (const bid of ids) {
-            if (ADDR.some((a) => a.bank_id === bid && a.date === date && ['new', 'planned'].includes(a.status))) {
-              skipped++;
-              continue;
+          /* Сначала убираем — день освобождается под то, что добавляется. */
+          for (const v of drop) {
+            try {
+              await removeBankVisit(v);
+              removed++;
+              ASSIGN.drop.delete(v.bank_id);
+            } catch (e) {
+              failed.push((BANKS.find((x) => x.id === v.bank_id)?.name || v.text) + ': ' + bankVisitError(e));
             }
+          }
+          const setup = add.length ? await OpsDispatch.rpc(sb, 'settings', { driver_id }) : null;
+          for (const bid of add) {
             const b = BANKS.find((x) => x.id === bid);
             if (!b) continue;
             const id = uuid();
@@ -3522,6 +3659,7 @@
                 if (scheduled.error) throw scheduled.error;
               }
               added++;
+              ASSIGN.add.delete(bid);
             } catch (e) {
               if (created && setup.enabled) await sb.from('addresses').delete().eq('id', id).is('date', null);
               failed.push(b.name + ': ' + OpsDispatch.error(e));
@@ -3531,15 +3669,19 @@
           failed.push(OpsDispatch.error(e));
         } finally {
           btn.disabled = false;
+          /* Маршрут дня считался со старым набором остановок — пусть пересчитается. */
+          DAY.route = null;
           await refreshAll(true);
         }
+        const done = [added ? T('Добавлено визитов: ') + added : '', removed ? T('Убрано визитов: ') + removed : ''].filter(Boolean).join(' · ');
         if (failed.length) {
-          progress.textContent = T('Назначено: ') + added + '. ' + failed.join(' ');
+          renderAssign();
+          progress.textContent = (done ? done + '. ' : '') + failed.join(' ');
           return;
         }
         progress.textContent = '';
         closeModal('m-assign-bg');
-        toast(T('Назначено визитов: ') + added + (skipped ? ' · ' + skipped + T(' уже были на эту дату') : ''));
+        toast(done);
       }
 
       /* ---------- фото ---------- */
