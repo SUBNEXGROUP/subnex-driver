@@ -661,6 +661,7 @@
       service: svc,
       kg: request.estimated_kg ?? PLAN_DEFAULTS.estimated_kg,
       kind: 'hold',
+      source: request.intake_channel || null,
     };
     const byId = new Map(nodes.map((n) => [n.key, n]));
     const deadline = slaDeadline(request, config),
@@ -735,10 +736,35 @@
     }
     return result.sort((a, b) => a.score - b.score || a.start.localeCompare(b.start));
   }
+  /* Цель дня — число ПОДТВЕРЖДЁННЫХ адресов (решение 16.11.2026: 30 в день). Клиент, который ещё
+     не ответил на предложение даты, считается долей адреса — той, с какой обычно подтверждают
+     (confirm_rate_pct, 80%). Поэтому день предлагается с запасом и сам ужимается по мере ответов.
+     Заявки WhatsApp и Missing ставятся без подтверждения — они идут за целый адрес.
+     Контейнеры в цель не входят. Потолок действует только на автоматическую раскладку:
+     вручную адрес можно поставить и в полный день. */
+  const NO_CONFIRM_SOURCES = ['partner_whatsapp', 'missing'];
+  const confirmShare = (config) => {
+    const pct = Number(config && config.confirm_rate_pct);
+    return Number.isFinite(pct) && pct > 0 ? Math.min(pct, 100) / 100 : 0.8;
+  };
+  // Контейнер приходит узлом без обещанного времени; у согласованного адреса время есть всегда.
+  const isBankNode = (n) => n.kind === 'bank' || (n.kind === 'confirmed' && !n.starts_at);
+  const nodeWeight = (n, config) =>
+    isBankNode(n) || n.kind === 'legacy' ? 0 : n.kind === 'confirmed' || NO_CONFIRM_SOURCES.includes(n.source) ? 1 : confirmShare(config);
+  const dayLoad = (day, config, ignoreId) =>
+    (day.nodes || []).reduce((sum, n) => sum + (ignoreId && n.address_id === ignoreId ? 0 : nodeWeight(n, config)), 0);
+  const dayTarget = (day, config) => {
+    const target = Number(config && config.day_target),
+      own = Number(day && day.hours && day.hours.max_stops);
+    const list = [target, own].filter((v) => Number.isFinite(v) && v > 0);
+    return list.length ? Math.min(...list) : Infinity;
+  };
+  const dayHasRoom = (day, request, config) =>
+    dayLoad(day, config, request && request.id) + confirmShare(config) <= dayTarget(day, config) + 1e-9;
   const dayOptions = (work, r, config, roads, dayMode = true) =>
     work
       .flatMap((d, i) =>
-        placements(d, r, config, roads, dayMode)
+        (dayHasRoom(d, r, config) ? placements(d, r, config, roads, dayMode) : [])
           .slice(0, 3)
           .map((p) => ({ ...p, score: p.score + i * planParam(config, 'day_penalty_minutes') })),
       )
@@ -1372,6 +1398,9 @@
     zoneWeeks,
     isFiller,
     zoneFillers,
+    dayLoad,
+    dayTarget,
+    dayHasRoom,
     weekdayOf,
     weeklyOk,
     weekdaysText,

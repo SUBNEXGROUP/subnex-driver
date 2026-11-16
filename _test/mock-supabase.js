@@ -266,7 +266,7 @@
   };
   const orders = {},
     etas = {};
-  const autoPlan = { enabled: false, day_capacity: 40, horizon_days: 14, near_km: 6, reminder_hours: 24, close_hours: 48, sms_from_hour: 8, sms_to_hour: 20, eta_window_minutes: 60, lead_days: 2, last_run_at: null, last_run_note: null };
+  const autoPlan = { enabled: false, day_capacity: 40, day_target: 30, confirm_rate_pct: 80, horizon_days: 14, near_km: 6, reminder_hours: 24, close_hours: 48, sms_from_hour: 8, sms_to_hour: 20, eta_window_minutes: 60, lead_days: 2, last_run_at: null, last_run_note: null };
   const dayState = (day) => {
     const nodes = nodesOf(day),
       order = C().ordered(nodes, orders[day] || []);

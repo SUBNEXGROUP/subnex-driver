@@ -1235,6 +1235,16 @@
   <div class="od-footer"><label class="od-select" style="flex:1"><input type="checkbox" id="od-exact" ${this.dayMode === false ? 'checked' : ''}> ${T('Обещать точное время (интервал 30 минут)')}<br><span class="od-muted">${this.dayMode === false ? T('Клиенту уйдёт получасовое окно. В день помещается меньше адресов.') : T('Клиенту уйдёт только дата. Окно прибытия он получит утром, когда водитель начнёт маршрут.')}</span></label><button class="od-primary" data-action="calculate">${T('Распределить по дням')}</button></div></div>`;
     }
     planView() {
+      /* «Остановок 38» — это вместе с теми, кто ещё не ответил. Показываем, сколько из них
+         подтверждено и сколько адресов день даст на самом деле. */
+      const dayExpectText = (d, cfg) => {
+        const real = d.nodes.filter((n) => C.dayLoad({ nodes: [n] }, cfg) > 0),
+          sure = real.filter((n) => C.dayLoad({ nodes: [n] }, cfg) === 1).length,
+          waiting = real.length - sure;
+        if (!waiting) return '';
+        const target = C.dayTarget(d, cfg);
+        return `<p class="od-muted">${T('Подтверждено или без SMS: ')}${sure}${T(' · ждут ответа: ')}${waiting}${T(' · ожидаем адресов ≈ ')}${Math.round(C.dayLoad(d, cfg))}${Number.isFinite(target) ? T(' · цель дня ') + target : ''}</p>`;
+      };
       const m = this.plan.metrics,
         mm = (v) => (v >= 60 ? Math.floor(v / 60) + T(' ч ') + (v % 60 ? (v % 60) + T(' мин') : '') : v + T(' мин'));
       const days = this.plan.days.filter((d) => d.nodes.length),
@@ -1243,7 +1253,7 @@
   ${days
     .map((d) => {
       const trip = C.tripZoneOf(zcfg, d.day) || C.occupiedZoneOf(zcfg, d);
-      return `<article class="od-card"><div class="od-between"><h3>${label(d.day)}${trip ? ` <span class="od-chip" style="background:var(--far-soft);color:var(--far)">${T('выезд ·')} ${esc(trip.name)}</span>` : ''}</h3><b>${d.started_at ? T('Маршрут начат') : d.fit.ok ? d.fit.stops.length + T(' остановок') + ((added) => (added ? ' (+' + added + T(' новых)') : ''))(this.plan.assigned.filter((a) => a.day === d.day).length) + T(' · выезд ') + C.hm(d.fit.departure) + T(', склад ') + C.hm(d.fit.finish) : T('Требует внимания')}</b></div>${
+      return `<article class="od-card"><div class="od-between"><h3>${label(d.day)}${trip ? ` <span class="od-chip" style="background:var(--far-soft);color:var(--far)">${T('выезд ·')} ${esc(trip.name)}</span>` : ''}</h3><b>${d.started_at ? T('Маршрут начат') : d.fit.ok ? d.fit.stops.length + T(' остановок') + ((added) => (added ? ' (+' + added + T(' новых)') : ''))(this.plan.assigned.filter((a) => a.day === d.day).length) + T(' · выезд ') + C.hm(d.fit.departure) + T(', склад ') + C.hm(d.fit.finish) : T('Требует внимания')}</b></div>${dayExpectText(d, zcfg)}${
         d.fit.ok
           ? `<p class="od-muted">${T('Дорога с запасом')} ${d.fit.drive} ${T('мин · сборы')} ${d.fit.service} ${T('мин · простой')} ${d.fit.wait ?? 0} ${T('мин')}</p><ol class="od-stops">${d.fit.stops
               .map((stop, si) => {
@@ -1319,7 +1329,9 @@
   ${smsOff ? `<p class="od-warning">${T('Авто-SMS выключены (раздел «Переписка → Авто-SMS») — автопланировщик не сможет отправлять даты.')}</p>` : ''}
   <label class="od-select" style="margin:6px 0 12px"><input type="checkbox" data-auto="enabled" ${c.enabled ? 'checked' : ''}> <b>${T('Автоподбор включён')}</b></label>
   <div class="od-grid">
-  ${num('day_capacity', T('Адресов в день, не больше'), T('Дальше день считается полным'), 1, 120)}
+  ${num('day_target', T('Цель дня: подтверждённых адресов'), T('Набралось столько — новых предложений на этот день нет'), 1, 120)}
+  ${num('confirm_rate_pct', T('Подтверждают дату, %'), T('Неответивший считается за эту долю адреса'), 10, 100)}
+  ${num('day_capacity', T('Остановок в день, жёсткий потолок'), T('Вместе с неответившими — страховка'), 1, 120)}
   ${num('lead_days', T('Дата не раньше чем через, дней'), T('Чтобы напоминание успело до дня сбора'), 1, 7)}
   ${num('horizon_days', T('Горизонт, дней'), T('Как далеко вперёд искать день'), 2, 30)}
   ${num('near_km', T('Рядом — это, км'), T('Сначала день, где уже есть адрес не дальше'), 0, 50)}
@@ -1477,7 +1489,13 @@
       this.notice(T('Распределяю заявки вокруг договорённостей…'));
       this.planRoads = roads;
       this.planRequests = snap.requests;
-      this.planConfig = { ...snap.config, zones: this.zones || [] };
+      /* Цель дня (30 подтверждённых, неответивший — доля адреса) — из настроек автопланировщика. */
+      this.planConfig = {
+        ...snap.config,
+        zones: this.zones || [],
+        day_target: this.autoCfg?.day_target,
+        confirm_rate_pct: this.autoCfg?.confirm_rate_pct,
+      };
       this.plan = await C.planBatch(
         snap.days,
         snap.requests,

@@ -62,6 +62,39 @@ eq('planBatch: заявка распределена', plan.assigned.length, 1);
 eq('planBatch: score — число', Number.isFinite(plan.assigned[0].score), true);
 eq('planBatch: первый день предпочтительнее', plan.assigned[0].day, '2026-09-22');
 
+/* ---------- цель дня: 30 подтверждённых, неответивший = 0,8 адреса (решение 16.11.2026) ---------- */
+{
+  const tcfg = { ...cfg, day_target: 30, confirm_rate_pct: 80 };
+  const conf = (i) => ({ key: 'a:c' + i, address_id: 'c' + i, kind: 'confirmed', starts_at: '2026-09-22T08:00:00Z', source: 'partner_email', lat: 51.48, lng: -3.17 });
+  const wait = (i) => ({ key: 'a:w' + i, address_id: 'w' + i, kind: 'offer', starts_at: '2026-09-22T08:00:00Z', source: 'partner_email', lat: 51.48, lng: -3.17 });
+  const held = (i, source) => ({ key: 'a:h' + i, address_id: 'h' + i, kind: 'hold', starts_at: '2026-09-22T08:00:00Z', source, lat: 51.48, lng: -3.17 });
+  const bank = (i) => ({ key: 'a:b' + i, address_id: 'b' + i, kind: 'confirmed', starts_at: null, source: null, lat: 51.48, lng: -3.17 });
+  const many = (n, f) => Array.from({ length: n }, (_, i) => f(i));
+  const dayOf = (nodes, hours = {}) => ({ day: '2026-09-22', hours: { opens: '08:00', closes: '16:00', ...hours }, nodes, order: nodes.map((n) => n.key), start_minute: 0 });
+  const near = (a, b) => Math.abs(a - b) < 1e-6;
+  eq('цель: среда 15 подтверждённых + 23 ждут = 33,4', near(C.dayLoad(dayOf([...many(15, conf), ...many(23, wait)]), tcfg), 33.4), true);
+  eq('цель: такой день полон', C.dayHasRoom(dayOf([...many(15, conf), ...many(23, wait)]), req, tcfg), false);
+  eq('цель: 15 подтверждённых + 17 ждут — место есть (29,4)', C.dayHasRoom(dayOf([...many(15, conf), ...many(17, wait)]), req, tcfg), true);
+  eq('цель: 15 подтверждённых + 18 ждут — места нет (30,2 с новым)', C.dayHasRoom(dayOf([...many(15, conf), ...many(18, wait)]), req, tcfg), false);
+  eq('цель: пустому дню предлагаем до 37', C.dayHasRoom(dayOf(many(36, wait)), req, tcfg), true);
+  eq('цель: 37 неответивших — стоп', C.dayHasRoom(dayOf(many(37, wait)), req, tcfg), false);
+  eq('цель: 30 подтверждённых — новых предложений нет', C.dayHasRoom(dayOf(many(30, conf)), req, tcfg), false);
+  eq('цель: 29 подтверждённых — ещё одно предложение можно', C.dayHasRoom(dayOf(many(29, conf)), req, tcfg), true);
+  eq('цель: WhatsApp и Missing без подтверждения — целый адрес', near(C.dayLoad(dayOf([held(1, 'partner_whatsapp'), held(2, 'missing'), held(3, 'partner_email')]), tcfg), 2.8), true);
+  eq('цель: контейнеры не считаются', near(C.dayLoad(dayOf([...many(10, bank), conf(1)]), tcfg), 1), true);
+  eq('цель: свой адрес при пересчёте не считается дважды', near(C.dayLoad(dayOf([wait(1), wait(2)]), tcfg, 'w1'), 0.8), true);
+  eq('цель: день поездки — своё число в часах дня', C.dayTarget(dayOf([], { max_stops: 20 }), tcfg), 20);
+  eq('цель: без настроек потолка нет', C.dayHasRoom(dayOf(many(60, conf)), req, cfg), true);
+  // Раскладка пачки: полный день пропускается, заявка уходит на следующий.
+  const full = { ...day('2026-09-22'), nodes: [...many(15, conf), ...many(23, wait)] };
+  full.order = full.nodes.map((n) => n.key);
+  const planT = await C.planBatch([full, day('2026-09-23')], [req], tcfg, roads);
+  eq('цель: planBatch обходит полный день', planT.assigned[0]?.day, '2026-09-23');
+  // Вручную в полный день поставить можно: потолок только для автоматической раскладки.
+  const two = { ...day('2026-09-22'), nodes: many(30, conf).map((n) => ({ ...n, lat: req.lat, lng: req.lng })) };
+  eq('цель: ручная постановка не запрещена потолком', ['NO_ROOM'].includes(C.dayIssue({ days: [two] }, { key: 'a:r1', address_id: 'r1', text: req.text }, '2026-09-22', tcfg, roads).code), false);
+}
+
 /* ---------- окна и срок ---------- */
 eq('offerExpired: неотправленное вчера — мёртвое', C.offerExpired({ offer_state: 'preparing', offered_start: '2026-09-18T09:00:00Z', offered_end: '2026-09-18T09:30:00Z' }, new Date('2026-09-19T00:00:00Z')), true);
 eq('offerExpired: завтра — живое', C.offerExpired({ offer_state: 'awaiting', offered_start: '2026-09-20T09:00:00Z', offered_end: '2026-09-20T09:30:00Z' }, new Date('2026-09-19T00:00:00Z')), false);

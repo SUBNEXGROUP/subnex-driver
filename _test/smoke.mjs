@@ -151,12 +151,12 @@ const calls = (page, kind) => page.evaluate((k) => window.__calls.filter((c) => 
   await page.waitForSelector('#set-dispatch .od-root', { timeout: 15000 });
   await wait(400);
   const setText = await page.textContent('#set-dispatch');
-  ok('автопланировщик: раздел есть', /Автопланировщик/.test(setText) && /Адресов в день/.test(setText), setText.slice(0, 300));
+  ok('автопланировщик: раздел есть', /Автопланировщик/.test(setText) && /Цель дня: подтверждённых адресов/.test(setText) && /Подтверждают дату, %/.test(setText), setText.slice(0, 300));
   await page.check('#set-dispatch [data-auto="enabled"]');
   await page.click('#set-dispatch [data-action="save-auto"]');
   await page.waitForFunction(() => /Автопланировщик включён/.test(document.querySelector('#set-dispatch .od-notice')?.textContent || ''), null, { timeout: 15000 });
   const saved = await page.evaluate(() => window.__calls.filter((c) => c.name === 'subnex_dispatch.save_auto_plan'));
-  ok('автопланировщик: сохранён на сервере', saved.length === 1 && saved[0].data.config.enabled === true && saved[0].data.config.day_capacity === 40, JSON.stringify(saved[0]?.data));
+  ok('автопланировщик: сохранён на сервере', saved.length === 1 && saved[0].data.config.enabled === true && saved[0].data.config.day_capacity === 40 && saved[0].data.config.day_target === 30 && saved[0].data.config.confirm_rate_pct === 80, JSON.stringify(saved[0]?.data));
   await page.click('#nav button[data-page="requests"]');
   await page.click('#req-tabs button[data-sub="queue"]');
   await wait(300);
