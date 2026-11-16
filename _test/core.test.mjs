@@ -80,8 +80,25 @@ eq('nextTripDays: оба вторника ноября и декабря', C.nex
 eq('zoneTripDay: 4-й вторник — день выезда', C.zoneTripDay(sa2, '2026-11-24'), '2026-11-24');
 eq('tripZoneOf: 4-й вторник за SA', C.tripZoneOf({ zones: [sa2] }, '2026-11-24')?.code, 'SA1-18');
 eq('tripZoneOf: 3-й вторник свободен', C.tripZoneOf({ zones: [sa2] }, '2026-11-17'), null);
-eq('isFiller: Кардифф попутный', C.isFiller({ prefix: 'CF', mode: 'weekly' }), true);
-eq('isFiller: Бристоль — нет', C.isFiller({ prefix: 'BS', mode: 'weekly' }), false);
+// Попутные — свойство дальней зоны: Суонси добирают CF/NP, Bath — только Бристоль (решение 16.11.2026).
+const saF = { ...sa2, fillers: ['CF', 'NP'] };
+const ba1 = { prefix: 'BA', code: 'BA1-3', num_from: 1, num_to: 3, mode: 'monthly', weekday: 2, week_of_month: 1, weeks_of_month: [1, 3], name: 'Bath', fillers: ['BS'] };
+const ba11 = { ...ba1, code: 'BA11-15', num_from: 11, num_to: 15, name: 'Frome' };
+const baOff = { prefix: 'BA', code: 'BA', num_from: 0, num_to: 99, mode: 'off', name: 'Somerset south' };
+eq('isFiller: Кардифф попутный в Суонси', C.isFiller({ prefix: 'CF', mode: 'weekly' }, saF), true);
+eq('isFiller: Бристоль в Суонси — нет', C.isFiller({ prefix: 'BS', mode: 'weekly' }, saF), false);
+eq('isFiller: Бристоль попутный в Bath', C.isFiller({ prefix: 'BS', mode: 'weekly' }, ba1), true);
+eq('isFiller: Кардифф в Bath — нет', C.isFiller({ prefix: 'CF', mode: 'weekly' }, ba1), false);
+eq('isFiller: без поездки попутных нет', C.isFiller({ prefix: 'CF', mode: 'weekly' }, null), false);
+eq('isFiller: зона без списка — попутных нет', C.isFiller({ prefix: 'CF', mode: 'weekly' }, sa2), false);
+eq('nextTripDays: Bath — 1-й и 3-й вторник', C.nextTripDays(ba1, '2026-11-18', 4).join(','), '2026-12-01,2026-12-15,2027-01-05,2027-01-19');
+eq('tripZoneOf: 1-й вторник декабря за Bath', C.tripZoneOf({ zones: [saF, ba1, ba11, baOff] }, '2026-12-01')?.prefix, 'BA');
+eq('tripZoneOf: 2-й вторник декабря за Суонси', C.tripZoneOf({ zones: [saF, ba1, ba11, baOff] }, '2026-12-08')?.code, 'SA1-18');
+eq('zoneRule: BA2 → Bath', C.zoneRule({ zones: [ba1, ba11, baOff] }, '5 Wells Road, Bath BA2 3AB').code, 'BA1-3');
+eq('zoneRule: BA11 → Frome', C.zoneRule({ zones: [ba1, ba11, baOff] }, '16 Wiltshire Barton, BA11 3DU').code, 'BA11-15');
+eq('zoneRule: BA21 (Yeovil) → выключен', C.zoneRule({ zones: [ba1, ba11, baOff] }, '1 High St, Yeovil BA21 4AA').mode, 'off');
+eq('sameZone: Bath и Frome — одна поездка', C.sameZone(ba1, ba11), true);
+eq('sameZone: Bath и Суонси — разные', C.sameZone(ba1, saF), false);
 
 
 /* ---------- порядок остановок ---------- */
@@ -170,7 +187,7 @@ const ok = (name, cond, extra = '') => eq(name + (cond ? '' : ' ' + extra), !!co
   const day = { day: '2026-10-06', hours: { opens: '08:00', closes: '18:00' }, nodes: [], order: [] };
   eq('weekly: placements во вт пусто', C.placements(day, { id: 'x', text: '1 X St, Cardiff CF11 6EB', lat: 51.47, lng: -3.19 }, cfg, {}), []);
   // Попутные: во вторник выезда в Суонси Кардифф допускается, только когда в дне уже стоит адрес Суонси.
-  const far = { code: 'SA1-18', prefix: 'SA', num_from: 1, num_to: 18, name: 'Swansea', mode: 'monthly', weekday: 2, week_of_month: 2, weeks_of_month: [2, 4] };
+  const far = { code: 'SA1-18', prefix: 'SA', num_from: 1, num_to: 18, name: 'Swansea', mode: 'monthly', weekday: 2, week_of_month: 2, weeks_of_month: [2, 4], fillers: ['CF', 'NP'] };
   const cfg2 = { zones: [...zones, far], active_zones: ['SA1-18'] };
   const node = { key: 'a:cf', address_id: 'cf', text: '1 X St, Cardiff CF11 6EB' };
   const mk = (d, nodes) => ({ days: [{ day: d, hours: { opens: '08:00', closes: '18:00' }, nodes, order: nodes.map((n) => n.key) }] });
@@ -178,6 +195,24 @@ const ok = (name, cond, extra = '') => eq(name + (cond ? '' : ' ' + extra), !!co
   eq('попутный: пустой вторник выезда — нет', C.dayIssue(mk('2026-11-24', []), node, '2026-11-24', cfg2, {}).code, 'ZONE_WEEKDAY');
   eq('попутный: во вторник с адресом Суонси — зона пропускает', ['ZONE_WEEKDAY', 'ZONE_DAY_TAKEN'].includes(C.dayIssue(mk('2026-11-24', [saNode]), node, '2026-11-24', cfg2, {}).code), false);
   eq('попутный: обычный вторник — нет', C.dayIssue(mk('2026-11-17', []), node, '2026-11-17', cfg2, {}).code, 'ZONE_WEEKDAY');
+  // Bath (1-й и 3-й вторник): добирается только Бристолем; Кардифф в этот день не ставится (решение 16.11.2026).
+  const bath = { code: 'BA1-3', prefix: 'BA', num_from: 1, num_to: 3, name: 'Bath', mode: 'monthly', weekday: 2, week_of_month: 1, weeks_of_month: [1, 3], fillers: ['BS'] };
+  const frome = { ...bath, code: 'BA11-15', num_from: 11, num_to: 15, name: 'Frome' };
+  const bristol = { code: 'BS', prefix: 'BS', num_from: 0, num_to: 99, name: 'Bristol', mode: 'weekly', weekdays: [3, 5] };
+  const cfg3 = { zones: [...zones, far, bath, frome, bristol, { code: 'BA', prefix: 'BA', num_from: 0, num_to: 99, name: 'South', mode: 'off' }], active_zones: ['SA1-18', 'BA1-3', 'BA11-15'] };
+  const baNode = { key: 'a:ba', address_id: 'ba', text: '5 Wells Road, Bath BA2 3AB', lat: 51.37, lng: -2.36, service_minutes: 4, kg: 10 };
+  const bsNode = { key: 'a:bs', address_id: 'bs', text: '9 Park St, Bristol BS1 5NT' };
+  const frNode = { key: 'a:fr', address_id: 'fr', text: '16 Wiltshire Barton, BA11 3DU' };
+  const zoneRefused = (r) => ['ZONE_WEEKDAY', 'ZONE_DAY_TAKEN', 'ZONE_TRIP_DAY', 'ZONE_OFF'].includes(r.code);
+  eq('Bath: Бристоль в пустой вторник выезда — нет', C.dayIssue(mk('2026-12-01', []), bsNode, '2026-12-01', cfg3, {}).code, 'ZONE_WEEKDAY');
+  eq('Bath: Бристоль во вторник с адресом Bath — зона пропускает', zoneRefused(C.dayIssue(mk('2026-12-01', [baNode]), bsNode, '2026-12-01', cfg3, {})), false);
+  eq('Bath: Кардифф во вторник с адресом Bath — нет', C.dayIssue(mk('2026-12-01', [baNode]), node, '2026-12-01', cfg3, {}).code, 'ZONE_WEEKDAY');
+  eq('Bath: Frome в тот же вторник — зона пропускает', zoneRefused(C.dayIssue(mk('2026-12-01', [baNode]), frNode, '2026-12-01', cfg3, {})), false);
+  eq('Bath: адрес Bath во вторник Суонси — нет', C.dayIssue(mk('2026-12-08', []), baNode, '2026-12-08', cfg3, {}).code, 'ZONE_TRIP_DAY');
+  eq('Bath: адрес Bath в среду — нет', C.dayIssue(mk('2026-12-02', []), baNode, '2026-12-02', cfg3, {}).code, 'ZONE_TRIP_DAY');
+  eq('Bath: Бристоль во вторник Суонси с адресом Суонси — нет', C.dayIssue(mk('2026-12-08', [saNode]), bsNode, '2026-12-08', cfg3, {}).code, 'ZONE_WEEKDAY');
+  eq('Суонси: Кардифф по-прежнему попутный', zoneRefused(C.dayIssue(mk('2026-12-08', [saNode]), node, '2026-12-08', cfg3, {})), false);
+  eq('Bath: Yeovil (выключен) — нет', C.dayIssue(mk('2026-12-01', [baNode]), { key: 'a:y', address_id: 'y', text: '1 High St, Yeovil BA21 4AA' }, '2026-12-01', cfg3, {}).code, 'ZONE_OFF');
 }
 
 console.log(`\n${pass} ok, ${fail} fail`);

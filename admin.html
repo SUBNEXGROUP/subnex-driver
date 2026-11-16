@@ -20,9 +20,9 @@
     <link rel="stylesheet" href="subnex-ui.css?v=20260929-chat" />
     <link rel="stylesheet" href="ops-chat.css?v=20260929-chat" />
     <link rel="stylesheet" href="ops-dispatch.css?v=20261014-noreply" />
-    <script src="i18n.js?v=20261114-banks"></script>
+    <script src="i18n.js?v=20261116-fillers"></script>
     <script src="ops-chat.js?v=20261012-2h"></script>
-    <script src="ops-dispatch-core.js?v=20261106-optimizer"></script>
+    <script src="ops-dispatch-core.js?v=20261116-fillers"></script>
     <script src="ops-dispatch.js?v=20261014-dayonly"></script>
     <style>
       .leaflet-container {
@@ -1224,6 +1224,13 @@
                 ><label><input type="checkbox" value="5" /> Последняя</label>
               </div>
             </div>
+          </div>
+          <div class="f-group" id="mz-fill-wrap" hidden>
+            <label class="f">Попутные районы</label
+            ><input class="field" type="text" id="mz-fillers" maxlength="40" placeholder="CF, NP" style="text-transform: uppercase" /><small
+              class="muted"
+              >Буквы индексов через запятую: BS или CF, NP. Адресами этих районов добирается день поездки, если крюк небольшой.</small
+            >
           </div>
           <p class="muted small" id="mz-preview"></p>
           <p class="err" id="mz-err"></p>
@@ -2879,7 +2886,7 @@
                 ? `<span class="chip st-far">${T('раз в месяц')}</span>`
                 : `<span class="chip st-cancelled">${T('выключен')}</span>`;
           const span = (z.num_from ?? 0) === 0 && (z.num_to ?? 99) === 99 ? '' : `${T('индексы')} ${z.num_from}–${z.num_to}`;
-          return `<div class="setrow"><div><b>${esc(z.code || z.prefix)} · ${esc(z.name)}</b><small class="muted">${esc(span)}</small><p>${badge} ${z.mode === 'monthly' ? esc(zoneWhen(z)) + (next ? T(' · ближайший выезд ') + esc(dayShort(next)) : '') : ''}${n ? ` ${T('· ждут распределения:')} ${n}` : ''}</p></div><button class="btn btn-sm" onclick="zoneForm('${esc(z.code || z.prefix)}')">${T('Изменить')}</button></div>`;
+          return `<div class="setrow"><div><b>${esc(z.code || z.prefix)} · ${esc(z.name)}</b><small class="muted">${esc(span)}</small><p>${badge} ${z.mode === 'monthly' ? esc(zoneWhen(z)) + (next ? T(' · ближайший выезд ') + esc(dayShort(next)) : '') + ((z.fillers || []).length ? T(' · попутные: ') + esc(z.fillers.join(', ')) : '') : ''}${n ? ` ${T('· ждут распределения:')} ${n}` : ''}</p></div><button class="btn btn-sm" onclick="zoneForm('${esc(z.code || z.prefix)}')">${T('Изменить')}</button></div>`;
         }).join('');
       }
       let zonePrevCode = null;
@@ -2896,6 +2903,7 @@
         document.getElementById('mz-weekday').value = z && z.weekday != null ? z.weekday : 4;
         const zw = new Set(z && z.mode === 'monthly' ? C.zoneWeeks(z) : [5]);
         document.querySelectorAll('#mz-week input').forEach((b) => (b.checked = zw.has(+b.value)));
+        document.getElementById('mz-fillers').value = ((z && z.fillers) || []).join(', ');
         document.getElementById('mz-del').style.display = z ? '' : 'none';
         document.getElementById('mz-err').textContent = '';
         zoneModeChange();
@@ -2905,6 +2913,7 @@
         const monthly = document.getElementById('mz-mode').value === 'monthly';
         const weekly = document.getElementById('mz-mode').value === 'weekly';
         document.getElementById('mz-day-wrap').hidden = !monthly;
+        document.getElementById('mz-fill-wrap').hidden = !monthly;
         document.getElementById('mz-days-wrap').hidden = !weekly;
         const p = document.getElementById('mz-preview');
         if (weekly) {
@@ -2940,6 +2949,16 @@
       for (const id of ['mz-weekday', 'mz-week', 'mz-days']) document.getElementById(id).addEventListener('change', zoneModeChange);
       const zoneDays = () => [...document.querySelectorAll('#mz-days input:checked')].map((b) => +b.value);
       const zoneWeekList = () => [...document.querySelectorAll('#mz-week input:checked')].map((b) => +b.value).sort((a, b) => a - b);
+      /* Попутные районы дня поездки: только буквы индекса — «bs, cf» → ['BS', 'CF']. */
+      const zoneFillerList = () => [
+        ...new Set(
+          document
+            .getElementById('mz-fillers')
+            .value.toUpperCase()
+            .split(/[^A-Z]+/)
+            .filter((x) => /^[A-Z]{1,2}$/.test(x)),
+        ),
+      ];
       async function zoneSave() {
         const btn = document.getElementById('mz-save');
         btn.disabled = true;
@@ -2962,6 +2981,7 @@
               week_of_month: zoneWeekList()[0] || 5,
               weeks_of_month: zoneWeekList(),
               weekdays: zoneDays(),
+              fillers: mode === 'monthly' ? zoneFillerList() : [],
             },
           });
           if (error) throw error;

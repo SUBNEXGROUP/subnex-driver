@@ -1632,6 +1632,10 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   Список: 'List',
   Фото: 'Photos',
   'Визиты на день: добавить / убрать': 'Visits for a day: add / remove',
+  'Попутные районы': 'On-the-way areas',
+  'Буквы индексов через запятую: BS или CF, NP. Адресами этих районов добирается день поездки, если крюк небольшой.':
+    'Postcode letters, comma-separated: BS or CF, NP. Addresses from these areas top up the trip day when the detour is small.',
+  ' · попутные: ': ' · on the way: ',
   Название: 'Name',
   Визитов: 'Visits',
   'Последний визит': 'Last visit',
