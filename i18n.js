@@ -1496,6 +1496,7 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   'Сохранено · координаты не найдены': 'Saved · coordinates not found',
   'Контейнер сохранён, но визиты не обновились: ': 'Container saved, but its visits were not updated: ',
   'обновлено визитов: ': 'visits updated: ',
+  'в уже начатом маршруте не изменено: ': 'not changed in a route already started: ',
   'Удалить этот контейнер? Прошлые визиты останутся.': 'Delete this bank? Past visits stay.',
   'Сумма в месяц, £': 'Amount per month, £',
   'Ставка, £ за кг': 'Rate, £ per kg',

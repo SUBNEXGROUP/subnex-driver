@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="subnex-ui.css?v=20260929-chat" />
     <link rel="stylesheet" href="ops-chat.css?v=20260929-chat" />
     <link rel="stylesheet" href="ops-dispatch.css?v=20261014-noreply" />
-    <script src="i18n.js?v=20261117-bankname"></script>
+    <script src="i18n.js?v=20261117-bankname2"></script>
     <script src="ops-chat.js?v=20261012-2h"></script>
     <script src="ops-dispatch-core.js?v=20261116-target"></script>
     <script src="ops-dispatch.js?v=20261117-health"></script>
@@ -3489,7 +3489,8 @@
         }
         // 17.11.2026: a visit copies the container's name/address when it is created. After an edit, only
         // visits that are not done yet (new/planned) take the new name, address and point; past visits keep theirs.
-        let moved = 0;
+        let moved = 0,
+          kept = 0;
         if (old && (old.name !== row.name || old.text !== row.text || old.lat !== row.lat || old.lng !== row.lng || old.note !== row.note)) {
           const label = row.name + (row.text ? ' — ' + row.text : '');
           const q = await sb.from('addresses').select('id,note').eq('kind', 'bank').eq('bank_id', row.id).in('status', ['new', 'planned']);
@@ -3503,6 +3504,11 @@
             const patch = { text: label, lat: row.lat, lng: row.lng };
             if ((a.note || '') === (old.note || '')) patch.note = row.note;
             const u = await sb.from('addresses').update(patch).eq('id', a.id).in('status', ['new', 'planned']);
+            // A visit inside a route that has already started stays as the driver sees it.
+            if (u.error && /ROUTE_STARTED/.test(u.error.message || '')) {
+              kept++;
+              continue;
+            }
             if (u.error) {
               toast(T('Контейнер сохранён, но визиты не обновились: ') + Ops.error(u.error));
               refreshAll(true);
@@ -3514,7 +3520,8 @@
         closeModal('m-bank-bg');
         toast(
           (row.lat != null ? T('Сохранено') : T('Сохранено · координаты не найдены')) +
-            (moved ? ' · ' + T('обновлено визитов: ') + moved : ''),
+            (moved ? ' · ' + T('обновлено визитов: ') + moved : '') +
+            (kept ? ' · ' + T('в уже начатом маршруте не изменено: ') + kept : ''),
         );
         refreshAll(true);
       }
