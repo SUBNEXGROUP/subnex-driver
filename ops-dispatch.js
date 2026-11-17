@@ -240,7 +240,14 @@
     if (!setup.enabled) return null;
     const id = plan?.address_id || o.address?.id;
     if (!id) throw new Error(T('Сначала добавьте адрес.'));
-    await warm({ ...o, driver: { id: driver } }, payload.day, [id]);
+    try {
+      await warm({ ...o, driver: { id: driver } }, payload.day, [id]);
+    } catch (e) {
+      /* Сервис дорог лежит (500/502/таймаут). Клиент уже согласился — ставим его в день без
+         проверки дорог: сервер это допускает (ROADS_UNVERIFIED), порядок пересчитается, когда
+         сервис вернётся. Предложения новым клиентам по-прежнему ждут дорог. */
+      if (!(payload.overbook && /^ROUTING_HTTP_|Failed to fetch|NetworkError|timed out|fetch/i.test(codeOf(e)))) throw e;
+    }
     await rpc(o.sb, 'check', {
       driver_id: driver,
       address_id: id,
