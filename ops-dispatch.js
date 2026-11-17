@@ -2384,7 +2384,21 @@
             this.notice(T('Найдена точка по postcode. Проверьте старт или склад на карте и сохраните параметры.'));
           } else if (act === 'health') {
             const r = await edge(this.sb, { action: 'health', driver_id: this.driver.id });
-            this.notice(T('Сервис дорог подключён: ') + r.provider + '.');
+            // 17.11.2026: health reports every provider; older edge versions returned only { provider }.
+            const names = { osrm: T('Наш сервер'), openrouteservice: 'OpenRouteService' };
+            const states = r.providers && typeof r.providers === 'object' ? Object.entries(r.providers) : [];
+            if (!states.length) {
+              this.notice(T('Сервис дорог подключён: ') + (r.provider || r.primary || '—') + '.');
+            } else {
+              const line = states
+                .map(([p, s]) => {
+                  const role = p === r.primary ? '' : ' (' + T('запасной') + ')';
+                  const res = s && s.ok ? '✓ ' + s.ms + ' ' + T('мс') : '✗ ' + T('нет ответа');
+                  return (names[p] || p) + role + ' ' + res;
+                })
+                .join(' · ');
+              this.notice((r.ok ? T('Сервис дорог: ') : T('Сервис дорог недоступен: ')) + line);
+            }
           }
         },
         act === 'calculate' ? T('Начинаю расчёт…') : T('Выполняю…'),

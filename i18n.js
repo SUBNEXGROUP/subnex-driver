@@ -921,6 +921,12 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   'Найдена точка по postcode. Проверьте старт или склад на карте и сохраните параметры.':
     'Point found by postcode. Check the start or depot on the map and save the settings.',
   'Сервис дорог подключён: ': 'Routing service connected: ',
+  'Наш сервер': 'Our server',
+  'запасной': 'backup',
+  'мс': 'ms',
+  'нет ответа': 'no response',
+  'Сервис дорог: ': 'Routing service: ',
+  'Сервис дорог недоступен: ': 'Routing service unavailable: ',
   'Начинаю расчёт…': 'Starting calculation…',
   'Выполняю…': 'Working…',
   'Выберите водителя.': 'Choose a driver.',
