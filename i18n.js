@@ -1494,6 +1494,8 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   'Добавить контейнер': 'Add bank',
   'Введите название': 'Enter a name',
   'Сохранено · координаты не найдены': 'Saved · coordinates not found',
+  'Контейнер сохранён, но визиты не обновились: ': 'Container saved, but its visits were not updated: ',
+  'обновлено визитов: ': 'visits updated: ',
   'Удалить этот контейнер? Прошлые визиты останутся.': 'Delete this bank? Past visits stay.',
   'Сумма в месяц, £': 'Amount per month, £',
   'Ставка, £ за кг': 'Rate, £ per kg',

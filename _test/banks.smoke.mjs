@@ -204,6 +204,31 @@ const plus = (d, n) => new Date(Date.parse(d + 'T12:00:00Z') + n * 86400000).toI
   await page.close();
 }
 
+/* ---- переименование контейнера: новые визиты получают имя, прошлые остаются ---- */
+{
+  const { page, errors } = await open('ru');
+  await page.evaluate(() => {
+    const m = window.__mock;
+    m.tables.addresses.push({ ...m.tables.addresses.find((a) => a.id === 'b1'), id: 'b-old', status: 'done', date: '2026-10-01', note: 'старая заметка' });
+    m.tables.addresses.push({ ...m.tables.addresses.find((a) => a.id === 'b1'), id: 'b-new', status: 'new', date: null });
+  });
+  await page.evaluate(() => {
+    window.go ? window.go('banks') : (location.hash = '#banks');
+  });
+  await page.evaluate(() => window.openBankModal('bk1'));
+  await page.waitForSelector('#m-bank-bg.show');
+  await page.fill('#mk-name', 'Glyncoch Hall');
+  await page.click('#mk-save');
+  await page.waitForFunction(() => !document.getElementById('m-bank-bg').classList.contains('show'), null, { timeout: 15000 });
+  const v = await page.evaluate(() => Object.fromEntries(window.__mock.tables.addresses.filter((a) => a.kind === 'bank').map((a) => [a.id, a.text])));
+  ok('переименование: планируемый визит с новым именем', v.b1 === 'Glyncoch Hall — Pontypridd CF37 3DA', v.b1);
+  ok('переименование: новый визит с новым именем', v['b-new'] === 'Glyncoch Hall — Pontypridd CF37 3DA', v['b-new']);
+  ok('переименование: выполненный визит не тронут', v['b-old'] === 'Glyncoch Community Centre — Pontypridd CF37 3DA', v['b-old']);
+  ok('переименование: в сообщении число визитов', /обновлено визитов: 2/.test(await toastText(page)), await toastText(page));
+  ok('переименование: ошибок в консоли нет', errors.length === 0, errors.join(' | '));
+  await page.close();
+}
+
 /* ---- английский интерфейс (по умолчанию у Кости) ---- */
 {
   const { page, errors } = await open('en');
