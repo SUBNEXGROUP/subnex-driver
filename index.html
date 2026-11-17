@@ -45,6 +45,23 @@
         border: 2px solid rgba(255, 255, 255, 0.92);
         box-shadow: 0 1px 6px rgba(0, 0, 0, 0.75);
       }
+      .mk-me {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #2b8cff;
+        border: 3px solid #fff;
+        box-shadow: 0 0 0 0 rgba(43, 140, 255, 0.55), 0 1px 6px rgba(0, 0, 0, 0.6);
+        animation: mepulse 2s infinite;
+      }
+      @keyframes mepulse {
+        70% {
+          box-shadow: 0 0 0 14px rgba(43, 140, 255, 0), 0 1px 6px rgba(0, 0, 0, 0.6);
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgba(43, 140, 255, 0), 0 1px 6px rgba(0, 0, 0, 0.6);
+        }
+      }
       .mk.sq {
         border-radius: 7px;
         background: var(--accent);
@@ -490,6 +507,7 @@
           liveBusy: 'Считаю от вашей точки…',
           liveNote: 'Осталось {n} · в пути {drive} · на адресах {svc} мин · склад ≈ {fin}',
           liveNoGps: 'GPS недоступен — посчитано от дома.',
+          geoDenied: 'Геопозиция выключена для приложения — точки «я здесь» на карте не будет. Включите её в настройках телефона.',
           liveEmpty: 'Все адреса отмечены — ехать больше некуда.',
           liveMaps: 'Открыть в Google Maps',
           liveLate: 'опоздание {m} мин',
@@ -664,6 +682,7 @@
           liveBusy: 'Calculating from your location…',
           liveNote: '{n} left · driving {drive} · at addresses {svc} min · depot ≈ {fin}',
           liveNoGps: 'No GPS — calculated from home.',
+          geoDenied: 'Location is off for this app, so the map cannot show where you are. Turn it on in the phone settings.',
           liveEmpty: 'All addresses are marked — nothing left to drive to.',
           liveMaps: 'Open in Google Maps',
           liveLate: '{m} min late',
@@ -1463,6 +1482,8 @@
       function clearDriver() {
         window.OpsPlanner?.close();
         stopGeoWatch();
+        lastLoc = lastSent = meMarker = null;
+        geoDeniedShown = false;
         OPS_PROFILE = null;
         ME = null;
         ADDR = [];
@@ -1555,9 +1576,32 @@
       });
 
       /* ---------- live location ---------- */
+      /* Геопозиция включается один раз при входе и держится, пока приложение открыто.
+         Браузер спрашивает разрешение только при первом обращении; дальше — только watchPosition,
+         без отдельных getCurrentPosition (на iPhone каждый такой вызов мог снова показать запрос). */
       let geoWatchId = null,
         lastLocSent = 0,
-        lastLoc = null;
+        lastSent = null,
+        lastLoc = null,
+        meMarker = null,
+        geoDeniedShown = false;
+      function showMe(first) {
+        if (!map || !lastLoc || typeof L === 'undefined') return;
+        if (meMarker) meMarker.setLatLng([lastLoc.lat, lastLoc.lng]);
+        else {
+          meMarker = L.marker([lastLoc.lat, lastLoc.lng], {
+            icon: L.divIcon({ className: '', html: '<div class="mk-me"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }),
+            zIndexOffset: 1000,
+            interactive: false,
+          }).addTo(map);
+          // Первая точка за сессию: карта сдвигается так, чтобы было видно и меня, и адреса.
+          if (first) {
+            try {
+              map.fitBounds(map.getBounds().extend([lastLoc.lat, lastLoc.lng]).pad(0.05));
+            } catch (e) {}
+          }
+        }
+      }
       function startGeoWatch() {
         if (geoWatchId != null || !('geolocation' in navigator)) return;
         try {
@@ -1565,11 +1609,14 @@
             (p) => {
               const lat = p.coords.latitude,
                 lng = p.coords.longitude,
-                now = Date.now();
-              const movedM = lastLoc ? hav([lastLoc.lat, lastLoc.lng], [lat, lng]) * 1000 : 1e9;
+                now = Date.now(),
+                first = !lastLoc;
+              lastLoc = { lat, lng, at: now };
+              showMe(first);
+              const movedM = lastSent ? hav([lastSent.lat, lastSent.lng], [lat, lng]) * 1000 : 1e9;
               if (now - lastLocSent < 45000 && movedM < 150) return;
               lastLocSent = now;
-              lastLoc = { lat, lng };
+              lastSent = { lat, lng };
               try {
                 sb.from('driver_locations')
                   .upsert({ driver_id: ME.id, lat, lng, updated_at: new Date().toISOString() })
@@ -1579,11 +1626,27 @@
                   );
               } catch (e) {}
             },
-            () => {},
-            { enableHighAccuracy: false, maximumAge: 30000, timeout: 20000 },
+            (err) => {
+              // Отказ: слежение больше не запускаем до перезахода, подсказку показываем один раз.
+              if (err && err.code === 1) {
+                stopGeoWatch();
+                if (!geoDeniedShown) {
+                  geoDeniedShown = true;
+                  toast(t('geoDenied'));
+                }
+              }
+            },
+            { enableHighAccuracy: true, maximumAge: 15000, timeout: 30000 },
           );
         } catch (e) {}
       }
+      // Вернулся в приложение из фона — продолжаем следить (iPhone может остановить слежение в фоне).
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && ME && !geoDeniedShown) {
+          stopGeoWatch();
+          startGeoWatch();
+        }
+      });
       function stopGeoWatch() {
         if (geoWatchId != null) {
           try {
@@ -1899,6 +1962,7 @@
             map = null;
           }
           map = L.map('map', { zoomControl: false });
+          meMarker = null;
           L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap', maxZoom: 19 }).addTo(map);
           const pts = [];
           list.forEach((a, i) => {
@@ -1939,8 +2003,10 @@
             }).addTo(map);
             for (const point of r.geometry) pts.push(point);
           }
+          if (lastLoc) pts.push([lastLoc.lat, lastLoc.lng]);
           if (pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.2));
           else map.setView([51.6, -3.4], 9);
+          showMe(false);
         }
         const strip = document.getElementById('signstrip');
         if (route) {
@@ -2123,6 +2189,7 @@
         btn.disabled = true;
         btn.innerHTML = '<span class="spin"></span> ' + t('liveBusy');
         const pos = await new Promise((res) => {
+          if (lastLoc && Date.now() - lastLoc.at < 60000) return res({ lat: lastLoc.lat, lng: lastLoc.lng });
           if (!('geolocation' in navigator)) return res(lastLoc || null);
           navigator.geolocation.getCurrentPosition(
             (p) => res({ lat: p.coords.latitude, lng: p.coords.longitude }),
