@@ -1,15 +1,19 @@
 // SUBNEX: authenticated road data only. This function never sends SMS or confirms a booking.
 // 01.10.2026: matrix accepts an optional `from` point (driver GPS) for "route from me now".
+// 17.11.2026: two road providers. Our own OSRM server (ROUTING_OSRM_URL) is primary; openrouteservice
+// (OPENROUTESERVICE_API_KEY) is the fallback. If the primary fails (5xx, timeout, network) the same
+// request goes to the other one, so an outage of either provider does not stop planning.
 type Json = Record<string, any>;
 type Point = {lat:number;lng:number};
+type Provider = 'osrm'|'openrouteservice';
 const key=(p:Point)=>p.lat.toFixed(5)+','+p.lng.toFixed(5);
 const valid=(p:any):p is Point=>p&&Number.isFinite(p.lat)&&Number.isFinite(p.lng)&&p.lat>=49&&p.lat<=61&&p.lng>=-9&&p.lng<=3;
 const json=(body:unknown,status:number,origin:string)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json','Access-Control-Allow-Origin':origin,'Vary':'Origin','Access-Control-Allow-Headers':'authorization, apikey, content-type, x-client-info','Access-Control-Allow-Methods':'POST, OPTIONS','Cache-Control':'no-store'}});
-// 13.10.2026: один повтор при сбое сети/таймауте/5xx у сервиса дорог — короткие сбои не должны ронять план.
-async function fetchJson(url:string,init:RequestInit={}):Promise<any>{
+// 13.10.2026: one retry on network/timeout/5xx — short glitches must not break the plan.
+async function fetchJson(url:string,init:RequestInit={},timeoutMs=20000):Promise<any>{
  for(let attempt=0;;attempt++){
   try{
-   const response=await fetch(url,{...init,signal:AbortSignal.timeout(20000)});
+   const response=await fetch(url,{...init,signal:AbortSignal.timeout(timeoutMs)});
    if(response.ok)return await response.json();
    const detail=(await response.text().catch(()=>'')).slice(0,300);
    console.error('routing provider',response.status,detail);
@@ -23,6 +27,8 @@ async function fetchJson(url:string,init:RequestInit={}):Promise<any>{
   }
  }
 }
+// A provider is "down" for this request on 5xx, 429, timeout or network failure; anything else is our bug.
+const providerDown=(e:unknown)=>e instanceof Error&&/^ROUTING_HTTP_(5\d\d|429|NETWORK)$/.test(e.message);
 export async function handler(request:Request):Promise<Response>{
  const allowed=Deno.env.get('SUBNEX_WEB_ORIGIN')||'https://subnexgroup.github.io';
  const origin=request.headers.get('Origin')||allowed;
@@ -46,9 +52,32 @@ export async function handler(request:Request):Promise<Response>{
   // Membership/driver access is checked by the authenticated RPC even for health requests.
   const setup=await rpc('subnex_dispatch',{p_action:'settings',p_data:{driver_id:input.driver_id}});
   const ors=Deno.env.get('OPENROUTESERVICE_API_KEY');const osrm=Deno.env.get('ROUTING_OSRM_URL')?.replace(/\/$/,'');
-  if(!ors&&!osrm)throw new Error('ROUTING_PROVIDER_REQUIRED');
   if(osrm){const u=new URL(osrm);if(u.protocol!=='https:'||['router.project-osrm.org','routing.openstreetmap.de'].includes(u.hostname))throw new Error('ROUTING_PROVIDER_REQUIRED');}
-  if(input.action==='health')return json({ok:true,provider:ors?'openrouteservice':'osrm',enabled:setup.enabled},200,allowed);
+  const providers:Provider[]=[...(osrm?['osrm' as Provider]:[]),...(ors?['openrouteservice' as Provider]:[])];
+  if(!providers.length)throw new Error('ROUTING_PROVIDER_REQUIRED');
+  // Try providers in order; move on only when the provider itself is down.
+  async function withProvider<T>(run:(p:Provider)=>Promise<T>):Promise<{value:T;provider:Provider}>{
+   let last:unknown;
+   for(const p of providers){
+    try{return {value:await run(p),provider:p};}
+    catch(e){last=e;if(!providerDown(e))throw e;console.error('subnex-routing provider down, next',p,String(e));}
+   }
+   throw last;
+  }
+  if(input.action==='health'){
+   // Real check of every provider with a tiny 2x2 table (Cardiff ↔ Newport), so the console can show their state.
+   const probe=[[-3.1791,51.4816],[-2.9977,51.5842]];
+   const state:Json={};
+   for(const p of providers){
+    const t0=Date.now();
+    try{
+     if(p==='osrm')await fetchJson(osrm+'/table/v1/driving/'+probe.map(x=>x.join(',')).join(';')+'?annotations=duration',{},8000);
+     else await fetchJson('https://api.heigit.org/openrouteservice/v2/matrix/driving-car',{method:'POST',headers:{Authorization:ors!,'Content-Type':'application/json'},body:JSON.stringify({locations:probe,metrics:['duration']})},8000);
+     state[p]={ok:true,ms:Date.now()-t0};
+    }catch(e){state[p]={ok:false,error:e instanceof Error?e.message:'ERROR'};}
+   }
+   return json({ok:Object.values(state).some((s:any)=>s.ok),providers:state,primary:providers[0],enabled:setup.enabled},200,allowed);
+  }
   const driver=setup.driver_id;
   if(input.action==='matrix'){
    const context=await rpc('subnex_dispatch',{p_action:'road_context',p_data:{driver_id:driver,from_day:input.day,days:1,address_ids:input.address_ids||[]}});
@@ -59,22 +88,29 @@ export async function handler(request:Request):Promise<Response>{
    const points:Point[]=[...new Map<string,Point>(list.map((p:Point)=>[key(p),p])).values()];
    if(points.length>90)throw new Error('ROADS_LIMIT');
    const keys=points.map(key),cache=await rpc('subnex_dispatch_cached_roads',{p_data:{keys}});
-   const locations=points.map(p=>[p.lng,p.lat]),pairs:Json[]=[];
-   let lastProviderCall=0;
+   const locations=points.map(p=>[p.lng,p.lat]);
+   const byProvider=new Map<Provider,Json[]>();
+   let lastOrsCall=0;
    for(let si=0;si<points.length;si+=40)for(let di=0;di<points.length;di+=40){
     const sources=Array.from({length:Math.min(40,points.length-si)},(_,i)=>si+i),destinations=Array.from({length:Math.min(40,points.length-di)},(_,i)=>di+i);
     if(sources.every(s=>destinations.every(d=>s===d||Object.hasOwn(cache,keys[s]+'>'+keys[d]))))continue;
-    if(ors&&lastProviderCall)await new Promise(resolve=>setTimeout(resolve,Math.max(0,2000-(Date.now()-lastProviderCall))));lastProviderCall=Date.now();
-    let response:Json;
-    if(ors)response=await fetchJson('https://api.heigit.org/openrouteservice/v2/matrix/driving-car',{method:'POST',headers:{Authorization:ors,'Content-Type':'application/json'},body:JSON.stringify({locations,sources:sources.map(String),destinations:destinations.map(String),metrics:['duration']})});
-    else response=await fetchJson(osrm+'/table/v1/driving/'+locations.map(p=>p.join(',')).join(';')+'?annotations=duration&sources='+sources.join(';')+'&destinations='+destinations.join(';'));
-    const durations=response.durations;
-    if(!Array.isArray(durations)||durations.length!==sources.length||durations.some((r:any)=>!Array.isArray(r)||r.length!==destinations.length))throw new Error('ROADS_INVALID');
+    const {value:durations,provider}=await withProvider(async(p)=>{
+     let response:Json;
+     if(p==='openrouteservice'){
+      if(lastOrsCall)await new Promise(resolve=>setTimeout(resolve,Math.max(0,2000-(Date.now()-lastOrsCall))));lastOrsCall=Date.now();
+      response=await fetchJson('https://api.heigit.org/openrouteservice/v2/matrix/driving-car',{method:'POST',headers:{Authorization:ors!,'Content-Type':'application/json'},body:JSON.stringify({locations,sources:sources.map(String),destinations:destinations.map(String),metrics:['duration']})});
+     }else response=await fetchJson(osrm+'/table/v1/driving/'+locations.map(p=>p.join(',')).join(';')+'?annotations=duration&sources='+sources.join(';')+'&destinations='+destinations.join(';'));
+     const d=response.durations;
+     if(!Array.isArray(d)||d.length!==sources.length||d.some((r:any)=>!Array.isArray(r)||r.length!==destinations.length))throw new Error('ROADS_INVALID');
+     return d as (number|null)[][];
+    });
+    const pairs=byProvider.get(provider)||[];
     sources.forEach((s,i)=>destinations.forEach((d,j)=>{const seconds=durations[i][j];if(seconds!==null&&(!Number.isFinite(seconds)||seconds<0||seconds>=604800))throw new Error('ROADS_INVALID');pairs.push({a:keys[s],b:keys[d],seconds});}));
+    byProvider.set(provider,pairs);
    }
-   if(pairs.length)await rpc('subnex_dispatch_store_roads',{p_user:user.id,p_driver:driver,p_data:{pairs,provider:ors?'openrouteservice':'osrm'}},true);
+   for(const [provider,pairs] of byProvider)if(pairs.length)await rpc('subnex_dispatch_store_roads',{p_user:user.id,p_driver:driver,p_data:{pairs,provider}},true);
    const roads=await rpc('subnex_dispatch_cached_roads',{p_data:{keys}});
-   return json({roads,provider:ors?'openrouteservice':'osrm'},200,allowed);
+   return json({roads,provider:[...byProvider.keys()][0]||providers[0]},200,allowed);
   }
   const day=await rpc('subnex_dispatch',{p_action:'day',p_data:{driver_id:driver,day:input.day}});
   const nodes:Json[]=day.started_at?day.fit.nodes:day.nodes;
@@ -82,14 +118,17 @@ export async function handler(request:Request):Promise<Response>{
   const order:string[]=day.fit?.ok?day.fit.order:day.order;
   const cfg=day.started_at?day.fit.config:day.config;
   const points=[cfg.home,...order.map(k=>byId.get(k)),cfg.depot];if(!points.every(valid))throw new Error('COORDINATES_REQUIRED');
-  let geometry:number[][]=[],distance=0,duration=0;
-  for(let start=0;start<points.length-1;start+=39){const locations=points.slice(start,start+40).map((p:Point)=>[p.lng,p.lat]);let coordinates:number[][];let summary:Json;
-   if(ors){const r=await fetchJson('https://api.heigit.org/openrouteservice/v2/directions/driving-car/geojson',{method:'POST',headers:{Authorization:ors,'Content-Type':'application/json'},body:JSON.stringify({coordinates:locations,instructions:false})});coordinates=r.features?.[0]?.geometry?.coordinates;summary=r.features?.[0]?.properties?.summary;}
-   else {const r=await fetchJson(osrm+'/route/v1/driving/'+locations.map((p:number[])=>p.join(',')).join(';')+'?overview=full&geometries=geojson&continue_straight=false');coordinates=r.routes?.[0]?.geometry?.coordinates;summary=r.routes?.[0];}
-   if(!Array.isArray(coordinates)||coordinates.length<2||coordinates.some(p=>!Array.isArray(p)||!Number.isFinite(p[0])||!Number.isFinite(p[1]))||!Number.isFinite(summary?.distance)||!Number.isFinite(summary?.duration))throw new Error('ROADS_INVALID');
-   geometry=geometry.concat((start?coordinates.slice(1):coordinates).map(p=>[p[1],p[0]]));distance+=summary.distance;duration+=summary.duration;
-  }
-  return json({geometry,km:distance/1000,min:duration/60,order:order.filter(k=>k.startsWith('a:')).map(k=>k.slice(2)),token:day.token,provider:ors?'openrouteservice':'osrm'},200,allowed);
+  const {value:route,provider}=await withProvider(async(p)=>{
+   let geometry:number[][]=[],distance=0,duration=0;
+   for(let start=0;start<points.length-1;start+=39){const locations=points.slice(start,start+40).map((q:Point)=>[q.lng,q.lat]);let coordinates:number[][];let summary:Json;
+    if(p==='openrouteservice'){const r=await fetchJson('https://api.heigit.org/openrouteservice/v2/directions/driving-car/geojson',{method:'POST',headers:{Authorization:ors!,'Content-Type':'application/json'},body:JSON.stringify({coordinates:locations,instructions:false})});coordinates=r.features?.[0]?.geometry?.coordinates;summary=r.features?.[0]?.properties?.summary;}
+    else {const r=await fetchJson(osrm+'/route/v1/driving/'+locations.map((q:number[])=>q.join(',')).join(';')+'?overview=full&geometries=geojson&continue_straight=false');coordinates=r.routes?.[0]?.geometry?.coordinates;summary=r.routes?.[0];}
+    if(!Array.isArray(coordinates)||coordinates.length<2||coordinates.some(q=>!Array.isArray(q)||!Number.isFinite(q[0])||!Number.isFinite(q[1]))||!Number.isFinite(summary?.distance)||!Number.isFinite(summary?.duration))throw new Error('ROADS_INVALID');
+    geometry=geometry.concat((start?coordinates.slice(1):coordinates).map(q=>[q[1],q[0]]));distance+=summary.distance;duration+=summary.duration;
+   }
+   return {geometry,distance,duration};
+  });
+  return json({geometry:route.geometry,km:route.distance/1000,min:route.duration/60,order:order.filter(k=>k.startsWith('a:')).map(k=>k.slice(2)),token:day.token,provider},200,allowed);
  }catch(e){const message=e instanceof Error?e.message:'ROUTING_ERROR';console.error('subnex-routing',message);return json({error:message},400,allowed);}
 }
 if(import.meta.main)Deno.serve(handler);
