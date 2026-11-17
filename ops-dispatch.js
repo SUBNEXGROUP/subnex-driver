@@ -232,6 +232,9 @@
     await ready(o.sb, o.driver.id);
     return edge(o.sb, { action: 'matrix', driver_id: o.driver.id, day, address_ids: addressIds });
   }
+  /* Сервис дорог лежит (500/502/таймаут/сеть) — не повод останавливать работу, если всё нужное
+     уже посчитано и лежит в базе. Остальные ошибки (настройки, доступ) пробрасываем. */
+  const routingDown = (e) => /^ROUTING_HTTP_|Failed to fetch|NetworkError|timed out|fetch/i.test(codeOf(e));
   async function preflight(o, plan, payload) {
     online(o);
     const driver = plan?.driver_id || o.driver?.id || o.address?.driver_id;
@@ -246,7 +249,7 @@
       /* Сервис дорог лежит (500/502/таймаут). Клиент уже согласился — ставим его в день без
          проверки дорог: сервер это допускает (ROADS_UNVERIFIED), порядок пересчитается, когда
          сервис вернётся. Предложения новым клиентам по-прежнему ждут дорог. */
-      if (!(payload.overbook && /^ROUTING_HTTP_|Failed to fetch|NetworkError|timed out|fetch/i.test(codeOf(e)))) throw e;
+      if (!(payload.overbook && routingDown(e))) throw e;
     }
     await rpc(o.sb, 'check', {
       driver_id: driver,
@@ -340,7 +343,13 @@
      сервера (eta_sent — скольким ушла SMS). */
   async function startDay(o, day, opts = {}) {
     online(o);
-    const roads = (await warm(o, day))?.roads;
+    let roads;
+    try {
+      roads = (await warm(o, day))?.roads;
+    } catch (e) {
+      // Старт без пересчёта порядка: сервер проверит день по сохранённым дорогам.
+      if (!routingDown(e)) throw e;
+    }
     const state = await rpc(o.sb, 'day', { driver_id: o.driver.id, day });
     if (state.started_at) return state;
     let overbook = false;
