@@ -3,7 +3,12 @@ const ANON_KEY = 'ВСТАВЬТЕ: anon-ключ из config.js';
 const INTAKE_SECRET = 'ВСТАВЬТЕ: секрет приёма (Пульт → Настройки → Приём заявок)';
 
 /**
- * SUBNEX — приём заявок из почты партнёров. Версия 3 (19.09.2026).
+ * SUBNEX — приём заявок из почты партнёров. Версия 4 (18.11.2026).
+ *
+ * Версия 4: We Recycle Clothes присылает сводку «New collections for … — N bookings»
+ *   с таблицами. Раньше она разбиралась как подписанные строки — из письма на
+ *   4 заявки попадала одна, и та без улицы/имени/charity. Теперь — разборСводки().
+ *
  *
  * Что изменилось по сравнению с версией 2:
  *   • УЧЁТ ПО ПИСЬМАМ, А НЕ ПО ПЕРЕПИСКАМ. Раньше ярлык «принято» ставился
@@ -25,10 +30,14 @@ const INTAKE_SECRET = 'ВСТАВЬТЕ: секрет приёма (Пульт �
 
 /** Партнёры, письма которых разбираем.
  *  format: 'table'  — заявки в таблице, строка = заявка (K&B);
- *  format: 'fields' — подписанные строки, письмо = одна или несколько заявок. */
+ *  format: 'fields' — подписанные строки, письмо = одна или несколько заявок;
+ *  format: 'batch'  — сводка «New collections for … — N bookings» (We Recycle Clothes
+ *                     с 18.11.2026): таблицы с заголовком Name/Charity/Address/Contact/
+ *                     Preferred date/Further info по группам «Small pickup (1–3 bags)».
+ *                     Если таблицы нет — разбираем старые подписанные строки. */
 const SOURCES = [
   { from: 'k.bcollections@yahoo.com',      name: 'K&B Collections',     format: 'table'  },
-  { from: 'info@werecycleclothes.org.uk',  name: 'We Recycle Clothes',  format: 'fields' }
+  { from: 'info@werecycleclothes.org.uk',  name: 'We Recycle Clothes',  format: 'batch'  }
 ];
 
 /** Ярлык-пометка: в переписке есть хотя бы одно разобранное письмо. */
@@ -64,6 +73,25 @@ function обработанные() {
     props[k].split(',').forEach(function (id) { if (id) out[id] = true; });
   });
   return out;
+}
+
+/** Забыть письма, чтобы следующий приниматьЗаявки разобрал их заново.
+ *  Строки, которые уже попали в приложение, сервер не повторит (он помнит номер строки). */
+function забыть(ids) {
+  const p = свойства();
+  const props = p.getProperties();
+  Object.keys(props).forEach(function (k) {
+    if (k.indexOf(DONE_PREFIX) !== 0) return;
+    const left = props[k].split(',').filter(function (id) { return id && ids.indexOf(id) === -1; });
+    p.setProperty(k, left.join(','));
+  });
+}
+
+/** Разовая: две сводки We Recycle Clothes от 18.11.2026 (11:45 и 15:06), из которых
+ *  старая версия взяла только первую заявку. Запустить один раз, потом приниматьЗаявки. */
+function перечитатьСводки18Ноября() {
+  забыть(['1a1ee7a55adbfef5', '1a1ef3194c648f44']);
+  Logger.log('Готово. Теперь запустите приниматьЗаявки — первые строки сервер пропустит как уже принятые.');
 }
 
 /** Запомнить письмо как обработанное — в свойстве текущего месяца. */
@@ -172,6 +200,13 @@ function источникПисьма(message) {
 /** Разбор одного письма по формату его партнёра. */
 function разобратьПисьмо(message, source) {
   const id = message.getId();
+  if (source.format === 'batch') {
+    const rows = разборСводки(id, message.getBody());
+    if (rows.length) return rows;
+    const old = разборПодписей(id, message.getPlainBody());
+    if (old.length) return old;
+    return разборПодписей(id, текст(message.getBody()));
+  }
   if (source.format === 'fields') {
     const rows = разборПодписей(id, message.getPlainBody());
     if (rows.length) return rows;
@@ -298,6 +333,70 @@ function разборТаблицы(id, html) {
     });
   });
   return out;
+}
+
+// ─────────── разбор: сводка с заголовками (We Recycle Clothes) ───────────
+
+/* Идём по письму сверху вниз: строки таблиц и заголовки групп
+   («Small pickup (1–3 bags) — 2 bookings») в порядке появления.
+   Колонки находим по строке-заголовку, а не по номеру — если партнёр
+   переставит колонки, разбор не сломается. */
+function разборСводки(id, html) {
+  if (!html) return [];
+  const out = [];
+  let cols = null, группа = '';
+  const re = /<tr[^>]*>([\s\S]*?)<\/tr>|(small|medium|large|extra\s+large)\s+pickup\s*\(([^)]*)\)/gi;
+  let m, n = 0;
+  while ((m = re.exec(html)) !== null) {
+    if (!m[1]) { группа = текст(m[3]).replace(/\s*[-–—]\s*/g, ' to ').replace(/\s*bags?\s*/i, '').trim(); continue; }
+    const cells = [];
+    const tdRe = /<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi;
+    let td;
+    while ((td = tdRe.exec(m[1])) !== null) cells.push(текст(td[1]).replace(/\s*\n+\s*/g, ' ').trim());
+    if (cells.length < 3) continue;
+    const head = cells.map(function (c) { return c.toLowerCase(); });
+    if (head.indexOf('address') !== -1 && head.indexOf('name') !== -1) {
+      cols = {};
+      head.forEach(function (h, i) {
+        if (h === 'name') cols.name = i;
+        else if (h === 'charity') cols.charity = i;
+        else if (h === 'address') cols.address = i;
+        else if (h === 'contact') cols.contact = i;
+        else if (/preferred/.test(h)) cols.date = i;
+        else if (/further|info|notes?/.test(h)) cols.info = i;
+      });
+      continue;
+    }
+    if (!cols) continue;
+    const g = function (k) { return cols[k] === undefined ? '' : (cells[cols[k]] || ''); };
+    const адрес = чистыйАдрес(g('address'));
+    if (!адрес) continue;
+    const info = g('info');
+    const подробно = info.replace(/\\(['"])/g, '$1')
+      .replace(/^\s*no\.?\s*of\s*bags\s*=\s*\d+(?:\s*(?:to|[-–])\s*\d+)?\s*/i, '').trim();
+    const дата = g('date');
+    n++;
+    out.push({
+      ref: id + '#' + n,
+      text: адрес,
+      phone: телефон(g('contact')),
+      contact_email: почта(g('contact')),
+      contact_name: g('name'),
+      charity: g('charity').replace(/^\s*collection\s+for\s*:?\s*/i, '').replace(/\s+/g, ' ').trim(),
+      bags_text: найтиМешки(info) || группа,
+      note: [подробно, дата ? 'Preferred date: ' + дата : ''].filter(Boolean).join(' · '),
+      preferred_date: датаISO(дата)
+    });
+  }
+  return out;
+}
+
+/** «18/11/2026» → «2026-11-18». Сервер предложит этот день первым, если он подходит по зоне. */
+function датаISO(s) {
+  const m = String(s || '').match(/(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})/);
+  if (!m) return '';
+  const pad = function (x) { return ('0' + x).slice(-2); };
+  return m[3] + '-' + pad(m[2]) + '-' + pad(m[1]);
 }
 
 // ─────────── разбор: подписанные строки ───────────
