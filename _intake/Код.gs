@@ -201,6 +201,9 @@ function источникПисьма(message) {
 function разобратьПисьмо(message, source) {
   const id = message.getId();
   if (source.format === 'batch') {
+    // Сообщение клиента по брони с портала WRC («Customer message for booking #447 — …»)
+    // — это НЕ новая заявка. Пока ничего не заводим: письмо получит ярлык «проверить».
+    if (/customer\s+message\s+for\s+booking/i.test(message.getSubject() || '')) return [];
     const rows = разборСводки(id, message.getBody());
     if (rows.length) return rows;
     const old = разборПодписей(id, message.getPlainBody());
