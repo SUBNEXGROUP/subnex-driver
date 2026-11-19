@@ -160,6 +160,13 @@ function приниматьЗаявки() {
         запомнить(id);
         return;
       }
+      if (rows[0] && rows[0].message) {
+        const итог = отправитьСообщение(rows[0].message);
+        запомнить(id);
+        разобрал = true;
+        Logger.log(source.name + ', сообщение клиента #' + rows[0].message.booking + ': ' + (итог.outcome || JSON.stringify(итог)));
+        return;
+      }
       const ответ = отправить(rows);
       // Запоминаем ТОЛЬКО после успешного ответа приложения: если сеть упала,
       // письмо останется необработанным и уйдёт в следующий раз.
@@ -202,8 +209,10 @@ function разобратьПисьмо(message, source) {
   const id = message.getId();
   if (source.format === 'batch') {
     // Сообщение клиента по брони с портала WRC («Customer message for booking #447 — …»)
-    // — это НЕ новая заявка. Пока ничего не заводим: письмо получит ярлык «проверить».
-    if (/customer\s+message\s+for\s+booking/i.test(message.getSubject() || '')) return [];
+    // — это НЕ новая заявка, а сообщение. Его разбирает сервер: subnex_wrc_message.
+    if (/customer\s+message\s+for\s+booking/i.test(message.getSubject() || '')) {
+      return [{ message: сообщениеКлиента(id, message.getSubject(), message.getBody()) }];
+    }
     const rows = разборСводки(id, message.getBody());
     if (rows.length) return rows;
     const old = разборПодписей(id, message.getPlainBody());
@@ -342,6 +351,38 @@ function разборТаблицы(id, html) {
   return out;
 }
 
+// ─────────── разбор: сообщение клиента с портала WRC ───────────
+
+/** Письмо «Customer message for booking #N — Name»: текст клиента + таблица
+ *  «подпись | значение» (Booking Reference, Name, Phone, Email, Address, Postcode, …). */
+function сообщениеКлиента(id, subject, html) {
+  const поля = {};
+  const trRe = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+  let tr;
+  while ((tr = trRe.exec(html || '')) !== null) {
+    const cells = [];
+    const tdRe = /<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi;
+    let td;
+    while ((td = tdRe.exec(tr[1])) !== null) cells.push(текст(td[1]).replace(/\s+/g, ' ').trim());
+    if (cells.length === 2 && cells[0]) поля[cells[0].toLowerCase()] = cells[1];
+  }
+  const весь = текст(html);
+  const m = весь.match(/manage-?booking page:?\s*([\s\S]*?)\s*Booking details/i);
+  const num = (String(subject).match(/booking\s*#\s*(\d+)/i) || [])[1] || поля['booking reference'] || '';
+  return {
+    ref: id + '#msg',
+    booking: num,
+    text: (m ? m[1] : '').replace(/\s+/g, ' ').trim(),
+    name: поля['name'] || '',
+    phone: поля['phone'] || '',
+    email: почта(поля['email'] || ''),
+    address: (поля['address'] || '').replace(/\s*,(\s*,)+/g, ','),
+    postcode: поля['postcode'] || '',
+    charity: поля['charity'] || '',
+    bags: поля['number of bags'] || ''
+  };
+}
+
 // ─────────── разбор: сводка с заголовками (We Recycle Clothes) ───────────
 
 /* Идём по письму сверху вниз: строки таблиц и заголовки групп
@@ -458,6 +499,22 @@ function разборПодписей(id, body) {
 }
 
 // ─────────── отправка ───────────
+
+/** Сообщение клиента WRC → сервер решает: дописать в заявку, закрыть (отказ) или завести новую. */
+function отправитьСообщение(msg) {
+  const url = SUPABASE_URL.replace(/\/+$/, '') + '/rest/v1/rpc/subnex_wrc_message';
+  const response = UrlFetchApp.fetch(url, {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { apikey: ANON_KEY, Authorization: 'Bearer ' + ANON_KEY },
+    payload: JSON.stringify({ p_secret: INTAKE_SECRET, p_data: { message: msg } }),
+    muteHttpExceptions: true
+  });
+  if (response.getResponseCode() >= 300) {
+    throw new Error('Сервер ответил ' + response.getResponseCode() + ': ' + response.getContentText());
+  }
+  return JSON.parse(response.getContentText());
+}
 
 function отправить(rows) {
   const url = SUPABASE_URL.replace(/\/+$/, '') + '/rest/v1/rpc/subnex_intake';
