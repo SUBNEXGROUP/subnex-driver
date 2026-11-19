@@ -235,6 +235,9 @@ function текст(html) {
     .replace(/<\/(p|div|tr|li)>/gi, '\n')
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&')
+    .replace(/&#0*39;|&apos;/gi, "'").replace(/&quot;/gi, '"')
+    .replace(/&mdash;/gi, '—').replace(/&ndash;/gi, '–')
+    .replace(/<\/?[a-z]*$/i, '')
     .replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
     .replace(/[ \t]+/g, ' ')
     .replace(/\n\s*\n\s*\n+/g, '\n\n')
@@ -247,6 +250,7 @@ function чистыйАдрес(s) {
     .replace(/^\s*collection\s+(from|address)\s*:?\s*/i, '')
     .replace(/^\s*address\s*:?\s*/i, '')
     .replace(/\s+/g, ' ')
+    .replace(/\s*,(\s*,)+/g, ',').replace(/\s+,/g, ',')
     .replace(/^[,\s]+|[,\s]+$/g, '')
     .trim();
   return индекс(v) ? v : '';
@@ -345,7 +349,7 @@ function разборСводки(id, html) {
   if (!html) return [];
   const out = [];
   let cols = null, группа = '';
-  const re = /<tr[^>]*>([\s\S]*?)<\/tr>|(small|medium|large|extra\s+large)\s+pickup\s*\(([^)]*)\)/gi;
+  const re = /<tr[^>]*>([\s\S]*?)<\/tr>|(small|medium|extra[-\s]*large|large)\s+pickup\s*\(([^)]*)\)/gi;
   let m, n = 0;
   while ((m = re.exec(html)) !== null) {
     if (!m[1]) { группа = текст(m[3]).replace(/\s*[-–—]\s*/g, ' to ').replace(/\s*bags?\s*/i, '').trim(); continue; }
