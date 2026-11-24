@@ -67,11 +67,19 @@ echo "rebuilt \$(date -u +%FT%TZ)"
 EOF
 chmod +x "$ROOT/build.sh"
 
+# The email check (_ops/email-check) shares this Caddy; keep its route if it is installed.
+EMAIL_ROUTE=""
+if [ -s /opt/subnex-emailcheck/token ]; then
+  EMAIL_ROUTE="	handle_path /$(cat /opt/subnex-emailcheck/token)/* {
+		reverse_proxy emailcheck:8080
+	}"
+fi
 cat > "$ROOT/Caddyfile" <<EOF
 $HOST {
 	handle_path /$TOKEN/* {
 		reverse_proxy osrm:5000
 	}
+$EMAIL_ROUTE
 	respond 404
 }
 EOF
