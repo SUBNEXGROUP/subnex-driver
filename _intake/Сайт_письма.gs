@@ -8,7 +8,9 @@
  *   • забирает из приложения готовые письма клиентам с сайта и отправляет их из этого ящика;
  *     ответ оператора из чата уходит в ту же цепочку писем клиента;
  *   • раз в 3 минуты передаёт в чат приложения новые письма клиентов, которые ответили на
- *     collections@ (только тех, кто оставлял заявку на сайте; остальные письма не трогает).
+ *     collections@ (только тех, кто оставлял заявку на сайте; остальные письма не трогает);
+ *   • тогда же передаёт в приложение возвраты («Адрес не найден» от mailer-daemon): клиент с мобильным
+ *     переходит на SMS, заявка без мобильного закрывается. Уведомления о задержке не трогает.
  * Партнёрские письма сюда не приходят — они уходят с subnex.operations@gmail.com, как раньше.
  *
  * Один раз:
@@ -142,6 +144,7 @@ function сайтВходящиеПоРасписанию() {
   if (Date.now() - last < САЙТ_ВХОДЯЩИЕ_РАЗ_В_МИНУТ * 60000 - 5000) return;
   props.setProperty('сайтВходящиеВремя', String(Date.now()));
   try { сайтВходящие(); } catch (e) { Logger.log('Ответы клиентов не переданы: ' + (e && e.message ? e.message : e)); }
+  try { сайтВозвраты(); } catch (e) { Logger.log('Возвраты не переданы: ' + (e && e.message ? e.message : e)); }
 }
 
 /** Передаёт в чат новые письма клиентов на collections@ за последние 2 дня. Повтор безопасен. */
@@ -173,6 +176,62 @@ function сайтВходящие() {
   return passed;
 }
 
+/* ───────────── Возвраты (письмо не доставлено) → приложение ───────────── */
+
+/** Адреса, на которые письмо не дошло: заголовок X-Failed-Recipients, иначе адреса из текста уведомления. */
+function сайтАдресаВозврата(msg) {
+  const out = [];
+  function add(s) {
+    String(s || '').split(/[,;\s]+/).forEach(function (x) {
+      const a = x.replace(/^[<("']+|[>)"'.:]+$/g, '').trim().toLowerCase();
+      if (!/^[^@\s<>]+@[^@\s<>]+\.[a-z]{2,}$/i.test(a)) return;
+      if (САЙТ_НАШИ.indexOf(a) >= 0 || /mailer-daemon|postmaster/i.test(a) || out.indexOf(a) >= 0) return;
+      out.push(a);
+    });
+  }
+  let header = '';
+  try { header = msg.getHeader('X-Failed-Recipients'); } catch (e) { header = ''; }
+  add(header);
+  if (!out.length) add((String(msg.getPlainBody() || '').slice(0, 4000).match(/[A-Za-z0-9._%+'-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g) || []).join(' '));
+  return out.slice(0, 5);
+}
+
+/** Окончательные возвраты за 2 дня — в приложение. Повтор безопасен: сервер второй раз ничего не шлёт. */
+function сайтВозвраты() {
+  const props = PropertiesService.getScriptProperties();
+  let seen = [];
+  try { seen = JSON.parse(props.getProperty('сайтВозвратыID') || '[]'); } catch (e) { seen = []; }
+  const since = Date.now() - 2 * 86400000;
+  const threads = GmailApp.search('from:(mailer-daemon OR postmaster) newer_than:2d', 0, 30);
+  let passed = 0;
+  threads.forEach(function (thread) {
+    thread.getMessages().forEach(function (msg) {
+      const id = msg.getId();
+      if (seen.indexOf(id) >= 0 || msg.getDate().getTime() < since) return;
+      if (!/mailer-daemon|postmaster/i.test(сайтАдрес(msg.getFrom()))) return;
+      const text = String(msg.getPlainBody() || '');
+      // Задержка — не возврат: Gmail ещё пробует доставить.
+      if (/delay|задержк/i.test(msg.getSubject()) || /will (?:retry|try again|keep trying)|temporar|повторит/i.test(text.slice(0, 2000))) {
+        seen.push(id);
+        return;
+      }
+      const emails = сайтАдресаВозврата(msg);
+      if (!emails.length) { seen.push(id); return; }
+      const code = text.match(/^\s*([45]\d\d[ -].{0,200})$/m);
+      try {
+        const r = сайтRPC('subnex_email_bounce', { p_secret: САЙТ_СЕКРЕТ, p_data: { emails: emails, detail: code ? code[1].trim() : '' } });
+        if (r && r.done && r.done.some(function (x) { return x.action; })) passed++;
+        seen.push(id);
+      } catch (e) {
+        Logger.log('Возврат не передан, повторю: ' + (e && e.message ? e.message : e));
+      }
+    });
+  });
+  props.setProperty('сайтВозвратыID', JSON.stringify(seen.slice(-300)));
+  if (passed) Logger.log('Возвратов обработано: ' + passed);
+  return passed;
+}
+
 /* ───────────── Проверка, включение, откат ───────────── */
 
 /** Проверка — ничего не отправляет. */
@@ -185,6 +244,8 @@ function сайтПроверить() {
              (me === САЙТ_ОТ_КОГО || alias ? САЙТ_ОТ_КОГО : me + ' (collections@ не подключён — ответы всё равно придут на collections@)') + '.');
   const found = GmailApp.search('to:' + САЙТ_ОТ_КОГО + ' newer_than:2d', 0, 30).length;
   Logger.log('Писем на ' + САЙТ_ОТ_КОГО + ' за 2 дня: ' + found + '. Ответы клиентов с сайта попадут в чат приложения.');
+  const bounces = GmailApp.search('from:(mailer-daemon OR postmaster) newer_than:2d', 0, 30).length;
+  Logger.log('Возвратов за 2 дня: ' + bounces + '. Они уходят в приложение раз в ' + САЙТ_ВХОДЯЩИЕ_РАЗ_В_МИНУТ + ' минуты.');
   const triggers = ScriptApp.getProjectTriggers().map(function (t) { return t.getHandlerFunction(); });
   Logger.log('Автозапуск отправки: ' + (triggers.indexOf('сайтОтправлять') >= 0 ? 'включён' : 'НЕТ — запустите сайтВключить()'));
   const old = triggers.filter(function (h) { return САЙТ_СТАРЫЕ_ЗАПУСКИ.indexOf(h) >= 0; });

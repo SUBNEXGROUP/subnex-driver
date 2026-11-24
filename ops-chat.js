@@ -93,7 +93,13 @@
     other: T('Другая причина'),
   };
   /* Причина автоматического закрытия (планировщик): в списке выбора её нет, в отчётах — есть. */
-  const reasonLabel = (code) => cancellationReasons[code] || (code === 'no_reply' ? T('Не ответил на предложение') : code || '');
+  const reasonLabel = (code) =>
+    cancellationReasons[code] ||
+    (code === 'no_reply'
+      ? T('Не ответил на предложение')
+      : code === 'email_invalid'
+        ? T('Email не существует, мобильного нет')
+        : code || '');
   const errText = (e) =>
     codes[e?.code] ||
     codes[e?.message] ||

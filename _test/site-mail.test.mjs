@@ -25,8 +25,20 @@ const messages = [
   msg('m4', 'Mail Delivery Subsystem <mailer-daemon@googlemail.com>', 'collections@subnex.co.uk', 'Bounce'),
   msg('m5', 'Old <old@example.com>', 'collections@subnex.co.uk', 'Too old', 72),
 ];
+const bounce = (id, subject, body, header, ageH = 1) => ({
+  getId: () => id, getFrom: () => 'Mail Delivery Subsystem <mailer-daemon@googlemail.com>', getTo: () => 'info@subnex.co.uk',
+  getCc: () => '', getSubject: () => subject, getDate: () => new Date(now - ageH * 3600e3), getPlainBody: () => body,
+  getHeader: (h) => (h === 'X-Failed-Recipients' ? header : ''),
+});
+const bounces = [
+  msg('b0', 'SUBNEX <collections@subnex.co.uk>', 'cheryl.x_y@sky.com', 'Your collection date'),
+  bounce('b1', 'Delivery Status Notification (Failure)',
+    'Адрес не найден\n\nСообщение не доставлено, так как адрес cheryl.x_y@sky.com не найден.\n\nОтвет удаленного сервера:\n552 1 Requested mail action aborted, mailbox not found\n', 'Cheryl.X_Y@sky.com'),
+  bounce('b2', 'Delivery Status Notification (Delay)', 'Message temporarily deferred. Gmail will retry for 46 more hours.', 'late@example.com'),
+  bounce('b3', 'Undeliverable', 'Your message to sam@googlemail.com could not be delivered.\n550 5.1.1 user unknown', ''),
+];
 const GmailApp = {
-  search: () => [{ getMessages: () => messages }],
+  search: (q) => [{ getMessages: () => (/mailer-daemon/.test(q) ? bounces : messages) }],
   getAliases: () => ['collections@subnex.co.uk'],
   getMessageById: (id) => messages.find((m) => m.getId() === id) || null,
   sendEmail: (to, subject, text, opts) => sent.push({ how: 'new', to, subject, from: opts.from }),
@@ -38,6 +50,7 @@ const UrlFetchApp = {
     calls.push({ name, body });
     let r = {};
     if (name === 'subnex_email_inbound') r = { ok: true, matched: body.p_data.from === 'ann@example.com' };
+    if (name === 'subnex_email_bounce') r = { ok: true, done: [{ action: 'sms_offer' }] };
     if (name === 'subnex_email_worker' && body.p_action === 'claim')
       r = { jobs: [
         { id: 'j1', to: 'ann@example.com', subject: 'Re: Collection confirmed', text: 'See you Saturday', html: '<p>x</p>', reply_ref: 'm2' },
@@ -49,7 +62,7 @@ const UrlFetchApp = {
 };
 const ScriptApp = { getProjectTriggers: () => [] };
 const fn = new Function('PropertiesService', 'Logger', 'LockService', 'Session', 'GmailApp', 'UrlFetchApp', 'ScriptApp',
-  src + '\nreturn { сайтАдрес, сайтИмя, сайтЧистыйТекст, сайтВходящие, сайтОтправлять };');
+  src + '\nreturn { сайтАдрес, сайтИмя, сайтЧистыйТекст, сайтВходящие, сайтОтправлять, сайтВозвраты, сайтАдресаВозврата };');
 const G = fn(PropertiesService, Logger, LockService, Session, GmailApp, UrlFetchApp, ScriptApp);
 let pass = 0, fail = 0;
 const eq = (n, got, want) => { const ok = JSON.stringify(got) === JSON.stringify(want); ok ? pass++ : fail++; console.log((ok ? 'ok   ' : 'FAIL ') + n + (ok ? '' : ' got ' + JSON.stringify(got))); };
@@ -72,6 +85,17 @@ eq('имя отправителя', inbound[0].from_name, 'Ann Smith');
 calls.length = 0;
 G.сайтВходящие();
 eq('повторный проход ничего не шлёт', calls.filter((c) => c.name === 'subnex_email_inbound').length, 0);
+
+calls.length = 0;
+eq('возвратов передано', G.сайтВозвраты(), 2);
+const bnc = calls.filter((c) => c.name === 'subnex_email_bounce').map((c) => c.body.p_data);
+eq('адрес из X-Failed-Recipients, в нижнем регистре', bnc[0].emails, ['cheryl.x_y@sky.com']);
+eq('ответ сервера сохранён', bnc[0].detail, '552 1 Requested mail action aborted, mailbox not found');
+eq('без заголовка — адрес из текста (googlemail.com тоже клиент)', bnc[1].emails, ['sam@googlemail.com']);
+eq('задержка и наше исходное письмо не передаются', bnc.length, 2);
+calls.length = 0;
+G.сайтВозвраты();
+eq('повторный проход возвратов ничего не шлёт', calls.filter((c) => c.name === 'subnex_email_bounce').length, 0);
 
 store['сайтВходящиеВремя'] = String(Date.now());
 G.сайтОтправлять();

@@ -1541,6 +1541,7 @@ Object.assign((typeof window === 'undefined' ? globalThis : window).SubnexI18n.E
   'Проблема на адресе': 'Problem at the address',
   Запланировано: 'Scheduled',
   'Не ответил на предложение': 'Did not reply to the offer',
+  'Email не существует, мобильного нет': 'Email does not exist, no mobile',
   'Собираю…': 'Collecting…',
   'Предложено ': 'Offered ',
   ', ответа нет': ', no reply',
